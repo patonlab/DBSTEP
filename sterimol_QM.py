@@ -236,15 +236,11 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 				newcoord.append(coords[i])
 			print('\n')
 			ml_vec = coords[met_id] - coords[lig_id]
-			#print("ML VEC",ml_vec)
 			yz = [ml_vec[1],ml_vec[2]]
-			#print("YZ",yz)
 			if yz != [0.0,0.0]:
 				u_yz = unit_vector(yz)
 				rot_angle = angle_between(u_yz, [0.0, 1.0])
 				theta = rot_angle /180. * math.pi
-				#print("THETA",theta*180/math.pi)
-				#print("ATAN2",math.atan2(u_yz[1],u_yz[0])*180/math.pi)
 				quadrant_check = math.atan2(u_yz[1],u_yz[0])
 				if quadrant_check > math.pi / 2.0 and quadrant_check <= math.pi:
 					theta = math.pi - theta
@@ -252,8 +248,6 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 					theta =  math.pi - theta
 				print('rotating',atom,i,'about x axis',theta*180/math.pi)
 				for i,atom in enumerate(atoms):
-					#print("Rotating", (atom), "about",xtheta*180/math.pi,'deg, then ',ztheta*180/math.pi,'deg')
-					#print("Ztheta=",ztheta*180/math.pi)
 					center = [0.,0.,0.]
 					v = [float(coords[i][0]) - center[0], float(coords[i][1]) - center[1], float(coords[i][2]) - center[2]]
 					
@@ -268,15 +262,11 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 			newcoord = np.asarray(newcoord)
 				
 			ml_vec = newcoord[met_id] - newcoord[lig_id]
-			#print("ML VEC",ml_vec)
 			zx = [ml_vec[2],ml_vec[0]]
-			#print("zx",zx)
 			if zx != [0.0,0.0]:
 				u_zx = unit_vector(zx)
 				rot_angle = angle_between(zx, [1.0, 0.0])
 				phi = rot_angle /180. * math.pi
-				#print("PHI",phi*180/math.pi)
-				#print("ATAN2",math.atan2(u_zx[1],u_zx[0])*180/math.pi)
 				quadrant_check = math.atan2(u_zx[1],u_zx[0])
 				if quadrant_check > math.pi / 2.0 and quadrant_check <= math.pi:
 					phi = 2 * math.pi - phi
@@ -292,8 +282,6 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 					pz = v[2]*math.cos(phi) - v[0]*math.sin(phi)
 					rot2 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
 					newcoord[i]=rot2
-
-				#print(atom,i,rot1)
 			
 			print('\nAfter rotation:')
 			for i in range(len(atoms)):
@@ -303,7 +291,7 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 				print('')
 			
 			print('\n')
-			# sys.exit()
+
 			if len(newcoord) !=0 : 
 				return newcoord
 			else:
