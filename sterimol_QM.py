@@ -162,7 +162,7 @@ def angle_between(v1, v2):
 	""" Returns the angle in radians between vectors 'v1' and 'v2' """
 	v1_u = unit_vector(v1)
 	v2_u = unit_vector(v2)
-	print("UNITVs",v1_u,v2_u)
+	#print("UNITVs",v1_u,v2_u)
 	# ang =  np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0)) # radians
 	cosang = np.dot(v1_u,v2_u)
 	sinang = np.linalg.norm(np.cross(v1_u,v2_u))
@@ -215,24 +215,16 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 		if atom in metals: met_id, met_atom = n, atom
 		if atom == "P": lig_id, lig_atom = n, atom
 		if atom+str(n+1) == spec_atom_1:
-			met_id, met_atom = n, atom
-		if atom+str(n+1) == spec_atom_2:
 			lig_id, lig_atom = n, atom
+		if atom+str(n+1) == spec_atom_2:
+			met_id, met_atom = n, atom
 	try:
-		ml_vec = coords[lig_id] - coords[met_id]
-		print(lig_id,coords[lig_id])
-		print(met_id,coords[met_id])
-		print(coords)
-		#atomA = [0.0, 0.0, -1.0]
-		#atomB = coords[lig_id]
-		rot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])		# degrees to rotate
-		theta = rot_angle /180. * math.pi  									# radians to rotate
-		unitAB = [0.,0.,-1.]
-		if np.linalg.norm(rot_angle) == 0: 
+		ml_vec = coords[met_id] - coords[lig_id]
+		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
+
+		if np.linalg.norm(zrot_angle) == 0: 
 			print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(met_atom,(met_id+1),lig_atom,(lig_id+1)))
-		else:
-			print("   Rotating molecule by {} degrees to align {}{}-{}{} bond along the Z-axis".format(rot_angle, met_atom,(met_id+1),lig_atom,(lig_id+1)))
-			
+		else:			
 			print('Before rotation:')
 			for i in range(len(atoms)):
 				print('\n',atoms[i],end =" ")
@@ -243,15 +235,65 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 			for i in range(0,len(coords)):
 				newcoord.append(coords[i])
 			print('\n')
-			for i,atom in enumerate(atoms):
-				print("Rotating", (atom), "about", theta, 'rad /',theta*180/math.pi,'deg')
-				center = [0,0,0]
-				v = [float(coords[i][0]) - center[0], float(coords[i][1]) - center[1], float(coords[i][2]) - center[2]]
-				px = v[0]*math.cos(theta) + v[1]*math.sin(theta)*unitAB[2] - v[2]*math.sin(theta)*unitAB[1]
-				py = v[1]*math.cos(theta) + v[2]*math.sin(theta)*unitAB[0] - v[0]*math.sin(theta)*unitAB[2]
-				pz = v[2]*math.cos(theta) + v[0]*math.sin(theta)*unitAB[1] - v[1]*math.sin(theta)*unitAB[0]
-				newv = [px + center[0], py + center[1], pz + center[2]]
-				newcoord[i]=newv
+			ml_vec = coords[met_id] - coords[lig_id]
+			#print("ML VEC",ml_vec)
+			yz = [ml_vec[1],ml_vec[2]]
+			#print("YZ",yz)
+			if yz != [0.0,0.0]:
+				u_yz = unit_vector(yz)
+				rot_angle = angle_between(u_yz, [0.0, 1.0])
+				theta = rot_angle /180. * math.pi
+				#print("THETA",theta*180/math.pi)
+				#print("ATAN2",math.atan2(u_yz[1],u_yz[0])*180/math.pi)
+				quadrant_check = math.atan2(u_yz[1],u_yz[0])
+				if quadrant_check > math.pi / 2.0 and quadrant_check <= math.pi:
+					theta = math.pi - theta
+				elif quadrant_check < -math.pi / 2.0 and quadrant_check >= -(math.pi):
+					theta =  math.pi - theta
+				print('rotating',atom,i,'about x axis',theta*180/math.pi)
+				for i,atom in enumerate(atoms):
+					#print("Rotating", (atom), "about",xtheta*180/math.pi,'deg, then ',ztheta*180/math.pi,'deg')
+					#print("Ztheta=",ztheta*180/math.pi)
+					center = [0.,0.,0.]
+					v = [float(coords[i][0]) - center[0], float(coords[i][1]) - center[1], float(coords[i][2]) - center[2]]
+					
+					#rotate around x axis
+					px = v[0]
+					py = v[1]*math.cos(theta) - v[2]*math.sin(theta)
+					pz = v[1]*math.sin(theta) + v[2]*math.cos(theta)
+					
+					rot1 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
+					newcoord[i] = rot1
+					print(atom,i,rot1)
+			newcoord = np.asarray(newcoord)
+				
+			ml_vec = newcoord[met_id] - newcoord[lig_id]
+			#print("ML VEC",ml_vec)
+			zx = [ml_vec[2],ml_vec[0]]
+			#print("zx",zx)
+			if zx != [0.0,0.0]:
+				u_zx = unit_vector(zx)
+				rot_angle = angle_between(zx, [1.0, 0.0])
+				phi = rot_angle /180. * math.pi
+				#print("PHI",phi*180/math.pi)
+				#print("ATAN2",math.atan2(u_zx[1],u_zx[0])*180/math.pi)
+				quadrant_check = math.atan2(u_zx[1],u_zx[0])
+				if quadrant_check > math.pi / 2.0 and quadrant_check <= math.pi:
+					phi = 2 * math.pi - phi
+				elif quadrant_check < -math.pi / 2.0 and quadrant_check >= -(math.pi):
+					phi = 2 * math.pi - phi
+				print('Rotating about y axis',phi*180/math.pi)
+				for i,atom in enumerate(atoms):
+					center = [0.,0.,0.]
+					v = [float(newcoord[i][0]) - center[0], float(newcoord[i][1]) - center[1], float(newcoord[i][2]) - center[2]]
+					#rotate around y axis
+					px = v[2]*math.sin(phi) + v[0]*math.cos(phi)
+					py = v[1]
+					pz = v[2]*math.cos(phi) - v[0]*math.sin(phi)
+					rot2 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
+					newcoord[i]=rot2
+
+				#print(atom,i,rot1)
 			
 			print('\nAfter rotation:')
 			for i in range(len(atoms)):
@@ -261,7 +303,7 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2):
 				print('')
 			
 			print('\n')
-			sys.exit()
+			# sys.exit()
 			if len(newcoord) !=0 : 
 				return newcoord
 			else:
