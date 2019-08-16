@@ -3,13 +3,10 @@ from __future__ import print_function, absolute_import
 
 ###############################################################
 # known issues:
-# Hard - Bmin is basically broken and very slow!!!
 # Hard - check the numerical results for some toy systems (e.g. spherically symmetrical, diatomics) where the correct alues can be defined manually. Then check against tabulate results for classical values, then compare QM-density derived values
 # a bit tricky - output the grid points as a series of small dots for visualization in pymol
-# Tricky - the molecular rotation isn't implemented yet, so only works for molecules aligned along the z-axis
 # Tricky - optimize for speed - avoid iterating over lists within lists
 # Moderate - Better output of isovalue cube and overall more automation of commands written to pymol script
-# Trivial - not all Bondi radii defined properly
 # Moderately trivial - if you remove Hs, the base atom ID messes up
 # Cosmetic - would be better to combine methods where either dens is used radii and can be chosen from the commandline
 # Trivial - would be good to add direct read from Gaussian log file to grab coordinates
