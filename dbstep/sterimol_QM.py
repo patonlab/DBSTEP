@@ -23,6 +23,8 @@ from optparse import OptionParser
 import scipy.spatial as spatial
 from scipy.interpolate import UnivariateSpline
 from decimal import Decimal
+import os
+
 
 #Avoid number error warnings
 import warnings
@@ -418,27 +420,35 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 			#origin normal vector to connecting atomic surfaces tangential vector
 			newx, newy = xycoords[x] + xradv, xycoords[y] + yradv
 			mewx, mewy = xycoords[x] - xradv, xycoords[y] - yradv
-
+			# print('nvect',nvect)
 			# Satisfied that no other points not within range of tangential vector
 			if isclose(np.cross(nvect,xradv), 0, abs_tol=1e-8) == True and theta!=np.pi/2:
+				# print("GOTHERE")
 				# this could be more efficient
 				satpoint=[]
 				for z in range(len(xycoords)):
-					pvdist=twod_dist(xycoords[z],newx,newy)
-					if z!=x and z!=y and pvdist>(radii[z]-0.0001): satpoint.append(pvdist)
+					pvdist = twod_dist(xycoords[z],newx,newy)
+					if z!=x and z!=y and pvdist>(radii[z]-0.0001): 
+						satpoint.append(pvdist)
+				# print(satpoint)
 				if len(satpoint)==len(radii)-2:
+					# print("HERE1")
 					vlist.append(np.linalg.norm(nvect))
 					nvect_list.append(nvect)
 					alist.append([x,y])
 				satpoint=[]
 				for z in range(len(xycoords)):
 					pvdist=twod_dist(xycoords[z],mewx,mewy)
-					if z!=x and z!=y and pvdist>(radii[z]-0.0001): satpoint.append(pvdist)
+					if z!=x and z!=y and pvdist>(radii[z]-0.0001): 
+						satpoint.append(pvdist)
+				# print(satpoint)
 				if len(satpoint)==len(radii)-2:
+					# print("HERE2")
 					vlist.append(np.linalg.norm(mvect))
-					alist.append([x,y])
 					nvect_list.append(mvect)
-
+					alist.append([x,y])
+					
+	
 	# If the molecule / functional group is linear, then B1 is simply B5
 	# In this scenario there is not much point plotting a vector since it will be identical to B5
 	if linearcheck(xycoords)==1:
@@ -456,14 +466,13 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	# Guilian - under what circumstances do we enter this else ?
 	else:
 		Bmin = max(radii)
-		index = np.where(radii == Bmin)
-		print(index)
+		index = np.where(radii == Bmin)[0][0]
 		xmin = xycoords[index][0]
 		ymin = xycoords[index][1]
 		array = radii
 		for i in range(len(array)):
 			if array[i] == Bmin:
-				xm =  nvect_list[i][0]
+				xm = nvect_list[i][0]
 				ym = nvect_list[i][1]
 				if xm != 0 and ym != 0:
 					theta = arctan(ym/xm)
@@ -627,6 +636,7 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 
 # outputs a python script that can be imported into PyMol (with 'run script.py')
 def pymol_export(file, mol, spheres, cylinders, isoval):
+	fullpath = os.path.abspath(file)
 	log = Logger(file.split(".")[0],"py", "steric")
 	log.Writeonlyfile('from pymol.cgo import *')
 	log.Writeonlyfile('from pymol import cmd\n')
@@ -641,14 +651,17 @@ def pymol_export(file, mol, spheres, cylinders, isoval):
 	for n,cyl in enumerate(cylinders): log.Writeonlyfile(cyl)
 	log.Writeonlyfile(']\ncmd.load_cgo(cylinder, '+'"axes"'+')')
 
-	name, ext = os.path.splitext(file)
+	name, ext = os.path.splitext(fullpath)
+	base, ext = os.path.splitext(file)
 	if ext == '.cube':
-		log.Writeonlyfile('\ncmd.load('+file+', '+'"dens"'+')')
+		log.Writeonlyfile('\ncmd.load('+fullpath+', '+'"dens"'+')')
 		log.Writeonlyfile('\ncmd.load('+name+'_radius.cube, '+'"distances"'+')')
 		log.Writeonlyfile('\ncmd.isosurface(isodens, dens, '+str(isoval)+')')
 
 	# Look if possible to write coords directly to pymol script, for now load from xyz file
 	log.Writeonlyfile('\ncmd.load("'+name+'_transform.xyz")')
+	log.Writeonlyfile('cmd.show_as("spheres", "'+base+'_transform")')
+	log.Writeonlyfile('cmd.set("sphere_transparency", 0.5)')
 	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
 	# log.Writeonlyfile('\ncmd.fragment("molecule")')
 	# coords = 'coords = ['
