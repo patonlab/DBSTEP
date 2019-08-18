@@ -382,6 +382,24 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	# Drop the Z coordinates
 	xycoords = [(x,y) for x,y,z in coords]
 
+	increments = 360 # this goes around in 1 degree intervals
+	ang_inc = math.pi/(increments-1)
+	angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
+	#angles = np.linspace(0, math.pi, increments) # sweep full circle
+	angle_array = []
+	for angle in angles:
+		angle_val = 0.0
+		for x in range(len(xycoords)):
+			projection = (xycoords[x][0])*math.cos(angle) + (xycoords[x][1])*math.sin(angle)
+
+			radius = projection + radii[x]
+			if radius > angle_val: angle_val = radius
+
+		angle_array.append(angle_val)
+
+	Bmin = min(angle_array)
+
+	'''
 	# distances from origin to surface of each atom
 	singledist = [np.linalg.norm(posn) for posn in xycoords] + radii
 
@@ -398,57 +416,74 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	for x in range(len(xycoords)):
 		for y in range(x+1,len(xycoords)):
 
-			# origin normal vector to connecting atomic centers vector
-			try: nvect = (twod_vect(center,xycoords[x],xycoords[y]))
-			except ValueError: nvect = [0,0]
-
 			iav = np.subtract(xycoords[x],xycoords[y])	# interatomic vector
 			iad = np.linalg.norm(iav)					# interatomic distance
 
-			# calculate angle by which to rotate vdw radii before adding
-			try: theta=math.asin((radii[y]-radii[x])/iad)
-			except ValueError: theta=np.pi/2
+			# there is no point proceeding if both atoms lie at the origin or if they lie on top of each other
+			if isclose(iad, 0, abs_tol=1e-8): pass
+			else:
+				if np.linalg.norm(xycoords[x]) != 0.0 or np.linalg.norm(xycoords[y]) != 0.0:
 
-			try: unvect=nvect/np.linalg.norm(nvect)
-			except RuntimeWarning: pass
+					# origin normal vector to connecting atomic centers vector
+					try: nvect = (twod_vect(center,xycoords[x],xycoords[y]))
+					except ValueError: nvect = np.array([0,0])
 
-			xradv, yradv =twod_rot(unvect*radii[x],theta), twod_rot(unvect*radii[y],theta)
+					# calculate angle by which to rotate vdw radii before adding
+					try: theta=math.asin((radii[y]-radii[x])/iad)
+					except ValueError: theta=np.pi/2
+					print((x+1),(y+1), xycoords[x], xycoords[y], 'nvect', nvect, theta)
 
-			mvect = (twod_vect(center,xycoords[x]-xradv,xycoords[y]-yradv))
-			nvect = (twod_vect(center,xycoords[x]+xradv,xycoords[y]+yradv))
+					if not isclose(np.linalg.norm(nvect), 0, abs_tol=1e-8):
+						try: unvect=nvect/np.linalg.norm(nvect)
+						except RuntimeWarning: pass
+					else: unvect = np.array([0,0])
 
-			#origin normal vector to connecting atomic surfaces tangential vector
-			newx, newy = xycoords[x] + xradv, xycoords[y] + yradv
-			mewx, mewy = xycoords[x] - xradv, xycoords[y] - yradv
-			# print('nvect',nvect)
-			# Satisfied that no other points not within range of tangential vector
-			if isclose(np.cross(nvect,xradv), 0, abs_tol=1e-8) == True and theta!=np.pi/2:
-				# print("GOTHERE")
-				# this could be more efficient
-				satpoint=[]
-				for z in range(len(xycoords)):
-					pvdist = twod_dist(xycoords[z],newx,newy)
-					if z!=x and z!=y and pvdist>(radii[z]-0.0001): 
-						satpoint.append(pvdist)
-				# print(satpoint)
-				if len(satpoint)==len(radii)-2:
-					# print("HERE1")
-					vlist.append(np.linalg.norm(nvect))
-					nvect_list.append(nvect)
-					alist.append([x,y])
-				satpoint=[]
-				for z in range(len(xycoords)):
-					pvdist=twod_dist(xycoords[z],mewx,mewy)
-					if z!=x and z!=y and pvdist>(radii[z]-0.0001): 
-						satpoint.append(pvdist)
-				# print(satpoint)
-				if len(satpoint)==len(radii)-2:
-					# print("HERE2")
-					vlist.append(np.linalg.norm(mvect))
-					nvect_list.append(mvect)
-					alist.append([x,y])
-					
-	
+					print('unvect', unvect)
+					xradv, yradv =twod_rot(unvect*radii[x],theta), twod_rot(unvect*radii[y],theta)
+					print('xradv', xradv)
+					print('yradv', yradv)
+
+					mvect = (twod_vect(center,xycoords[x]-xradv,xycoords[y]-yradv))
+					nvect = (twod_vect(center,xycoords[x]+xradv,xycoords[y]+yradv))
+					print('mvect', mvect)
+					print('nvect', nvect)
+
+					#origin normal vector to connecting atomic surfaces tangential vector
+					newx, newy = xycoords[x] + xradv, xycoords[y] + yradv
+					mewx, mewy = xycoords[x] - xradv, xycoords[y] - yradv
+					# print('nvect',nvect)
+
+					# Satisfied that no other points not within range of tangential vector
+					if isclose(np.cross(nvect,xradv), 0, abs_tol=1e-8) == True and theta!=np.pi/2:
+						print("GOTHERE")
+						# this could be more efficient
+						satpoint=[]
+						for z in range(len(xycoords)):
+							pvdist = twod_dist(xycoords[z],newx,newy)
+							if z!=x and z!=y and pvdist>=(radii[z]):#-0.0001):
+								satpoint.append(pvdist)
+								print('appending', z, x, y, pvdist, radii[z], pvdist>=(radii[z]))
+							else: print('touching', z, x, y, pvdist, radii[z], pvdist>=(radii[z]))
+						print(satpoint)
+						if len(satpoint)==len(radii)-2:
+							print("HERE1", len(satpoint), len(radii), np.linalg.norm(nvect))
+							vlist.append(np.linalg.norm(nvect))
+							nvect_list.append(nvect)
+							alist.append([x,y])
+						satpoint=[]
+						for z in range(len(xycoords)):
+							pvdist=twod_dist(xycoords[z],mewx,mewy)
+							#print(x,y,z, pvdist)
+							if z!=x and z!=y and pvdist>=(radii[z]):#-0.0001):
+								satpoint.append(pvdist)
+						print(satpoint)
+						if len(satpoint)==len(radii)-2:
+							print("HERE2", len(satpoint), len(radii), np.linalg.norm(mvect))
+							vlist.append(np.linalg.norm(mvect))
+							nvect_list.append(mvect)
+							alist.append([x,y])
+
+
 	# If the molecule / functional group is linear, then B1 is simply B5
 	# In this scenario there is not much point plotting a vector since it will be identical to B5
 	if linearcheck(xycoords)==1:
@@ -486,7 +521,7 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	# print(radii)
 	#print("vlist",vlist)
 	#print('nvect list',nvect_list)
-	#print("B1, x, y",Bmin, xmin, ymin)
+	#print("B1, x, y",Bmin, xmin, ymin)'''
 
 	"""Incorrect way to find Bmin"""
 	# Bmin = min(rad_hist_hy)
@@ -534,7 +569,10 @@ def twod_vect(a,b,c):
    vect2=np.subtract(b,c)
    ang=angle(vect1,vect2)
    nvect2=vect2/np.linalg.norm(vect2)
-   return ((math.cos(ang)*np.linalg.norm(vect1))*nvect2)+b
+   #print('twod_vect', vect1, vect2, ang, nvect2)
+   #print(((math.cos(ang)*np.linalg.norm(vect1))*nvect2)+b)
+   if np.linalg.norm(b) > 0.0: return ((math.cos(ang)*np.linalg.norm(vect1))*nvect2)+b
+   else: return b
 
 def twod_rot(vect,theta):
    a=math.cos(theta)
@@ -862,7 +900,7 @@ def main():
 		setup_time = time.time() - start
 
 		# get buried volume at different radii
-		print("\n   Sterimol parameters will be generated in {} mode\n".format(options.sterimol))
+		print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
 
 		if options.volume:
 			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmax", "Bmin"))
