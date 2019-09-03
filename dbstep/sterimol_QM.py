@@ -368,232 +368,50 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 		if radius > Bmax:
 			Bmax, xmax, ymax = radius, x, y
 			# don't actually need this for Sterimol. It's used to draw a vector direction along B5 to be displayed in PyMol
-			if x != 0 and y!= 0:
-				theta = arctan(y/x)
-				if x < 0: theta += math.pi
-				x_disp, y_disp = radii[n] * cos(theta), radii[n] * sin(theta)
-			#if x == 0 and y== 0: x_disp, y_disp = radii[n], 0.0
-			else: x_disp, y_disp = radii[n], 0.0
+			theta = arctan(y/x)
+			if x < 0: theta += math.pi
+			if x != 0. and y!= 0.:
+				x_disp, y_disp = radii[n] * math.cos(theta), radii[n] * math.sin(theta)
+			elif x == 0. and y != 0.:
+				x_disp, y_disp = 0.0, radii[n] * math.sin(theta)
+			elif x != 0. and y == 0.:
+				x_disp, y_disp = radii[n]* math.cos(theta), 0.0
+			else: 
+				x_disp, y_disp = radii[n], 0.0
 			xmax += x_disp; ymax += y_disp
-
 	# A nice PyMol cylinder object points along the B5 direction with the appopriate magnitude
 	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0,".format(0.0, xmax, ymax, 0.0, 0.1))
 
 	# Drop the Z coordinates
 	xycoords = [(x,y) for x,y,z in coords]
-
-	increments = 360 # this goes around in 1 degree intervals
+	increments = 720 # this goes around in 0.5 degree intervals
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
-	#angles = np.linspace(0, math.pi, increments) # sweep full circle
-	angle_array = []
+	Bmin = sys.float_info.max
+	xmin,ymin = 0,0
 	for angle in angles:
 		angle_val = 0.0
-		for x in range(len(xycoords)):
-			projection = (xycoords[x][0])*math.cos(angle) + (xycoords[x][1])*math.sin(angle)
-
-			radius = projection + radii[x]
-			if radius > angle_val: angle_val = radius
-
-		angle_array.append(angle_val)
-
-	Bmin = min(angle_array)
-
-	'''
-	# distances from origin to surface of each atom
-	singledist = [np.linalg.norm(posn) for posn in xycoords] + radii
-
-	# debugging
-	#for n, atom in enumerate(atoms): print(atom, radii[n], xycoords[n], singledist[n])
-
-	center=[0,0]	# origin
-	vlist=[]	# list of distances from the origin to the tangential vectors
-	alist=[]	# list of atoms between which the tangential vectors pass through no other atoms
-	iav=[]		# interatomic vectors
-	nvect_list = []
-
-	# We now try to define vectors connecting each pair of atoms in the XY-plane
-	for x in range(len(xycoords)):
-		for y in range(x+1,len(xycoords)):
-
-			iav = np.subtract(xycoords[x],xycoords[y])	# interatomic vector
-			iad = np.linalg.norm(iav)					# interatomic distance
-
-			# there is no point proceeding if both atoms lie at the origin or if they lie on top of each other
-			if isclose(iad, 0, abs_tol=1e-8): pass
-			else:
-				if np.linalg.norm(xycoords[x]) != 0.0 or np.linalg.norm(xycoords[y]) != 0.0:
-
-					# origin normal vector to connecting atomic centers vector
-					try: nvect = (twod_vect(center,xycoords[x],xycoords[y]))
-					except ValueError: nvect = np.array([0,0])
-
-					# calculate angle by which to rotate vdw radii before adding
-					try: theta=math.asin((radii[y]-radii[x])/iad)
-					except ValueError: theta=np.pi/2
-					print((x+1),(y+1), xycoords[x], xycoords[y], 'nvect', nvect, theta)
-
-					if not isclose(np.linalg.norm(nvect), 0, abs_tol=1e-8):
-						try: unvect=nvect/np.linalg.norm(nvect)
-						except RuntimeWarning: pass
-					else: unvect = np.array([0,0])
-
-					print('unvect', unvect)
-					xradv, yradv =twod_rot(unvect*radii[x],theta), twod_rot(unvect*radii[y],theta)
-					print('xradv', xradv)
-					print('yradv', yradv)
-
-					mvect = (twod_vect(center,xycoords[x]-xradv,xycoords[y]-yradv))
-					nvect = (twod_vect(center,xycoords[x]+xradv,xycoords[y]+yradv))
-					print('mvect', mvect)
-					print('nvect', nvect)
-
-					#origin normal vector to connecting atomic surfaces tangential vector
-					newx, newy = xycoords[x] + xradv, xycoords[y] + yradv
-					mewx, mewy = xycoords[x] - xradv, xycoords[y] - yradv
-					# print('nvect',nvect)
-
-					# Satisfied that no other points not within range of tangential vector
-					if isclose(np.cross(nvect,xradv), 0, abs_tol=1e-8) == True and theta!=np.pi/2:
-						print("GOTHERE")
-						# this could be more efficient
-						satpoint=[]
-						for z in range(len(xycoords)):
-							pvdist = twod_dist(xycoords[z],newx,newy)
-							if z!=x and z!=y and pvdist>=(radii[z]):#-0.0001):
-								satpoint.append(pvdist)
-								print('appending', z, x, y, pvdist, radii[z], pvdist>=(radii[z]))
-							else: print('touching', z, x, y, pvdist, radii[z], pvdist>=(radii[z]))
-						print(satpoint)
-						if len(satpoint)==len(radii)-2:
-							print("HERE1", len(satpoint), len(radii), np.linalg.norm(nvect))
-							vlist.append(np.linalg.norm(nvect))
-							nvect_list.append(nvect)
-							alist.append([x,y])
-						satpoint=[]
-						for z in range(len(xycoords)):
-							pvdist=twod_dist(xycoords[z],mewx,mewy)
-							#print(x,y,z, pvdist)
-							if z!=x and z!=y and pvdist>=(radii[z]):#-0.0001):
-								satpoint.append(pvdist)
-						print(satpoint)
-						if len(satpoint)==len(radii)-2:
-							print("HERE2", len(satpoint), len(radii), np.linalg.norm(mvect))
-							vlist.append(np.linalg.norm(mvect))
-							nvect_list.append(mvect)
-							alist.append([x,y])
+		for i in range(len(xycoords)):
+			projection = (xycoords[i][0])*math.cos(angle) + (xycoords[i][1])*math.sin(angle)
+			radius = projection + radii[i]
+			if radius > angle_val: 
+				angle_val, x, y = radius, xycoords[i][0], xycoords[i][1]
+				#for PyMol
+				
+				x_disp, y_disp = radii[i] * math.cos(angle), radii[i] * math.sin(angle)
+				x += x_disp; y += y_disp
+		if Bmin > angle_val:
+			Bmin,xmin,ymin = angle_val,x,y		
 
 
-	# If the molecule / functional group is linear, then B1 is simply B5
-	# In this scenario there is not much point plotting a vector since it will be identical to B5
-	if linearcheck(xycoords)==1:
-		Bmin = max(radii)
-
-	# If the molecule is not linear, then we take the distance to the closest interatomic vector as B1
-	elif len(vlist) > 0:
-		Bmin = min(vlist)
-		for i, v in enumerate(vlist):
-			if v == Bmin:
-				[xm,ym] = nvect_list[i]
-				cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xm, ym, 0.0, 0.1))
-				break
-
-	# Guilian - under what circumstances do we enter this else ?
-	else:
-		Bmin = max(radii)
-		index = np.where(radii == Bmin)[0][0]
-		xmin = xycoords[index][0]
-		ymin = xycoords[index][1]
-		array = radii
-		for i in range(len(array)):
-			if array[i] == Bmin:
-				xm = nvect_list[i][0]
-				ym = nvect_list[i][1]
-				if xm != 0 and ym != 0:
-					theta = arctan(ym/xm)
-					if xm < 0: theta += math.pi
-					x_disp, y_disp = radii[n] * cos(theta), rad_hist_hy[index] * sin(theta)
-				else: x_disp, y_disp = 0.0, 0.0
-				xm += x_disp; ym += y_disp
-				cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xm, ym, 0.0, 0.1))
-
-	# print(vlist)
-	# print(radii)
-	#print("vlist",vlist)
-	#print('nvect list',nvect_list)
-	#print("B1, x, y",Bmin, xmin, ymin)'''
-
-	"""Incorrect way to find Bmin"""
-	# Bmin = min(rad_hist_hy)
-	# index = rad_hist_hy.index(Bmin)
-	# xmin = x_hist_hy[index]
-	# ymin = y_hist_hy[index]
-	# # Used to draw vectors for PyMol
-	# if xmin != 0 and ymin != 0:
-	# 	theta = arctan(ymin/xmin)
-	# 	if xmin < 0: theta += math.pi
-	# 	x_disp, y_disp = radii[n] * cos(theta), rad_hist_hy[index] * sin(theta)
-	# else: x_disp, y_disp = 0.0, 0.0
-	# xmin += x_disp; ymin += y_disp
-	# # A nice PyMol cylinder object points along the B1 direction with the appopriate magnitude
-	# cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
-	#graph molecule in x,y plane
-	#graph_xy(x_hist_rw,y_hist_rw,rad_hist_rw,Bmin,Bmax)
-
+	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
 	return L, Bmax, Bmin, cyl
 
-def linearcheck(carts):
-   ans=0;xgrad=[];ygrad=[]
-   for row in carts:xgrad.append(round(np.gradient(row)[0],4));ygrad.append(round(np.gradient(row)[1],4))
-   if min(xgrad)==max(xgrad) and min(ygrad)==max(ygrad):ans=1
-   return ans
-
-def dprod(v1, v2): return sum((a*b) for a, b in zip(v1, v2))
-
-def length(v): return math.sqrt(dprod(v, v))
-
-def angle(v1, v2):
-   val = dprod(v1, v2) / length(v1) / length(v2)
-   if val > 0.999999: val = 1.0
-   if val < -0.999999: val = -1.0
-   return math.acos(val)
-
-def twod_dist(a,b,c):
-   vect1=np.subtract(a,b)
-   vect2=np.subtract(b,c)
-   ang=angle(vect1,vect2)
-   return math.sin(ang)*np.linalg.norm(vect1)
-
-def twod_vect(a,b,c):
-   vect1=np.subtract(a,b)
-   vect2=np.subtract(b,c)
-   ang=angle(vect1,vect2)
-   nvect2=vect2/np.linalg.norm(vect2)
-   #print('twod_vect', vect1, vect2, ang, nvect2)
-   #print(((math.cos(ang)*np.linalg.norm(vect1))*nvect2)+b)
-   if np.linalg.norm(b) > 0.0: return ((math.cos(ang)*np.linalg.norm(vect1))*nvect2)+b
-   else: return b
-
-def twod_rot(vect,theta):
-   a=math.cos(theta)
-   b=math.sin(theta)
-   mat=[[a,-b],[b,a]]
-   vect=np.dot(mat,vect)
-   return vect
-
-def graph_xy(x_hist_rw,y_hist_rw,rad_hist_rw,Bmin,Bmax):
-	import matplotlib.pyplot as plt
-	ax = plt.gca()
-	plt.scatter(x_hist_rw,y_hist_rw)
-	for i in range(len(rad_hist_rw)):
-		circle = plt.Circle((x_hist_rw[i],y_hist_rw[i]),rad_hist_rw[i],fill=False)
-		ax.add_artist(circle)
-	ax.add_artist(plt.Circle((0,0),Bmax,color='r',fill=False,linewidth=0.5))
-	ax.add_artist(plt.Circle((0,0),Bmin,color='y',fill=False,linewidth=0.5))
-	plt.show()
-
 # Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
-# conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used, which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres. Also B1 can be defined in a physically more # meaningful way than the traditional approach. This method can take horizontal slices to evaluate these parameters along the L-axis, # which is also a nightmare with the conventional definition.
+# conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used, 
+# which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres. 
+# Also B1 can be defined in a physically more # meaningful way than the traditional approach. This method can take horizontal slices to 
+# evaluate these parameters along the L-axis, which is also a nightmare with the conventional definition.
 def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
@@ -638,7 +456,6 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	else:
 		cyl.append("   CYLINDER, 0., 0., {:5.1f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(R, xmin, ymin, R, 0.1))
 		cyl.append("   CYLINDER, 0., 0., {:5.1f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0,".format(R, xmax, ymax, R, 0.1))
-	#print(Bmin, Bmax)
 	return L, Bmax, Bmin, cyl
 
 def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
@@ -903,9 +720,9 @@ def main():
 		print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
 
 		if options.volume:
-			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmax", "Bmin"))
+			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax"))
 		else:
-			print("   {:>6} {:>10} {:>10}".format("R/Å", "Bmax", "Bmin"))
+			print("   {:>6} {:>10}".format("Bmin", "Bmax"))
 		start =  time.time()
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels. There is only one way to compute it
@@ -922,14 +739,16 @@ def main():
 
 			# Tabulate result
 			if options.volume:
-				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmax, Bmin))
+				# for pymol visualization
+				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))	
+				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax))
 			else:
-				print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, Bmax, Bmin))
+				print("   {:6.2f} {:10.2f}".format(Bmin, Bmax))
 
 			# for pymol visualization
-			spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
 			for c in cyl:
 				cylinders.append(c)
+				
 		# Stop timing the loop
 		call_time = time.time() - start
 
