@@ -25,7 +25,6 @@ from scipy.interpolate import UnivariateSpline
 from decimal import Decimal
 import os
 
-
 #Avoid number error warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -79,6 +78,14 @@ def RepresentsInt(s):
 		return True
 	except ValueError:
 		return False
+		
+def element_id(massno, num=False):
+    try:
+        if num:
+            return periodictable.index(massno)
+        return periodictable[massno]
+    except IndexError:
+        return "XX"
 
 # for plotting isosurface data in PyMol
 class writecubeData:
@@ -133,25 +140,44 @@ class getcubeData:
 		getATOMTYPES(self, mollines, self.FORMAT)
 
 class getxyzData:
-	def __init__(self, file, noH):
-		if not os.path.exists(file+".xyz"): print(("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file))
-		def getATOMTYPES(self, outlines, format, noH):
-			self.ATOMTYPES, self.CARTESIANS = [], []
-			if format == 'xyz':
-				for i in range(0,len(outlines)):
-					try:
-						coord = outlines[i].split()
-						if len(coord) == 4:
-							if RepresentsFloat(coord[1]) == True and RepresentsFloat(coord[2]) and RepresentsFloat(coord[3]):
-								[atom, x,y,z] = [coord[0], float(coord[1]), float(coord[2]), float(coord[3])]
-								if noH == True and atom == "H": pass
-								else: self.ATOMTYPES.append(atom); self.CARTESIANS.append([x,y,z])
-					except: pass
+	def __init__(self, file,ext, noH):
+		if ext == '.xyz':
+			if not os.path.exists(file+".xyz"): 
+				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file)
+		elif ext == '.log':
+			if not os.path.exists(file+".log"): 
+				print(("\nFATAL ERROR: log file [ %s ] does not exist"%file))
+		self.FORMAT = ext
+		molfile = open(file+self.FORMAT,"r")
+		outlines = molfile.readlines()
 
-		self.FORMAT = 'xyz'
-		molfile = open(file+"."+self.FORMAT,"r")
-		mollines = molfile.readlines()
-		getATOMTYPES(self, mollines, self.FORMAT, noH)
+		self.ATOMTYPES, self.CARTESIANS = [], []
+		if self.FORMAT == '.xyz':
+			for i in range(0,len(outlines)):
+				try:
+					coord = outlines[i].split()
+					if len(coord) == 4:
+						if RepresentsFloat(coord[1]) == True and RepresentsFloat(coord[2]) and RepresentsFloat(coord[3]):
+							[atom, x,y,z] = [coord[0], float(coord[1]), float(coord[2]), float(coord[3])]
+							if noH == True and atom == "H": 
+								pass
+							else: 
+								self.ATOMTYPES.append(atom)
+								self.CARTESIANS.append([x,y,z])
+				except: pass
+		elif self.FORMAT == '.log':
+			for i, oline in enumerate(outlines):
+				if "Input orientation" in oline or "Standard orientation" in oline:
+					self.ATOMTYPES, self.CARTESIANS, carts = [], [], outlines[i + 5:]
+					for j, line in enumerate(carts):
+						if "-------" in line:
+							break
+						self.ATOMTYPES.append(element_id(int(line.split()[1])))
+						if len(line.split()) > 5:
+							self.CARTESIANS.append([float(line.split()[3]), float(line.split()[4]), float(line.split()[5])])
+						else:
+							self.CARTESIANS.append([float(line.split()[2]), float(line.split()[3]), float(line.split()[4])])
+	
 
 def unit_vector(vector):
 	""" Returns the unit vector of the vector """
@@ -169,11 +195,14 @@ def angle_between(v1, v2):
 	return math.degrees(ang)
 
 def translate_mol(coords, atoms, spec_atom, origin):
+	print(coords)
 	for n, atom in enumerate(atoms):
-		if atom in metals:
-			base_id, base_atom = n, atom
-		if atom+str(n+1) == spec_atom:
-			base_id, base_atom = n, atom
+		if not spec_atom:
+			if atom in metals:
+				base_id, base_atom = n, atom
+		else:
+			if atom+str(n+1) == spec_atom:
+				base_id, base_atom = n, atom
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
@@ -181,7 +210,7 @@ def translate_mol(coords, atoms, spec_atom, origin):
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
 	except:
-		   print("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
+		   sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
 	return coords
 
 # Translates molecule so that a specified atom (spec_atom) is at the origin. Defaults to a metal if no atom is specified.
@@ -205,7 +234,7 @@ def translate_dens(coords, atoms, spec_atom, xmin, xmax, ymin, ymax, zmin, zmax,
 		zmax -= displacement[2]
 		xyz_max = max(xmax, ymax, zmax, abs(xmin), abs(ymin), abs(zmin))
 	except:
-		   print("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
+		   sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
 	return [coords, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max]
 
 # Unfinished - will also have to rotate density grid
@@ -555,7 +584,7 @@ cmd.set('surface_color', 'ramp')
 set field_of_view, 1
 '''
 def main():
-	files, spheres, cylinders, r_intervals, origin = [], [], [], 1, np.array([0,0,0])
+	files, r_intervals, origin = [], 1, np.array([0,0,0])
 	# get command line inputs. Use -h to list all possible arguments and default values
 	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
@@ -585,7 +614,7 @@ def main():
 	if len(sys.argv) > 1:
 		for elem in sys.argv[1:]:
 			try:
-				if os.path.splitext(elem)[1] in [".xyz", ".cube"]:
+				if os.path.splitext(elem)[1] in [".xyz", ".log", ".cube"]:
 					for file in glob(elem):
 						files.append(file)
 			except IndexError: pass
@@ -593,13 +622,15 @@ def main():
 	if len(files) is 0:
 		sys.exit("    Please specify a valid input file and try again.")
 	for file in files: # loop over all specified output files
+		spheres, cylinders = [], []
+		print('\n',file)
 		start = time.time()
 		name, ext = os.path.splitext(file)
 
 		# if noH is requested these atoms are skipped to make things go faster
-		if ext == '.xyz':
+		if ext == '.xyz' or ext == '.log':
 			options.surface = 'vdw'
-			mol = getxyzData(name, options.noH)
+			mol = getxyzData(name,ext, options.noH)
 		if ext == '.cube':
 			mol = getcubeData(name)
 
@@ -611,7 +642,6 @@ def main():
 
 		# convert lists to numpy arrays for easier manipulation
 		mol.ATOMTYPES, mol.CARTESIANS = np.array(mol.ATOMTYPES), np.array(mol.CARTESIANS)
-
 		if options.surface == 'vdw':
 			# generate Bondi radii from atom types
 			try:
