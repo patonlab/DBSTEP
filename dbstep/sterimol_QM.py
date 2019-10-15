@@ -4,7 +4,7 @@ from __future__ import print_function, absolute_import
 ###############################################################
 # known issues:
 # Hard - check the numerical results for some toy systems (e.g. spherically symmetrical, diatomics) where the correct alues can be defined manually. Then check against tabulate results for classical values, then compare QM-density derived values
-# a bit tricky - output the grid points as a series of small dots for visualization in pymol
+# a bit tricky - output the grid points as a series of small dots for visualization in pymol (this is v slow [unusable] with spheres)
 # Tricky - optimize for speed - avoid iterating over lists within lists
 # Moderate - Better output of isovalue cube and overall more automation of commands written to pymol script
 # Moderately trivial - if you remove Hs, the base atom ID messes up
@@ -312,16 +312,17 @@ def bidentate(coords, atoms, spec_atom_1, spec_atom_2):
 		elif atom+str(n+1) == spec_atom_2[1]:
 			l2_id, l2_atom = n, atom
 			c = coords[l2_id]
-	v1 = b - a
-	v2 = b - c
-	angle = angle_between(unit_vector(v1),unit_vector(v2))
-	# cos_angle = np.dot(v1,v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-	# angle = np.arccos(cos_angle)
-
-	point = abs(v1) * math.cos(math.radians(angle))
-	# point = abs(v1) * math.cos(angle)
-	print(angle,point)
-	return point
+	# v1 = b - a
+	# v2 = b - c
+	# angle = angle_between(unit_vector(v1),unit_vector(v2))
+	# point = v1 * math.cos(math.radians(angle))
+	# point = point + b
+	# newvec = v1 - point
+	# print('v1',v1,unit_vector(v1))
+	# print('v2',v2,unit_vector(v2))
+	# print('projection',point)
+	# print('height',newvec)
+	return b + c
 	
 def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
 	#find point on plane made by atoms in spec_atom_2 perpendicular to spec_atom_1	
@@ -338,24 +339,25 @@ def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
 		elif atom+str(n+1) == spec_atom_2[2]:
 			l3_id, l3_atom = n, atom
 			d = coords[l3_id]
-	return None
+	return b + c + d 
 
 # Rotates molecule around X- and Y-axes to align M-L bond to Z-axis
-def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2, cube_origin=False, cube_inc=False):
+def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_inc=False):
 	for n, atom in enumerate(atoms):
-		if atom in metals: met_id, met_atom = n, atom
-		if atom == "P": lig_id, lig_atom = n, atom
+		# if atom in metals: met_id, met_atom = n, atom
+		# if atom == "P": lig_id, lig_atom = n, atom
 		if atom+str(n+1) == spec_atom_1:
 			center_id, center_atom = n, atom
-		if atom+str(n+1) == spec_atom_2:
-			lig_id, lig_atom = n, atom
+		# if atom+str(n+1) == spec_atom_2:
+		# 	lig_id, lig_atom = n, atom
 	try:
-		# ml_vec = lig_point - coords[center_id]
-		ml_vec = coords[lig_id]- coords[center_id]
+		ml_vec = lig_point - coords[center_id]
+		# ml_vec = coords[lig_id]- coords[center_id]
 		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
 
 		if np.linalg.norm(zrot_angle) == 0:
-			print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
+			print("No rotation necessary :)")
+			#print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
 		else:
 			newcoord=[]
 			new_inc=[]
@@ -366,8 +368,8 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2, cube_origin=False, cube_
 			if cube_inc is not False:
 				for i in range(0,len(cube_inc)):
 					new_inc.append(cube_inc[i])
-			# ml_vec = lig_point - coords[center_id]
-			ml_vec = coords[lig_id]- coords[center_id]
+			ml_vec = lig_point - coords[center_id]
+			# ml_vec = coords[lig_id]- coords[center_id]
 			yz = [ml_vec[1],ml_vec[2]]
 			if yz != [0.0,0.0]:
 				u_yz = unit_vector(yz)
@@ -382,11 +384,11 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2, cube_origin=False, cube_
 				center = [0.,0.,0.]
 				
 				#rotate ligand point
-				# u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
-				# ox = u[0]
-				# oy = u[1]*math.cos(theta) - u[2]*math.sin(theta)
-				# oz = u[1]*math.sin(theta) + u[2]*math.cos(theta)
-				# lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
+				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
+				ox = u[0]
+				oy = u[1]*math.cos(theta) - u[2]*math.sin(theta)
+				oz = u[1]*math.sin(theta) + u[2]*math.cos(theta)
+				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
 				
 				for i,atom in enumerate(atoms):
 					#rotate coords around x axis
@@ -407,12 +409,11 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2, cube_origin=False, cube_
 						qz = w[1]*math.sin(theta) + w[2]*math.cos(theta)
 						rot1 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
 						new_inc[i] = rot1
-					# for i in range(len())
 					
 			newcoord = np.asarray(newcoord)
 
-			# ml_vec = lig_point - coords[center_id]
-			ml_vec = newcoord[lig_id] - newcoord[center_id]
+			ml_vec = lig_point - newcoord[center_id]
+			# ml_vec = newcoord[lig_id] - newcoord[center_id]
 			zx = [ml_vec[2],ml_vec[0]]
 			if zx != [0.0,0.0]:
 				u_zx = unit_vector(zx)
@@ -423,11 +424,11 @@ def rotate_mol(coords, atoms, spec_atom_1, spec_atom_2, cube_origin=False, cube_
 					phi = 2 * math.pi - phi
 				print('   Rotating molecule about Y-axis {0:.2f} degrees'.format(phi*180/math.pi))
 				
-				# u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
-				# ox = u[2]*math.sin(phi) + u[0]*math.cos(phi)
-				# oy = u[1]
-				# oz = u[2]*math.cos(phi) - u[0]*math.sin(phi)
-				# lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
+				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
+				ox = u[2]*math.sin(phi) + u[0]*math.cos(phi)
+				oy = u[1]
+				oz = u[2]*math.cos(phi) - u[0]*math.sin(phi)
+				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
 				
 				for i,atom in enumerate(atoms):
 					center = [0.,0.,0.]
@@ -818,25 +819,27 @@ def main():
 			# print bounds of cube
 			#print("   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
-		"""in development"""
-		# # Check if we want to calculate parameters for mono- bi- or tridentate ligand 
-		# options.spec_atom_2 = options.spec_atom_2.split(',')
-		# if len(options.spec_atom_2) is 1:
-		# 	# mono - obtain coords of atom to align along z axis
-		# 	point= 0.1
-		# elif len(options.spec_atom_2) is 2:
-		# 	# bi - obtain coords of point perpendicular to vector connecting ligands
-		# 	point = bidentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
-		# elif len(options.spec_atom_2) is 3:
-		# 	# tri - obtain coords of point perpendicular to plane connecting ligands
-		# 	point = tridentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
-
+		# Check if we want to calculate parameters for mono- bi- or tridentate ligand 
+		options.spec_atom_2 = options.spec_atom_2.split(',')
+		if len(options.spec_atom_2) is 1:
+			# mono - obtain coords of atom to align along z axis
+			point,p_id=0.0,0
+			for n, atom in enumerate(mol.ATOMTYPES):
+				if atom+str(n+1) == options.spec_atom_2[0]:
+					p_id = n
+					point = mol.CARTESIANS[p_id]
+		elif len(options.spec_atom_2) is 2:
+			# bi - obtain coords of point perpendicular to vector connecting ligands
+			point = bidentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
+		elif len(options.spec_atom_2) is 3:
+			# tri - obtain coords of point perpendicular to plane connecting ligands
+			point = tridentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
 
 		# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 		# the x and y directions are arbitrary
 		if len(mol.CARTESIANS) > 1:
 			if options.surface == 'vdw':
-				mol.CARTESIANS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, options.spec_atom_2)
+				mol.CARTESIANS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point)
 			elif options.surface == 'density':
 				print('translated')
 				dims = [mol.xdim,mol.ydim,mol.zdim]
@@ -849,7 +852,7 @@ def main():
 					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 				
-				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  options.spec_atom_2, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
+				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
 				
 				print('rotated')
 				#print everything in bohr
