@@ -1,4 +1,4 @@
-#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 from __future__ import print_function, absolute_import
 
 ###############################################################
@@ -12,6 +12,7 @@ from __future__ import print_function, absolute_import
 ###############################################################
 
 #Python Libraries
+from numba import autojit, prange
 import itertools, os, sys, time
 from numpy import *
 from scipy import *
@@ -22,8 +23,6 @@ from optparse import OptionParser
 import scipy.spatial as spatial
 from scipy.interpolate import UnivariateSpline
 from decimal import Decimal
-# import asa
-# import volume
 
 #Avoid number error warnings
 import warnings
@@ -354,15 +353,14 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 		ml_vec = lig_point - coords[center_id]
 		# ml_vec = coords[lig_id]- coords[center_id]
 		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
-
+		newcoord=[]
+		new_inc=[]
+		new_data=[]
+		currentatom=[]
 		if np.linalg.norm(zrot_angle) == 0:
 			print("No rotation necessary :)")
 			#print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
 		else:
-			newcoord=[]
-			new_inc=[]
-			new_data=[]
-			currentatom=[]
 			for i in range(0,len(coords)):
 				newcoord.append(coords[i])
 			if cube_inc is not False:
@@ -450,16 +448,16 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 						rot2 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
 						new_inc[i]=rot2
 
-			if len(newcoord) !=0:
-				if cube_inc is not False:
-					return newcoord, np.asarray(new_inc)
-				else:
-					return newcoord
+		if len(newcoord) !=0:
+			if cube_inc is not False:
+				return newcoord, np.asarray(new_inc)
 			else:
-				print("no rotation :(")
-				for i in range(0,len(coords)): 
-					newcoord.append([0.0,0.0,0.0])
 				return newcoord
+		else:
+			if cube_inc is not False:
+				return coords, cube_inc
+			else:
+				return coords
 
 	except Exception as e:
 		print("\nERR: ",e)
@@ -519,7 +517,6 @@ def occupied_dens(grid, dens, spacing, isoval):
 	return grid[list]
 
 # Uses standard Verloop definitions and VDW spheres to define L, B1 and B5
-# Haven't implemented B1 yet as it's a pain
 def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	L, Bmax, Bmin, xmax, ymax, cyl, rad_hist_hy,rad_hist_rw, x_hist_rw, y_hist_rw,x_hist_hy, y_hist_hy  = 0.0, 0.0, 0.0, 0.0, 0.0, [], [], [], [], [], [], []
 	for n, coord in enumerate(coords):
@@ -555,9 +552,10 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	# A nice PyMol cylinder object points along the B5 direction with the appopriate magnitude
 	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0,".format(0.0, xmax, ymax, 0.0, 0.1))
 
-	# Drop the Z coordinates
+	# Drop the Z coordinates and calculate B1
 	xycoords = [(x,y) for x,y,z in coords]
-	increments = 720 # this goes around in 0.5 degree intervals
+	increments = 6000 # this goes around in 0.06 degree intervals
+	#increments = 720 # this goes around in 0.5 degree intervals
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi + 2 * math.pi, increments) # sweep full circle
 	Bmin = sys.float_info.max
@@ -572,12 +570,38 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 				#for PyMol
 				x_disp, y_disp = radii[i] * math.cos(angle), radii[i] * math.sin(angle)
 				x += x_disp; y += y_disp
+				cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, x, y, 0.0, 0.1))
+
 		if Bmin > angle_val:
-			Bmin,xmin,ymin = angle_val,x,y		
+			Bmin,xmin,ymin = angle_val,x,y	
 			
-	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
+	# cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
 	return L, Bmax, Bmin, cyl
 
+@autojit
+def parallel(angles,ang_inc,radial_grid):
+	max_r, max_phi = [], []
+	for n in prange(len(angles)):
+		angle = angles[n]
+		rmax, phimax = parallel_grid_scan(radial_grid,angle,ang_inc)
+		if rmax != 0.0: # by definition can't have zero radius
+			max_r.append(rmax)
+			max_phi.append(phimax)
+	return max_r, max_phi 
+
+@autojit
+def parallel_grid_scan(radial_grid, angle, ang_inc):
+	# angular sweep over grid points to find Bmin 
+	rmax, phimax = 0.0, 0.0
+	for i in prange(len(radial_grid)):
+		r = float(radial_grid[i][0])
+		phi = float(radial_grid[i][1])
+		if angle - ang_inc < phi <= angle + ang_inc:
+			if r > rmax:
+				rmax = r
+				phimax = phi
+	return rmax, phimax
+	
 # Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
 # conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used, 
 # which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres. 
@@ -588,12 +612,16 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 
 	# this is a layer of the occupancy grid between Z-limits
 	xy_grid = [(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width or strip_width == 0]
-	try:
-		radii = [np.hypot(x,y) for x,y,z in xy_grid]
-		Bmax, imax = max(radii), np.argmax(radii)
-		xmax, ymax, zmax = xy_grid[imax]
-		L = max([z for x,y,z in xy_grid])
-	except: pass
+	# try:
+	# 	radii = [np.hypot(x,y) for x,y,z in xy_grid]
+	# 	Bmax, imax = max(radii), np.argmax(radii)
+	# 	xmax, ymax, zmax = xy_grid[imax]
+	# 	L = max([z for x,y,z in xy_grid])
+	# except: pass
+	radii = [np.hypot(x,y) for x,y,z in xy_grid]
+	Bmax, imax = max(radii), np.argmax(radii)
+	xmax, ymax, zmax = xy_grid[imax]
+	L = max([z for x,y,z in xy_grid])
 
 	# this is the best I could come up with to estimate the minimum radius of the molecule projected in the XY-plane
 	# I think it will be better to take horizontol slices and then use scipy interpolate to obtain a contour plot
@@ -601,25 +629,29 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	# Go around in angle increments and record the farthest out point in each slice
 	symmetry=3 # hack allows you to define rotational symmetry
 	increments = 360/3/symmetry+1 # this goes around in 1 degree intervals
+	#increments = 360
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi+2*math.pi/symmetry, increments) # sweep full circle
 	radial_grid = np.array([(np.hypot(x,y),np.arctan2(y, x)) for x,y,z in xy_grid]) #polar coordinates, don't care about height
-
 	max_r, max_phi = [], []
-	for n, angle in enumerate(angles):
+	#max_r, max_phi = parallel(angles,ang_inc,radial_grid) #parallelize both loops (doesnt seem to boost time performance)
+
+	#sweep over angular increments
+	for n,angle in enumerate(angles):
 		rmax, phimax = 0.0, 0.0
-		# this is problematic - repeated looping through the entire grid at each angle point is slow
-		for r,phi in radial_grid:
-			if angle-ang_inc < phi <= angle+ang_inc:
-				if r > rmax:
-					rmax = r; phimax = phi
+		#parallelize sweep over radial grid
+		rmax, phimax = parallel_grid_scan(radial_grid,angle,ang_inc)
 		if rmax != 0.0: # by definition can't have zero radius
-			max_r.append(rmax); max_phi.append(phimax)
+			max_r.append(rmax)
+			max_phi.append(phimax)
+	
 	if len(max_r) > 0:
 		Bmin = min(max_r)
 		xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
 
-	# A nice PyMol cylinder object points along the B5 direction with the appopriate magnitude. In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis. If not a single vector will be shown in the basal plane
+	# A nice PyMol cylinder object points along the B5 & B1 directions with the appopriate magnitude. 
+	# In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis. 
+	# If not a single vector will be shown in the basal plane
 	if strip_width == 0.0:
 		cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
 		cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0,".format(0.0, xmax, ymax, 0.0, 0.1))
@@ -629,6 +661,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	return L, Bmax, Bmin, cyl
 
 def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
+	""" Read which grid points occupy sphere""" 
 	sphere, cube = 4 / 3 * math.pi * R ** 3, spacing ** 3
 	# Quick way to find all points in the grid within a sphere radius R
 	point_tree = spatial.cKDTree(all_grid)
@@ -644,7 +677,9 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	percent_buried_vol = occ_vol / tot_vol * 100.0
 	vol_err = tot_vol/sphere * 100.0
 
-	# experimental - in addition to occupied spherical volume, this will compute the percentage occupancy of a radial shell between two limits if a scan along the L-axis is being performed
+	# experimental - in addition to occupied spherical volume, this will compute 
+	# the percentage occupancy of a radial shell between two limits if a scan 
+	# along the L-axis is being performed
 	if strip_width != 0.0:
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
 		point_tree = spatial.cKDTree(occ_grid)
@@ -685,7 +720,7 @@ def pymol_export(file, mol, spheres, cylinders, isoval):
 
 	# Look if possible to write coords directly to pymol script, for now load from xyz file
 	log.Writeonlyfile('\ncmd.load("'+name+'_transform.xyz")')
-	log.Writeonlyfile('cmd.show_as("spheres", "'+base+'_transform")')
+	log.Writeonlyfile('cmd.show_as("spheres", "'+base.split('/')[-1]+'_transform")')
 	log.Writeonlyfile('cmd.set("sphere_transparency", 0.5)')
 	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
 	# log.Writeonlyfile('\ncmd.fragment("molecule")')
@@ -926,9 +961,11 @@ def main():
 			y_vals = np.linspace(y_min, y_max, n_y_vals)
 			z_vals = np.linspace(z_min, z_max, n_z_vals)
 			if options.volume or options.sterimol == 'grid':
-				# compute occupancy based on VDW radii
-				occ_grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
-				occ_grid = occupied(occ_grid, mol.CARTESIANS, mol.RADII, options.grid, origin)
+				# construct grid encapsulating molecule
+				grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+				# compute which grid points occupy molecule 
+				occ_grid = occupied(grid, mol.CARTESIANS, mol.RADII, options.grid, origin)
+				
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
 			y_vals = np.linspace(y_min, y_max, mol.ydim)
@@ -937,12 +974,12 @@ def main():
 			# writes a new grid to cube file
 			isocube = WriteCubeData(name, mol)
 			# define the grid points containing the molecule
-			occ_grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+			grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
-			occ_grid = occupied_dens(occ_grid, mol.DENSITY, options.grid, options.isoval)
+			occ_grid = occupied_dens(grid, mol.DENSITY, options.grid, options.isoval)
 
 		# testing - allows this grid to be visualized in PyMol with output py script
-		# - !SLOW to load in PyMOL for many grid points!
+		# - !SLOW to load in PyMOL for many grid points - basically kills PyMOL!
 		if options.debug == True:
 			for x,y,z in occ_grid: spheres.append("   SPHERE, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}".format(x,y,z,0.02))
 
