@@ -570,12 +570,11 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 				#for PyMol
 				x_disp, y_disp = radii[i] * math.cos(angle), radii[i] * math.sin(angle)
 				x += x_disp; y += y_disp
-				cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, x, y, 0.0, 0.1))
 
 		if Bmin > angle_val:
 			Bmin,xmin,ymin = angle_val,x,y	
 			
-	# cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
+	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
 	return L, Bmax, Bmin, cyl
 
 @autojit
