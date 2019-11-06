@@ -627,9 +627,9 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	# Go around in angle increments and record the farthest out point in each slice
 	symmetry=3 # hack allows you to define rotational symmetry
 	increments = 360/3/symmetry+1 # this goes around in 1 degree intervals
-	#increments = 360
+	increments = 121
 	ang_inc = math.pi/(increments-1)
-	angles = np.linspace(-math.pi, -math.pi+2*math.pi/symmetry, increments) # sweep full circle
+	angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
 	radial_grid = np.array([(np.hypot(x,y),np.arctan2(y, x)) for x,y,z in xy_grid]) #polar coordinates, don't care about height
 	max_r, max_phi = [], []
 	#max_r, max_phi = parallel(angles,ang_inc,radial_grid) #parallelize both loops (doesnt seem to boost time performance)
@@ -640,6 +640,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 		#parallelize sweep over radial grid
 		rmax, phimax = parallel_grid_scan(radial_grid,angle,ang_inc)
 		if rmax != 0.0: # by definition can't have zero radius
+			print(angle*180/math.pi, rmax)
 			max_r.append(rmax)
 			max_phi.append(phimax)
 
