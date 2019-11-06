@@ -74,9 +74,9 @@ class WriteCubeData:
 		oldlines = oldfile.readlines()
 		molfile = open(file+"_radius."+self.FORMAT,"w")
 		# write new coordinates to file
-		for line in oldlines[0:2]: 
+		for line in oldlines[0:2]:
 			molfile.write(line)
-			
+
 		dims = [cube.xdim,cube.ydim,cube.zdim]
 		molfile.write("{:5} {:11.6f} {:11.6f} {:11.6f} {:4}".format(len(cube.ATOMNUM),cube.ORIGIN[0] / BOHR_TO_ANG, cube.ORIGIN[1] / BOHR_TO_ANG, cube.ORIGIN[2] / BOHR_TO_ANG, 1)+'\n')
 		for i in range(len(cube.INCREMENTS)):
@@ -85,25 +85,25 @@ class WriteCubeData:
 			x = cube.CARTESIANS[i][0] / BOHR_TO_ANG
 			y = cube.CARTESIANS[i][1] / BOHR_TO_ANG
 			z = cube.CARTESIANS[i][2] / BOHR_TO_ANG
-			molfile.write("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(cube.ATOMNUM[i],float(cube.ATOMNUM[i]),x,y,z)+'\n')	
-			
-			
+			molfile.write("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(cube.ATOMNUM[i],float(cube.ATOMNUM[i]),x,y,z)+'\n')
+
+
 		for line in cube.DENSITY_LINE:
 			molfile.write(line)
-		
+
 		# there may well be a fast way to do this directly from the 3D array of X,Y,Z points
 		# see http://paulbourke.net/dataformats/cube/
 		# for x in xvals:
 		# 	for y in yvals:
 		# 		width = []
-		# 		for z in zvals: 
+		# 		for z in zvals:
 		# 			width.append((x**2 + y**2)**0.5)
 		# 		# for cube print formatting
 		# 		list_of_widths = itertools.zip_longest(*(iter(width),) * 6)
 		# 		for widths in list_of_widths:
 		# 			outline = ''
 		# 			for val in widths:
-		# 				if val != None: 
+		# 				if val != None:
 		# 					outline += str('  {:10.5E}'.format(val))
 		# 			molfile.write('\n'+outline)
 		molfile.close()
@@ -119,16 +119,16 @@ class GetCubeData:
 				for i in range(2,len(outlines)):
 					try:
 						coord = outlines[i].split()
-						if i == 2: 
+						if i == 2:
 							self.ORIGIN = [float(coord[1])*BOHR_TO_ANG, float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG]
 						elif i == 3:
 							self.xdim = int(coord[0])
 							self.SPACING = float(coord[1])*BOHR_TO_ANG
 							self.x_inc = [float(coord[1])*BOHR_TO_ANG,float(coord[2])*BOHR_TO_ANG,float(coord[3])*BOHR_TO_ANG]
-						elif i == 4: 
+						elif i == 4:
 							self.ydim = int(coord[0])
 							self.y_inc = [float(coord[1])*BOHR_TO_ANG,float(coord[2])*BOHR_TO_ANG,float(coord[3])*BOHR_TO_ANG]
-						elif i == 5: 
+						elif i == 5:
 							self.zdim = int(coord[0])
 							self.z_inc = [float(coord[1])*BOHR_TO_ANG,float(coord[2])*BOHR_TO_ANG,float(coord[3])*BOHR_TO_ANG]
 						elif len(coord) == 5:
@@ -166,21 +166,21 @@ class GetCubeData:
 		# from mpl_toolkits.mplot3d import axes3d
 		# import matplotlib.pyplot as plt
 		# from matplotlib import cm
-		# 
+		#
 		# fig = plt.figure()
 		# ax = fig.add_subplot(111, projection='3d')
 		# ax.scatter3D(vol_x, vol_y, vol_z, c=vol_z, cmap='Greens')
 		# plt.show()
-		
-					
+
+
 class GetXYZData:
-	""" Read XYZ Cartesians from file """ 
+	""" Read XYZ Cartesians from file """
 	def __init__(self, file,ext, noH):
 		if ext == '.xyz':
-			if not os.path.exists(file+".xyz"): 
+			if not os.path.exists(file+".xyz"):
 				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file)
 		elif ext == '.log':
-			if not os.path.exists(file+".log"): 
+			if not os.path.exists(file+".log"):
 				print(("\nFATAL ERROR: log file [ %s ] does not exist"%file))
 		self.FORMAT = ext
 		molfile = open(file+self.FORMAT,"r")
@@ -194,9 +194,9 @@ class GetXYZData:
 					if len(coord) == 4:
 						if represents_float(coord[1]) == True and represents_float(coord[2]) and represents_float(coord[3]):
 							[atom, x,y,z] = [coord[0], float(coord[1]), float(coord[2]), float(coord[3])]
-							if noH == True and atom == "H": 
+							if noH == True and atom == "H":
 								pass
-							else: 
+							else:
 								self.ATOMTYPES.append(atom)
 								self.CARTESIANS.append([x,y,z])
 				except: pass
@@ -214,7 +214,7 @@ class GetXYZData:
 							self.CARTESIANS.append([float(line.split()[2]), float(line.split()[3]), float(line.split()[4])])
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
-	
+
 def represents_float(s):
 	try:
 		float(s)
@@ -228,15 +228,15 @@ def represents_int(s):
 		return True
 	except ValueError:
 		return False
-		
+
 def element_id(massno, num=False):
     try:
         if num:
             return periodictable.index(massno)
         return periodictable[massno]
     except IndexError:
-        return "XX"	
-		
+        return "XX"
+
 def unit_vector(vector):
 	""" Returns the unit vector of the vector """
 	return vector / np.linalg.norm(vector)
@@ -260,9 +260,9 @@ def translate_mol(coords, atoms, spec_atom, origin):
 				base_id, base_atom = n, atom
 	try:
 		displacement = coords[base_id] - origin
-		if np.linalg.norm(displacement) == 0: 
+		if np.linalg.norm(displacement) == 0:
 			print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
-		else: 
+		else:
 			print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
@@ -281,9 +281,9 @@ def translate_dens(coords, atoms, cube_origin, spec_atom, xmin, xmax, ymin, ymax
 				base_id, base_atom = n, atom
 	try:
 		displacement = coords[base_id] - origin
-		if np.linalg.norm(displacement) == 0: 
+		if np.linalg.norm(displacement) == 0:
 			print("\n   Molecule is already defined with {}{} at the origin".format(base_atom,(base_id+1)))
-		else: 
+		else:
 			print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
@@ -322,9 +322,9 @@ def bidentate(coords, atoms, spec_atom_1, spec_atom_2):
 	# print('projection',point)
 	# print('height',newvec)
 	return b + c
-	
+
 def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
-	#find point on plane made by atoms in spec_atom_2 perpendicular to spec_atom_1	
+	#find point on plane made by atoms in spec_atom_2 perpendicular to spec_atom_1
 	for n, atom in enumerate(atoms):
 		if atom+str(n+1) == spec_atom_1:
 			c_id, c_atom = n, atom
@@ -338,7 +338,7 @@ def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
 		elif atom+str(n+1) == spec_atom_2[2]:
 			l3_id, l3_atom = n, atom
 			d = coords[l3_id]
-	return b + c + d 
+	return b + c + d
 
 # Rotates molecule around X- and Y-axes to align M-L bond to Z-axis
 def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_inc=False):
@@ -380,14 +380,14 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 					theta =  math.pi - theta
 				print('   Rotating molecule about X-axis {0:.2f} degrees'.format(theta*180/math.pi))
 				center = [0.,0.,0.]
-				
+
 				#rotate ligand point
 				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
 				ox = u[0]
 				oy = u[1]*math.cos(theta) - u[2]*math.sin(theta)
 				oz = u[1]*math.sin(theta) + u[2]*math.cos(theta)
 				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
-				
+
 				for i,atom in enumerate(atoms):
 					#rotate coords around x axis
 					v = [float(coords[i][0]) - center[0], float(coords[i][1]) - center[1], float(coords[i][2]) - center[2]]
@@ -396,7 +396,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 					pz = v[1]*math.sin(theta) + v[2]*math.cos(theta)
 					rot1 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
 					newcoord[i] = rot1
-				
+
 				if cube_inc is not False:
 					for i in range(len(cube_inc)):
 						center = cube_origin
@@ -407,7 +407,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 						qz = w[1]*math.sin(theta) + w[2]*math.cos(theta)
 						rot1 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
 						new_inc[i] = rot1
-					
+
 			newcoord = np.asarray(newcoord)
 
 			ml_vec = lig_point - newcoord[center_id]
@@ -421,13 +421,13 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 				if quadrant_check > 0 and quadrant_check <= math.pi:
 					phi = 2 * math.pi - phi
 				print('   Rotating molecule about Y-axis {0:.2f} degrees'.format(phi*180/math.pi))
-				
+
 				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
 				ox = u[2]*math.sin(phi) + u[0]*math.cos(phi)
 				oy = u[1]
 				oz = u[2]*math.cos(phi) - u[0]*math.sin(phi)
 				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
-				
+
 				for i,atom in enumerate(atoms):
 					center = [0.,0.,0.]
 					#rotate coords around y axis
@@ -437,7 +437,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 					pz = v[2]*math.cos(phi) - v[0]*math.sin(phi)
 					rot2 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
 					newcoord[i]=rot2
-				
+
 				if cube_inc is not False:
 					for i in range(len(cube_inc)):
 						center = cube_origin
@@ -546,16 +546,17 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 				x_disp, y_disp = 0.0, radii[n] * math.sin(theta)
 			elif x != 0. and y == 0.:
 				x_disp, y_disp = radii[n]* math.cos(theta), 0.0
-			else: 
+			else:
 				x_disp, y_disp = radii[n], 0.0
 			xmax += x_disp; ymax += y_disp
+
 	# A nice PyMol cylinder object points along the B5 direction with the appopriate magnitude
 	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0,".format(0.0, xmax, ymax, 0.0, 0.1))
 
 	# Drop the Z coordinates and calculate B1
 	xycoords = [(x,y) for x,y,z in coords]
-	increments = 6000 # this goes around in 0.06 degree intervals
-	#increments = 720 # this goes around in 0.5 degree intervals
+	#increments = 6000 # this goes around in 0.06 degree intervals
+	increments = 37 # this goes around in 1 degree intervals
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi + 2 * math.pi, increments) # sweep full circle
 	Bmin = sys.float_info.max
@@ -565,15 +566,13 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 		for i in range(len(xycoords)):
 			projection = (xycoords[i][0])*math.cos(angle) + (xycoords[i][1])*math.sin(angle)
 			radius = projection + radii[i]
-			if radius > angle_val: 
-				angle_val, x, y = radius, xycoords[i][0], xycoords[i][1]
-				#for PyMol
-				x_disp, y_disp = radii[i] * math.cos(angle), radii[i] * math.sin(angle)
-				x += x_disp; y += y_disp
+
+			if radius > angle_val:
+				angle_val, x, y = radius, radius*math.cos(angle),radius*math.sin(angle)
 
 		if Bmin > angle_val:
-			Bmin,xmin,ymin = angle_val,x,y	
-			
+			Bmin,xmin,ymin = angle_val,x,y
+
 	cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
 	return L, Bmax, Bmin, cyl
 
@@ -586,11 +585,11 @@ def parallel(angles,ang_inc,radial_grid):
 		if rmax != 0.0: # by definition can't have zero radius
 			max_r.append(rmax)
 			max_phi.append(phimax)
-	return max_r, max_phi 
+	return max_r, max_phi
 
 @autojit
 def parallel_grid_scan(radial_grid, angle, ang_inc):
-	# angular sweep over grid points to find Bmin 
+	# angular sweep over grid points to find Bmin
 	rmax, phimax = 0.0, 0.0
 	for i in prange(len(radial_grid)):
 		r = float(radial_grid[i][0])
@@ -600,11 +599,11 @@ def parallel_grid_scan(radial_grid, angle, ang_inc):
 				rmax = r
 				phimax = phi
 	return rmax, phimax
-	
+
 # Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
-# conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used, 
-# which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres. 
-# Also B1 can be defined in a physically more # meaningful way than the traditional approach. This method can take horizontal slices to 
+# conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used,
+# which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres.
+# Also B1 can be defined in a physically more # meaningful way than the traditional approach. This method can take horizontal slices to
 # evaluate these parameters along the L-axis, which is also a nightmare with the conventional definition.
 def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
@@ -643,13 +642,13 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 		if rmax != 0.0: # by definition can't have zero radius
 			max_r.append(rmax)
 			max_phi.append(phimax)
-	
+
 	if len(max_r) > 0:
 		Bmin = min(max_r)
 		xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
 
-	# A nice PyMol cylinder object points along the B5 & B1 directions with the appopriate magnitude. 
-	# In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis. 
+	# A nice PyMol cylinder object points along the B5 & B1 directions with the appopriate magnitude.
+	# In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis.
 	# If not a single vector will be shown in the basal plane
 	if strip_width == 0.0:
 		cyl.append("   CYLINDER, 0., 0., {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0,".format(0.0, xmin, ymin, 0.0, 0.1))
@@ -660,7 +659,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	return L, Bmax, Bmin, cyl
 
 def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
-	""" Read which grid points occupy sphere""" 
+	""" Read which grid points occupy sphere"""
 	sphere, cube = 4 / 3 * math.pi * R ** 3, spacing ** 3
 	# Quick way to find all points in the grid within a sphere radius R
 	point_tree = spatial.cKDTree(all_grid)
@@ -676,8 +675,8 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	percent_buried_vol = occ_vol / tot_vol * 100.0
 	vol_err = tot_vol/sphere * 100.0
 
-	# experimental - in addition to occupied spherical volume, this will compute 
-	# the percentage occupancy of a radial shell between two limits if a scan 
+	# experimental - in addition to occupied spherical volume, this will compute
+	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
 	if strip_width != 0.0:
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
@@ -814,7 +813,7 @@ def main():
 		# if surface = Density the molecular volume is defined by an isodensity surface from a cube file
 		# This is the default when a density cube is supplied although it can be over-ridden at the command prompt
 		print("\n   The molecule will be analyzed using the {} surface".format(options.surface))
-		
+
 		#surfaces can either be formed from Van der Waals (bondi) radii (=vdw) or cube densities (=density)
 		if options.surface == 'vdw':
 			# generate Bondi radii from atom types
@@ -853,7 +852,7 @@ def main():
 			# print bounds of cube
 			#print("   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
-		# Check if we want to calculate parameters for mono- bi- or tridentate ligand 
+		# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 		options.spec_atom_2 = options.spec_atom_2.split(',')
 		if len(options.spec_atom_2) is 1:
 			# mono - obtain coords of atom to align along z axis
@@ -885,9 +884,9 @@ def main():
 					y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
 					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
-				
+
 				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
-				
+
 				print('rotated')
 				#print everything in bohr
 				dims = [mol.xdim,mol.ydim,mol.zdim]
@@ -899,10 +898,10 @@ def main():
 					y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
 					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
-					
-				# print coords in angstrom 	
+
+				# print coords in angstrom
 				# for i in range(len(mol.CARTESIANS)):
-				# 	x = mol.CARTESIANS[i][0] 
+				# 	x = mol.CARTESIANS[i][0]
 				# 	y = mol.CARTESIANS[i][1]
 				# 	z = mol.CARTESIANS[i][2]
 				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
@@ -930,7 +929,7 @@ def main():
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = max_dim(mol.CARTESIANS, mol.RADII, options.grid)
 
 		# read the requested radius or range
-		if not options.scan: 
+		if not options.scan:
 			r_min, r_max, strip_width = options.radius, options.radius, 0.0
 		else:
 			try:
@@ -938,7 +937,7 @@ def main():
 				r_intervals += int((r_max - r_min) / strip_width)
 			except:
 				print("   Can't read your scan request. Try something like --scan 3:5:0.25"); exit()
-				
+
 		if options.volume or options.sterimol == 'grid':
 			# Resize the molecule's grid if a larger radius has been requested
 			if r_max > xyz_max:
@@ -962,14 +961,14 @@ def main():
 			if options.volume or options.sterimol == 'grid':
 				# construct grid encapsulating molecule
 				grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
-				# compute which grid points occupy molecule 
+				# compute which grid points occupy molecule
 				occ_grid = occupied(grid, mol.CARTESIANS, mol.RADII, options.grid, origin)
-				
+
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
 			y_vals = np.linspace(y_min, y_max, mol.ydim)
 			z_vals = np.linspace(z_min, z_max, mol.zdim)
-			
+
 			# writes a new grid to cube file
 			isocube = WriteCubeData(name, mol)
 			# define the grid points containing the molecule
@@ -1009,7 +1008,7 @@ def main():
 			# Tabulate result
 			if options.volume:
 				# for pymol visualization
-				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))	
+				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
 				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax))
 			else:
 				print("   {:6.2f} {:10.2f}".format(Bmin, Bmax))
@@ -1017,7 +1016,7 @@ def main():
 			# for pymol visualization
 			for c in cyl:
 				cylinders.append(c)
-				
+
 		# Stop timing the loop
 		call_time = time.time() - start
 
