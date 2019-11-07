@@ -622,7 +622,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	radii = [math.sqrt(x**2+y**2) for x,y,z in xy_grid]
 	Bmax, imax = max(radii), np.argmax(radii)
 	xmax, ymax, zmax = xy_grid[imax]
-	print(Bmax, math.sqrt(xmax**2+ymax**2))
+	#print(Bmax, math.sqrt(xmax**2+ymax**2))
 	L = max(map(lambda x: x[2], xy_grid))
 	#print(time.time() - start_scan)
 	# this is the best I could come up with to estimate the minimum radius of the molecule projected in the XY-plane
