@@ -21,8 +21,6 @@ from glob import glob
 import numpy as np
 from optparse import OptionParser
 import scipy.spatial as spatial
-from scipy.interpolate import UnivariateSpline
-from decimal import Decimal
 
 #Avoid number error warnings
 import warnings
@@ -250,10 +248,15 @@ def angle_between(v1, v2):
 	ang = np.arctan2(sinang,cosang)
 	return math.degrees(ang)
 
-def translate_mol(coords, atoms, spec_atom, origin):
+def translate_mol(MOL, options, origin):
+	coords, atoms, spec_atom = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1
 	for n, atom in enumerate(atoms):
 		if not spec_atom:
+			# if no center is specified, try to default to metal
 			if atom in metals:
+				base_id, base_atom = n, atom
+			# otherwise just use the first atom
+			if n ==0:
 				base_id, base_atom = n, atom
 		else:
 			if atom+str(n+1) == spec_atom:
@@ -261,9 +264,9 @@ def translate_mol(coords, atoms, spec_atom, origin):
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
-			print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
+			if options.verbose == True: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
 		else:
-			print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
+			if options.verbose ==True: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
 	except:
@@ -299,7 +302,8 @@ def translate_dens(coords, atoms, cube_origin, spec_atom, xmin, xmax, ymin, ymax
 		   sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
 	return [coords, cube_origin, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max]
 
-def bidentate(coords, atoms, spec_atom_1, spec_atom_2):
+def bidentate(MOL, options):
+	coords, atoms, spec_atom_1, spec_atom_2 = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1,  options.spec_atom_2
 	#find point on line made by atoms in spec_atom_2 perpendicular to spec_atom_1
 	for n, atom in enumerate(atoms):
 		if atom+str(n+1) == spec_atom_1:
@@ -323,7 +327,8 @@ def bidentate(coords, atoms, spec_atom_1, spec_atom_2):
 	# print('height',newvec)
 	return b + c
 
-def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
+def tridentate(MOL, options):
+	coords, atoms, spec_atom_1, spec_atom_2 = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1,  options.spec_atom_2
 	#find point on plane made by atoms in spec_atom_2 perpendicular to spec_atom_1
 	for n, atom in enumerate(atoms):
 		if atom+str(n+1) == spec_atom_1:
@@ -341,7 +346,7 @@ def tridentate(coords, atoms,spec_atom_1, spec_atom_2):
 	return b + c + d
 
 # Rotates molecule around X- and Y-axes to align M-L bond to Z-axis
-def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_inc=False):
+def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False, cube_inc=False):
 	for n, atom in enumerate(atoms):
 		# if atom in metals: met_id, met_atom = n, atom
 		# if atom == "P": lig_id, lig_atom = n, atom
@@ -358,7 +363,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 		new_data=[]
 		currentatom=[]
 		if np.linalg.norm(zrot_angle) == 0:
-			print("No rotation necessary :)")
+			if options.verbose == True: print("No rotation necessary :)")
 			#print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
 		else:
 			for i in range(0,len(coords)):
@@ -378,7 +383,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 					theta = math.pi - theta
 				elif quadrant_check < -math.pi / 2.0 and quadrant_check >= -(math.pi):
 					theta =  math.pi - theta
-				print('   Rotating molecule about X-axis {0:.2f} degrees'.format(theta*180/math.pi))
+				if options.verbose ==True: print('   Rotating molecule about X-axis {0:.2f} degrees'.format(theta*180/math.pi))
 				center = [0.,0.,0.]
 
 				#rotate ligand point
@@ -420,7 +425,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, cube_origin=False, cube_in
 				quadrant_check = math.atan2(u_zx[1],u_zx[0])
 				if quadrant_check > 0 and quadrant_check <= math.pi:
 					phi = 2 * math.pi - phi
-				print('   Rotating molecule about Y-axis {0:.2f} degrees'.format(phi*180/math.pi))
+				if options.verbose ==True: print('   Rotating molecule about Y-axis {0:.2f} degrees'.format(phi*180/math.pi))
 
 				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
 				ox = u[2]*math.sin(phi) + u[0]*math.cos(phi)
@@ -470,7 +475,8 @@ def grid_round(x, spacing):
 	return(round(x*n)/n)
 
 # Establishes the smallest cuboid that contains all of the molecule to speed things up
-def max_dim(coords, radii, spacing):
+def max_dim(coords, radii, options):
+	spacing = options.grid
 	[x_min, x_max, y_min, y_max, z_min, z_max] = np.zeros(6)
 	for n, coord in enumerate(coords):
 		[x_plus,y_plus,z_plus] = coord + np.array([radii[n], radii[n], radii[n]])
@@ -484,7 +490,7 @@ def max_dim(coords, radii, spacing):
 
 	# largest dimension along any axis
 	max_dim = max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min))
-	print("\n   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
+	if options.verbose ==True: print("\n   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
 	# compute cubic volume containing molecule and estimate the number of grid points based on grid spacing and volume size
 	cubic_volume = (2 * max_dim) ** 3
@@ -492,18 +498,21 @@ def max_dim(coords, radii, spacing):
 	return [x_min, x_max, y_min, y_max, z_min, z_max, max_dim]
 
 # Uses atomic coordinates and VDW radii to establish which grid voxels are occupied
-def occupied(grid, coords, radii, spacing, origin):
-	print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom.".format(spacing))
+def occupied(grid, coords, radii, origin, options):
+	spacing = options.grid
+	if options.verbose ==True: print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom.".format(spacing))
+	if options.verbose ==True: print("   There are {} grid points.".format(len(grid)))
+
 	idx, point_tree  = [], spatial.cKDTree(grid)
 	for n, coord in enumerate(coords):
 		center = coord + origin
 		idx.append(point_tree.query_ball_point(center, radii[n]))
-
 	# construct a list of indices of the grid array that are occupied
 	jdx = [y for x in idx for y in x]
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
+	if options.verbose == True: print("   There are {} occupied grid points.".format(len(jdx)))
+	if options.verbose == True: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
 	return grid[jdx]
 
 # Uses density cube to establish which grid voxels are occupied (i.e. density is above some isoval, by default 0.002)
@@ -556,7 +565,7 @@ def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	# Drop the Z coordinates and calculate B1
 	xycoords = [(x,y) for x,y,z in coords]
 	#increments = 6000 # this goes around in 0.06 degree intervals
-	increments = 37 # this goes around in 1 degree intervals
+	increments = 361 # this goes around in 1 degree intervals
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi + 2 * math.pi, increments) # sweep full circle
 	Bmin = sys.float_info.max
@@ -588,17 +597,14 @@ def parallel(angles,ang_inc,radial_grid):
 	return max_r, max_phi
 
 @autojit
-def parallel_grid_scan(radial_grid, angle, ang_inc):
+def parallel_grid_scan(xy_grid, angle):
 	# angular sweep over grid points to find Bmin
-	rmax, phimax = 0.0, 0.0
-	for i in prange(len(radial_grid)):
-		r = float(radial_grid[i][0])
-		phi = float(radial_grid[i][1])
-		if angle - ang_inc < phi <= angle + ang_inc:
-			if r > rmax:
+	rmax = 0.0
+	for i in prange(len(xy_grid)):
+		r = xy_grid[i][0]*math.cos(angle)+xy_grid[i][1]*math.sin(angle)
+		if r > rmax:
 				rmax = r
-				phimax = phi
-	return rmax, phimax
+	return rmax
 
 # Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
 # conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used,
@@ -609,44 +615,40 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
 	# this is a layer of the occupancy grid between Z-limits
-	xy_grid = [(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width or strip_width == 0]
-	# try:
-	# 	radii = [np.hypot(x,y) for x,y,z in xy_grid]
-	# 	Bmax, imax = max(radii), np.argmax(radii)
-	# 	xmax, ymax, zmax = xy_grid[imax]
-	# 	L = max([z for x,y,z in xy_grid])
-	# except: pass
-	radii = [np.hypot(x,y) for x,y,z in xy_grid]
+	if strip_width != 0: xy_grid = [(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width]
+	else: xy_grid = occ_grid
+
+	#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
+	radii = [math.sqrt(x**2+y**2) for x,y,z in xy_grid]
 	Bmax, imax = max(radii), np.argmax(radii)
 	xmax, ymax, zmax = xy_grid[imax]
-	L = max([z for x,y,z in xy_grid])
-
+	print(Bmax, math.sqrt(xmax**2+ymax**2))
+	L = max(map(lambda x: x[2], xy_grid))
+	#print(time.time() - start_scan)
 	# this is the best I could come up with to estimate the minimum radius of the molecule projected in the XY-plane
 	# I think it will be better to take horizontol slices and then use scipy interpolate to obtain a contour plot
 	# or https://scikit-image.org/docs/dev/auto_examples/edges/plot_marching_cubes.html
 	# Go around in angle increments and record the farthest out point in each slice
-	symmetry=3 # hack allows you to define rotational symmetry
-	increments = 360/3/symmetry+1 # this goes around in 1 degree intervals
-	increments = 121
+	#symmetry=3 # hack allows you to define rotational symmetry
+	#increments = 360/3/symmetry+1 # this goes around in 1 degree intervals
+	increments = 361
 	ang_inc = math.pi/(increments-1)
 	angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
-	radial_grid = np.array([(np.hypot(x,y),np.arctan2(y, x)) for x,y,z in xy_grid]) #polar coordinates, don't care about height
-	max_r, max_phi = [], []
-	#max_r, max_phi = parallel(angles,ang_inc,radial_grid) #parallelize both loops (doesnt seem to boost time performance)
 
-	#sweep over angular increments
-	for n,angle in enumerate(angles):
-		rmax, phimax = 0.0, 0.0
-		#parallelize sweep over radial grid
-		rmax, phimax = parallel_grid_scan(radial_grid,angle,ang_inc)
+	Bmin = sys.float_info.max
+	xmin,ymin = 0,0
+	max_r, max_phi = [], []
+
+	for angle in angles:
+		rmax = parallel_grid_scan(xy_grid,angle)
+
 		if rmax != 0.0: # by definition can't have zero radius
-			print(angle*180/math.pi, rmax)
 			max_r.append(rmax)
-			max_phi.append(phimax)
+			max_phi.append(angle)
 
 	if len(max_r) > 0:
-		Bmin = min(max_r)
-		xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
+	    Bmin = min(max_r)
+	    xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
 
 	# A nice PyMol cylinder object points along the B5 & B1 directions with the appopriate magnitude.
 	# In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis.
@@ -758,6 +760,7 @@ cmd.ramp_new('ramp', 'distances', range=[0,4], color='rainbow') # use zero to bm
 cmd.set('surface_color', 'ramp')
 set field_of_view, 1
 '''
+
 def main():
 	files, r_intervals, origin = [], 1, np.array([0,0,0])
 	# get command line inputs. Use -h to list all possible arguments and default values
@@ -777,10 +780,10 @@ def main():
 	parser.add_option("--surface", dest="surface", action="store", help="The surface can be defined by Bondi VDW radii or a density cube file", default='density', metavar="surface")
 	parser.add_option("--debug", dest="debug", action="store_true", help="Print extra stuff to file", default=False, metavar="debug")
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
+	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 
 	(options, args) = parser.parse_args()
-	print_txt = ''
-	print_vals = ''
+	print_txt, print_vals = '', ''
 
 	# make sure upper/lower case doesn't matter
 	options.surface = options.surface.lower()
@@ -794,11 +797,10 @@ def main():
 						files.append(file)
 			except IndexError: pass
 
-	if len(files) is 0:
-		sys.exit("    Please specify a valid input file and try again.")
+	if len(files) is 0: sys.exit("    Please specify a valid input file and try again.")
+
 	for file in files: # loop over all specified output files
 		spheres, cylinders = [], []
-		print('\n',file)
 		start = time.time()
 		name, ext = os.path.splitext(file)
 
@@ -813,14 +815,14 @@ def main():
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a cube file
 		# This is the default when a density cube is supplied although it can be over-ridden at the command prompt
-		print("\n   The molecule will be analyzed using the {} surface".format(options.surface))
+		if options.verbose ==True: print("\n   {} will be analyzed using the {} surface".format(file, options.surface))
 
 		#surfaces can either be formed from Van der Waals (bondi) radii (=vdw) or cube densities (=density)
 		if options.surface == 'vdw':
 			# generate Bondi radii from atom types
 			try:
 				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
-				print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
+				if options.verbose ==True: print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
 			except:
 				print("\n   UNABLE TO GENERATE VDW RADII"); exit()
 			# scale radii by a factor
@@ -840,8 +842,7 @@ def main():
 			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface)); exit()
 
 		# Translate molecule to place metal or specified atom at the origin
-		if options.surface == 'vdw':
-			mol.CARTESIANS = translate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, origin)
+		if options.surface == 'vdw': mol.CARTESIANS = translate_mol(mol, options, origin)
 		elif options.surface == 'density':
 			# print('xyz')
 			# for i in range(len(mol.CARTESIANS)):
@@ -862,18 +863,17 @@ def main():
 				if atom+str(n+1) == options.spec_atom_2[0]:
 					p_id = n
 					point = mol.CARTESIANS[p_id]
-		elif len(options.spec_atom_2) is 2:
-			# bi - obtain coords of point perpendicular to vector connecting ligands
-			point = bidentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
-		elif len(options.spec_atom_2) is 3:
-			# tri - obtain coords of point perpendicular to plane connecting ligands
-			point = tridentate(mol.CARTESIANS,mol.ATOMTYPES,options.spec_atom_1,options.spec_atom_2)
+
+		# bi - obtain coords of point perpendicular to vector connecting ligands
+		elif len(options.spec_atom_2) is 2: point = bidentate(mol, options)
+		# tri - obtain coords of point perpendicular to plane connecting ligands
+		elif len(options.spec_atom_2) is 3: point = tridentate(mol, options)
 
 		# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 		# the x and y directions are arbitrary
 		if len(mol.CARTESIANS) > 1:
 			if options.surface == 'vdw':
-				mol.CARTESIANS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point)
+				mol.CARTESIANS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point, options)
 			elif options.surface == 'density':
 				print('translated')
 				dims = [mol.xdim,mol.ydim,mol.zdim]
@@ -886,7 +886,7 @@ def main():
 					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 
-				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
+				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
 
 				print('rotated')
 				#print everything in bohr
@@ -927,7 +927,7 @@ def main():
 						mol.RADII = np.delete(mol.RADII,del_atom-1)
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
-			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = max_dim(mol.CARTESIANS, mol.RADII, options.grid)
+			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = max_dim(mol.CARTESIANS, mol.RADII, options)
 
 		# read the requested radius or range
 		if not options.scan:
@@ -941,17 +941,19 @@ def main():
 
 		if options.volume or options.sterimol == 'grid':
 			# Resize the molecule's grid if a larger radius has been requested
-			if r_max > xyz_max:
+			if r_max > xyz_max and options.volume:
 				xyz_max = grid_round(r_max, options.grid)
 				print("   You asked for a large radius ({})! Expanding the grid dimension to {} Angstrom".format(r_max, xyz_max))
+
 			# define the grid points based on molecule size and grid-spacing
-			n_grid_vals = round(2 * xyz_max / options.grid)
-			grid_vals = np.linspace(xyz_max * -1.0, xyz_max - options.grid, n_grid_vals)
-			grid = np.array(list(itertools.product(grid_vals, grid_vals, grid_vals)))
+			#n_grid_vals = round(2 * xyz_max / options.grid)
+			#grid_vals = np.linspace(xyz_max * -1.0, xyz_max - options.grid, n_grid_vals)
+			#grid = np.array(list(itertools.product(grid_vals, grid_vals, grid_vals)))
 
 		# Iterate over the grid points to see whether this is within VDW radius of any atom(s)
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
+
 		if options.surface == 'vdw':
 			n_x_vals = 1 + round((x_max - x_min) / options.grid)
 			n_y_vals = 1 + round((y_max - y_min) / options.grid)
@@ -963,7 +965,7 @@ def main():
 				# construct grid encapsulating molecule
 				grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
 				# compute which grid points occupy molecule
-				occ_grid = occupied(grid, mol.CARTESIANS, mol.RADII, options.grid, origin)
+				occ_grid = occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
@@ -986,13 +988,11 @@ def main():
 		setup_time = time.time() - start
 
 		# get buried volume at different radii
-		print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
+		if options.verbose == True: print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
 
 		if options.volume:
 			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax"))
-		else:
-			print("   {:>6} {:>10}".format("Bmin", "Bmax"))
-		start =  time.time()
+
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels. There is only one way to compute it
 			if options.volume:
@@ -1012,23 +1012,23 @@ def main():
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
 				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax))
 			else:
-				print("   {:6.2f} {:10.2f}".format(Bmin, Bmax))
+				print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
 
 			# for pymol visualization
 			for c in cyl:
 				cylinders.append(c)
 
 		# Stop timing the loop
-		call_time = time.time() - start
+		call_time = time.time() - start - setup_time
 
 		# recompute L if a scan has been performed
 		if options.sterimol == 'grid' and r_intervals >1:
 			L, Bmax, Bmin, cyl = get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
-		print('\n   L parameter is {:5.2f} Ang'.format(L))
+			print('\n   L parameter is {:5.2f} Ang'.format(L))
 		cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
 
 		# Report timing for the whole program and write a PyMol script
-		print('\n   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, call_time))
+		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, call_time))
 		xyz_export(file,mol)
 		pymol_export(file, mol, spheres, cylinders, options.isoval)
 
