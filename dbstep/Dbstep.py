@@ -810,7 +810,13 @@ def main():
 			mol = GetXYZData(name,ext, options.noH)
 		if ext == '.cube':
 			mol = GetCubeData(name)
-
+		
+		# if atoms are not specified to align to, grab first and second atom in 
+		if options.spec_atom_1 is False:
+			options.spec_atom_1 = mol.ATOMTYPES[0]+str(1)
+		if options.spec_atom_2 is False:
+			options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
+			
 		# if surface = VDW the molecular volume is defined by tabulated radii
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a cube file
