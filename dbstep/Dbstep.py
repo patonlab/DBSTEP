@@ -264,7 +264,7 @@ def translate_mol(MOL, options, origin):
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
-			if options.verbose == True: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
+			if options.verbose: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
 		else:
 			if options.verbose ==True: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
@@ -274,7 +274,9 @@ def translate_mol(MOL, options, origin):
 	return coords
 
 # Translates molecule so that a specified atom (spec_atom) is at the origin. Defaults to a metal if no atom is specified.
-def translate_dens(coords, atoms, cube_origin, spec_atom, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, origin):
+def translate_dens(mol, options, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, origin):
+	coords, atoms, cube_origin = mol.CARTESIANS, mol.ATOMTYPES,mol.ORIGIN
+	spec_atom = options.spec_atom_1
 	for n, atom in enumerate(atoms):
 		if not spec_atom:
 			if atom in metals:
@@ -285,9 +287,9 @@ def translate_dens(coords, atoms, cube_origin, spec_atom, xmin, xmax, ymin, ymax
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
-			print("\n   Molecule is already defined with {}{} at the origin".format(base_atom,(base_id+1)))
+			if options.verbose: print("\n   Molecule is already defined with {}{} at the origin".format(base_atom,(base_id+1)))
 		else:
-			print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
+			if options.verbose: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
 		cube_origin = cube_origin + displacement
@@ -363,7 +365,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 		new_data=[]
 		currentatom=[]
 		if np.linalg.norm(zrot_angle) == 0:
-			if options.verbose == True: print("No rotation necessary :)")
+			if options.verbose: print("No rotation necessary :)")
 			#print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
 		else:
 			for i in range(0,len(coords)):
@@ -511,18 +513,19 @@ def occupied(grid, coords, radii, origin, options):
 	jdx = [y for x in idx for y in x]
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	if options.verbose == True: print("   There are {} occupied grid points.".format(len(jdx)))
-	if options.verbose == True: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
+	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
+	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
 	return grid[jdx]
 
 # Uses density cube to establish which grid voxels are occupied (i.e. density is above some isoval, by default 0.002)
-def occupied_dens(grid, dens, spacing, isoval):
+def occupied_dens(grid, dens, options):
+	spacing, isoval = options.grid, options.isoval
 	cube, list = (spacing / 0.529177249) ** 3, []
-	print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(spacing))
+	if options.verbose: print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(spacing))
 
 	for n, density in enumerate(dens):
 		if density > isoval: list.append(n)
-	print("   Molecular volume is {:5.4f} Ang^3".format(len(list) * spacing ** 3))
+	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(list) * spacing ** 3))
 	return grid[list]
 
 # Uses standard Verloop definitions and VDW spheres to define L, B1 and B5
@@ -615,7 +618,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
 	# this is a layer of the occupancy grid between Z-limits
-	if strip_width != 0: xy_grid = [(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width]
+	if strip_width != 0: xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width])	
 	else: xy_grid = occ_grid
 
 	#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
@@ -836,7 +839,7 @@ def main():
 		elif options.surface == 'density':
 			if hasattr(mol, 'DENSITY'):
 				mol.DENSITY = np.array(mol.DENSITY)
-				print("\n   Read cube file {} containing {} points".format(file, mol.xdim * mol.ydim * mol.zdim))
+				if options.verbose: print("\n   Read cube file {} containing {} points".format(file, mol.xdim * mol.ydim * mol.zdim))
 				[x_min, y_min, z_min] = np.array(mol.ORIGIN)
 				[x_max, y_max, z_max] = np.array(mol.ORIGIN) + np.array([(mol.xdim-1)* mol.SPACING, (mol.ydim-1) * mol.SPACING, (mol.zdim-1) * mol.SPACING])
 				xyz_max = max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min))
@@ -856,7 +859,7 @@ def main():
 			# 	y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
 			# 	z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 			# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
-			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = translate_dens(mol.CARTESIANS, mol.ATOMTYPES,mol.ORIGIN, options.spec_atom_1, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
+			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
 			# print bounds of cube
 			#print("   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
@@ -881,30 +884,30 @@ def main():
 			if options.surface == 'vdw':
 				mol.CARTESIANS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point, options)
 			elif options.surface == 'density':
-				print('translated')
-				dims = [mol.xdim,mol.ydim,mol.zdim]
-				print("{:5} {:11.6f} {:11.6f} {:11.6f} {:4}".format(len(mol.ATOMNUM),mol.ORIGIN[0] / BOHR_TO_ANG, mol.ORIGIN[1] / BOHR_TO_ANG, mol.ORIGIN[2] / BOHR_TO_ANG, 1))
-				for i in range(len(mol.INCREMENTS)):
-					print("{:5} {:11.6f} {:11.6f} {:11.6f}".format(dims[i],mol.INCREMENTS[i][0] / BOHR_TO_ANG,mol.INCREMENTS[i][1] / BOHR_TO_ANG,mol.INCREMENTS[i][2] / BOHR_TO_ANG))
-				for i in range(len(mol.CARTESIANS)):
-					x = mol.CARTESIANS[i][0] / BOHR_TO_ANG
-					y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
-					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
-					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
+				# print('translated')
+				# dims = [mol.xdim,mol.ydim,mol.zdim]
+				# print("{:5} {:11.6f} {:11.6f} {:11.6f} {:4}".format(len(mol.ATOMNUM),mol.ORIGIN[0] / BOHR_TO_ANG, mol.ORIGIN[1] / BOHR_TO_ANG, mol.ORIGIN[2] / BOHR_TO_ANG, 1))
+				# for i in range(len(mol.INCREMENTS)):
+				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f}".format(dims[i],mol.INCREMENTS[i][0] / BOHR_TO_ANG,mol.INCREMENTS[i][1] / BOHR_TO_ANG,mol.INCREMENTS[i][2] / BOHR_TO_ANG))
+				# for i in range(len(mol.CARTESIANS)):
+				# 	x = mol.CARTESIANS[i][0] / BOHR_TO_ANG
+				# 	y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
+				# 	z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
+				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 
 				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
-
-				print('rotated')
-				#print everything in bohr
-				dims = [mol.xdim,mol.ydim,mol.zdim]
-				print("{:5} {:11.6f} {:11.6f} {:11.6f} {:4}".format(len(mol.ATOMNUM),mol.ORIGIN[0] / BOHR_TO_ANG, mol.ORIGIN[1] / BOHR_TO_ANG, mol.ORIGIN[2] / BOHR_TO_ANG, 1))
-				for i in range(len(mol.INCREMENTS)):
-					print("{:5} {:11.6f} {:11.6f} {:11.6f}".format(dims[i],mol.INCREMENTS[i][0] / BOHR_TO_ANG,mol.INCREMENTS[i][1] / BOHR_TO_ANG,mol.INCREMENTS[i][2] / BOHR_TO_ANG))
-				for i in range(len(mol.CARTESIANS)):
-					x = mol.CARTESIANS[i][0] / BOHR_TO_ANG
-					y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
-					z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
-					print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
+				# 
+				# print('rotated')
+				# #print everything in bohr
+				# dims = [mol.xdim,mol.ydim,mol.zdim]
+				# print("{:5} {:11.6f} {:11.6f} {:11.6f} {:4}".format(len(mol.ATOMNUM),mol.ORIGIN[0] / BOHR_TO_ANG, mol.ORIGIN[1] / BOHR_TO_ANG, mol.ORIGIN[2] / BOHR_TO_ANG, 1))
+				# for i in range(len(mol.INCREMENTS)):
+				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f}".format(dims[i],mol.INCREMENTS[i][0] / BOHR_TO_ANG,mol.INCREMENTS[i][1] / BOHR_TO_ANG,mol.INCREMENTS[i][2] / BOHR_TO_ANG))
+				# for i in range(len(mol.CARTESIANS)):
+				# 	x = mol.CARTESIANS[i][0] / BOHR_TO_ANG
+				# 	y = mol.CARTESIANS[i][1] / BOHR_TO_ANG
+				# 	z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
+				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 
 				# print coords in angstrom
 				# for i in range(len(mol.CARTESIANS)):
@@ -983,7 +986,7 @@ def main():
 			# define the grid points containing the molecule
 			grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
-			occ_grid = occupied_dens(grid, mol.DENSITY, options.grid, options.isoval)
+			occ_grid = occupied_dens(grid, mol.DENSITY, options)
 
 		# testing - allows this grid to be visualized in PyMol with output py script
 		# - !SLOW to load in PyMOL for many grid points - basically kills PyMOL!
@@ -994,7 +997,7 @@ def main():
 		setup_time = time.time() - start
 
 		# get buried volume at different radii
-		if options.verbose == True: print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
+		if options.verbose: print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
 
 		if options.volume:
 			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax"))
