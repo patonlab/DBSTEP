@@ -28,13 +28,15 @@ warnings.filterwarnings("ignore")
 
 #Chemistry Arrays
 
-#Bondi Van der Waals radii taken from [J. Phys. Chem. A. 2009, 103, 5806-5812]
-bondi = {"Bq": 0.00, "H": 1.09,"He": 1.40,"Li": 1.81,"Be": 1.53,"B": 1.92,"C": 1.70,"N": 1.55,"O": 1.52,"F": 1.47,"Ne":1.54,
-	"Na":2.27,"Mg":1.73,"Al":1.84,"Si":2.10,"P":1.80,"S":1.80, "Cl":1.75,"Ar":1.88,
-	"K":2.75,"Ca":2.31,"Ga":1.87,"Ge":2.11,"As":1.85,"Se":1.90,"Br":1.83,"Kr":2.02,
-	"Rb":3.03,"Sr":2.49,"In":1.93,"Sn":2.17,"Sb":2.06,"Te":2.06,"I":1.98,"Xe":2.16,
-	"Cs":3.43,"Ba":2.68,"Tl":1.96,"Pb":2.02,"Bi":2.07,"Po":1.97,"At":2.02,"Rn":2.20,
-	"Fr":3.48,"Ra":2.83,"Pd": 1.63, "Ni": 0.0, "Rh": 2.00}
+#Bondi Van der Waals radii taken from [J. Phys. Chem. 1964, 68, 441] & [J. Phys. Chem. A. 2009, 103, 5806-5812]
+# All other elements set to 2.0A
+bondi = {"Bq": 0.00, "H": 1.09,"He": 1.40,
+    "Li":1.81,"Be":1.53,"B":1.92,"C":1.70,"N":1.55,"O":1.52,"F":1.47,"Ne":1.54,
+	"Na":2.27,"Mg":1.73,"Al":1.84,"Si":2.10,"P":1.80,"S":1.80,"Cl":1.75,"Ar":1.88,
+	"K":2.75,"Ca":2.31,"Ni": 1.63,"Cu":1.40,"Zn":1.39,"Ga":1.87,"Ge":2.11,"As":1.85,"Se":1.90,"Br":1.83,"Kr":2.02,
+	"Rb":3.03,"Sr":2.49,"Pd": 1.63,"Ag":1.72,"Cd":1.58,"In":1.93,"Sn":2.17,"Sb":2.06,"Te":2.06,"I":1.98,"Xe":2.16,
+	"Cs":3.43,"Ba":2.68,"Pt":1.72,"Au":1.66,"Hg":1.55,"Tl":1.96,"Pb":2.02,"Bi":2.07,"Po":1.97,"At":2.02,"Rn":2.20,
+	"Fr":3.48,"Ra":2.83, "U":1.86 }
 
 periodictable = ["","H","He","Li","Be","B","C","N","O","F","Ne",
 	"Na","Mg","Al","Si","P","S","Cl","Ar",
@@ -364,6 +366,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 		new_inc=[]
 		new_data=[]
 		currentatom=[]
+		center = [0.,0.,0.]
 		if np.linalg.norm(zrot_angle) == 0:
 			if options.verbose: print("No rotation necessary :)")
 			#print("   Molecule is aligned with {}{}-{}{} along the Z-axis".format(center_atom,(center_id+1),lig_atom,(lig_id+1)))
@@ -386,7 +389,6 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 				elif quadrant_check < -math.pi / 2.0 and quadrant_check >= -(math.pi):
 					theta =  math.pi - theta
 				if options.verbose ==True: print('   Rotating molecule about X-axis {0:.2f} degrees'.format(theta*180/math.pi))
-				center = [0.,0.,0.]
 
 				#rotate ligand point
 				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
@@ -775,6 +777,7 @@ def main():
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii [rmin:rmax:interval]", default=False, metavar="scan")
+	parser.add_option("--scand", dest="scand", action="store", help="Scan over an evenly distributed range of radii", default=False, metavar="scand")
 	parser.add_option("--center", dest="spec_atom_1", action="store", help="Specify the base atom", default=False, metavar="spec_atom_1")
 	parser.add_option("--ligand", dest="spec_atom_2", action="store", help="Specify the connected atom(s)", default=False, metavar="spec_atom_2")
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")
@@ -806,7 +809,7 @@ def main():
 		spheres, cylinders = [], []
 		start = time.time()
 		name, ext = os.path.splitext(file)
-
+		
 		# if noH is requested these atoms are skipped to make things go faster
 		if ext == '.xyz' or ext == '.log':
 			options.surface = 'vdw'
@@ -833,7 +836,14 @@ def main():
 				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
 				if options.verbose ==True: print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
 			except:
-				print("\n   UNABLE TO GENERATE VDW RADII"); exit()
+				mol.RADII = []
+				for atom in mol.ATOMTYPES:
+					if atom not in periodictable:
+						print("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: ", atom); exit()
+					elif atom not in bondi:
+						mol.RADII.append(2.0)
+					else:
+						mol.RADII.append(bondi[atom])
 			# scale radii by a factor
 			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
 		elif options.surface == 'density':
@@ -862,7 +872,7 @@ def main():
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
 			# print bounds of cube
 			#print("   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
-
+			
 		# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 		options.spec_atom_2 = options.spec_atom_2.split(',')
 		if len(options.spec_atom_2) is 1:
@@ -895,7 +905,7 @@ def main():
 				# 	z = mol.CARTESIANS[i][2] / BOHR_TO_ANG
 				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 
-				mol.CARTESIANS, mol.INCREMENTS= rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
+				mol.CARTESIANS, mol.INCREMENTS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
 				# 
 				# print('rotated')
 				# #print everything in bohr
@@ -1000,8 +1010,22 @@ def main():
 		if options.verbose: print("\n   Sterimol parameters will be generated in {} mode for {}\n".format(options.sterimol, file))
 
 		if options.volume:
-			print("   {:>6} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax"))
+			print("   {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L"))
 
+		if options.scand is not False:
+			# obtain L to get distributed intervals
+			if options.sterimol == 'grid':
+				L, Bmax, Bmin, cyl = get_cube_sterimol(occ_grid, 3.5, options.grid, strip_width)
+			elif options.sterimol == 'classic':
+				if options.surface == 'vdw':
+					L, Bmax, Bmin, cyl = get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES, options.spec_atom_1, options.spec_atom_2)
+				elif options.surface == 'density':
+					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
+			#set interval based on L
+			r_min = 0
+			r_max = L
+			r_intervals = int(options.scand)
+			strip_width = L / float(options.scand)
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels. There is only one way to compute it
 			if options.volume:
@@ -1019,7 +1043,7 @@ def main():
 			if options.volume:
 				# for pymol visualization
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
-				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax))
+				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
 			else:
 				print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
 
