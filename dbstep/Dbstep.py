@@ -645,6 +645,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 
 			if rmax != 0.0: # by definition can't have zero radius
 				max_r.append(rmax)
+				max_phi.append(angle)
 
 		if len(max_r) > 0:
 			Bmin = min(max_r)
