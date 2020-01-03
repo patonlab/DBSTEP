@@ -623,37 +623,35 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	if strip_width != 0: xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width])	
 	else: xy_grid = occ_grid
 
-	#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
-	radii = [math.sqrt(x**2+y**2) for x,y,z in xy_grid]
-	Bmax, imax = max(radii), np.argmax(radii)
-	xmax, ymax, zmax = xy_grid[imax]
-	#print(Bmax, math.sqrt(xmax**2+ymax**2))
-	L = max(map(lambda x: x[2], xy_grid))
-	#print(time.time() - start_scan)
-	# this is the best I could come up with to estimate the minimum radius of the molecule projected in the XY-plane
-	# I think it will be better to take horizontol slices and then use scipy interpolate to obtain a contour plot
-	# or https://scikit-image.org/docs/dev/auto_examples/edges/plot_marching_cubes.html
-	# Go around in angle increments and record the farthest out point in each slice
-	#symmetry=3 # hack allows you to define rotational symmetry
-	#increments = 360/3/symmetry+1 # this goes around in 1 degree intervals
-	increments = 361
-	ang_inc = math.pi/(increments-1)
-	angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
+	if len(xy_grid) > 0:
+		#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
+		radii = [math.sqrt(x**2+y**2) for x,y,z in xy_grid]
+		Bmax, imax = max(radii), np.argmax(radii)
+		xmax, ymax, zmax = xy_grid[imax]
+		#print(Bmax, math.sqrt(xmax**2+ymax**2))
+		L = max(map(lambda x: x[2], xy_grid))
 
-	Bmin = sys.float_info.max
-	xmin,ymin = 0,0
-	max_r, max_phi = [], []
+		# Go around in angle increments and record the farthest out point in each slice
+		increments = 361
+		ang_inc = math.pi/(increments-1)
+		angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
 
-	for angle in angles:
-		rmax = parallel_grid_scan(xy_grid,angle)
+		Bmin = sys.float_info.max
+		xmin,ymin = 0,0
+		max_r, max_phi = [], []
 
-		if rmax != 0.0: # by definition can't have zero radius
-			max_r.append(rmax)
-			max_phi.append(angle)
+		for angle in angles:
+			rmax = parallel_grid_scan(xy_grid,angle)
 
-	if len(max_r) > 0:
-	    Bmin = min(max_r)
-	    xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
+			if rmax != 0.0: # by definition can't have zero radius
+				max_r.append(rmax)
+
+		if len(max_r) > 0:
+			Bmin = min(max_r)
+		   	xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
+
+	elif len(xy_grid) == 0:
+		Bmin, xmin, ymin, Bmax, xmax, ymax, L = 0,0,0,0,0,0,0
 
 	# A nice PyMol cylinder object points along the B5 & B1 directions with the appopriate magnitude.
 	# In the event that several strips are being evaluated several B-vectors will be arranged along the L-axis.
@@ -787,6 +785,7 @@ def main():
 	parser.add_option("--debug", dest="debug", action="store_true", help="Print extra stuff to file", default=False, metavar="debug")
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
+	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
 
 	(options, args) = parser.parse_args()
 	print_txt, print_vals = '', ''
@@ -963,6 +962,8 @@ def main():
 			if r_max > xyz_max and options.volume:
 				xyz_max = grid_round(r_max, options.grid)
 				print("   You asked for a large radius ({})! Expanding the grid dimension to {} Angstrom".format(r_max, xyz_max))
+				x_max, y_max, z_max = xyz_max, xyz_max, xyz_max
+				x_min, y_min, z_min = -1.0 * xyz_max, -1.0 * xyz_max, -1.0 * xyz_max
 
 			# define the grid points based on molecule size and grid-spacing
 			#n_grid_vals = round(2 * xyz_max / options.grid)
@@ -1045,7 +1046,10 @@ def main():
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
 				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
 			else:
-				print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
+				if not options.scan:
+					print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
+				else:
+					print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
 			# for pymol visualization
 			for c in cyl:
@@ -1062,8 +1066,9 @@ def main():
 
 		# Report timing for the whole program and write a PyMol script
 		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, call_time))
-		xyz_export(file,mol)
-		pymol_export(file, mol, spheres, cylinders, options.isoval)
+		if options.commandline == False:
+			xyz_export(file,mol)
+			pymol_export(file, mol, spheres, cylinders, options.isoval)
 
 if __name__ == "__main__":
 	main()
