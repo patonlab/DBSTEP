@@ -620,7 +620,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
 	# this is a layer of the occupancy grid between Z-limits
-	if strip_width != 0: xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width])	
+	if strip_width != 0: xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width])
 	else: xy_grid = occ_grid
 
 	if len(xy_grid) > 0:
@@ -648,7 +648,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 
 		if len(max_r) > 0:
 			Bmin = min(max_r)
-		   	xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
+			xmin, ymin = Bmin * cos(max_phi[np.argmin(max_r)]), Bmin * sin(max_phi[np.argmin(max_r)])
 
 	elif len(xy_grid) == 0:
 		Bmin, xmin, ymin, Bmax, xmax, ymax, L = 0,0,0,0,0,0,0
@@ -808,20 +808,20 @@ def main():
 		spheres, cylinders = [], []
 		start = time.time()
 		name, ext = os.path.splitext(file)
-		
+
 		# if noH is requested these atoms are skipped to make things go faster
 		if ext == '.xyz' or ext == '.log':
 			options.surface = 'vdw'
 			mol = GetXYZData(name,ext, options.noH)
 		if ext == '.cube':
 			mol = GetCubeData(name)
-		
-		# if atoms are not specified to align to, grab first and second atom in 
+
+		# if atoms are not specified to align to, grab first and second atom in
 		if options.spec_atom_1 is False:
 			options.spec_atom_1 = mol.ATOMTYPES[0]+str(1)
 		if options.spec_atom_2 is False:
 			options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
-			
+
 		# if surface = VDW the molecular volume is defined by tabulated radii
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a cube file
@@ -871,7 +871,7 @@ def main():
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
 			# print bounds of cube
 			#print("   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
-			
+
 		# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 		options.spec_atom_2 = options.spec_atom_2.split(',')
 		if len(options.spec_atom_2) is 1:
@@ -905,7 +905,7 @@ def main():
 				# 	print("{:5} {:11.6f} {:11.6f} {:11.6f} {:11.6f}".format(mol.ATOMNUM[i],float(mol.ATOMNUM[i]),x,y,z))
 
 				mol.CARTESIANS, mol.INCREMENTS = rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
-				# 
+				#
 				# print('rotated')
 				# #print everything in bohr
 				# dims = [mol.xdim,mol.ydim,mol.zdim]
