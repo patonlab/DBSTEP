@@ -211,7 +211,7 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	point_tree = spatial.cKDTree(all_grid)
 	n_voxel = len(point_tree.query_ball_point(origin, R))
 	tot_vol = n_voxel * cube
-	print(tot_vol,n_voxel,cube)
+	#print(tot_vol,n_voxel,cube)
 
 	# Quick way to find all occupied points within the same spherical volume
 	point_tree = spatial.cKDTree(occ_grid)
