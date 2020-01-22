@@ -86,7 +86,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 		new_inc=[]
 		center = [0.,0.,0.]
 		if np.linalg.norm(zrot_angle) == 0:
-			if options.verbose: print("No rotation necessary :)")
+			if options.verbose: print("   No rotation necessary :)")
 		else:
 			for i in range(0,len(coords)):
 				newcoord.append(coords[i])

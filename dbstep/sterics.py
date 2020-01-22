@@ -1,9 +1,11 @@
 # -*- coding: UTF-8 -*-
 import math
 import sys
+import itertools
 import numpy as np
-from numba import autojit, prange
-import scipy.spatial as spatial
+from numba import autojit, prange,jit
+import scipy.spatial as spatial	
+import time
 
 #Avoid number error warnings
 import warnings
@@ -34,10 +36,22 @@ def grid_round(x, spacing):
 	return(round(x*n)/n)
 
 
-def max_dim(coords, radii, options):
-	"""Establishes the smallest cuboid that contains all of the molecule to speed things up"""
+def max_dim(coords, radii, options,resize=False):
+	"""Establishes the smallest cuboid that contains all of the molecule, 
+	if volume is requested, make sure sphere fits fully inside space"""
 	spacing = options.grid
 	[x_min, x_max, y_min, y_max, z_min, z_max] = np.zeros(6)
+	
+	#expand grid to fit sphere so we can measure buried volume accurately
+	if resize:
+		ex_radius = options.radius + options.radius * 0.1 #expanded radius, make sure our full sphere fits in our grid
+		x_max = ex_radius
+		y_max = ex_radius
+		z_max = ex_radius
+		x_min = -ex_radius
+		y_min = -ex_radius
+		z_min = -ex_radius
+	
 	for n, coord in enumerate(coords):
 		[x_plus,y_plus,z_plus] = coord + np.array([radii[n], radii[n], radii[n]])
 		[x_minus,y_minus,z_minus] = coord - np.array([radii[n], radii[n], radii[n]])
@@ -50,7 +64,7 @@ def max_dim(coords, radii, options):
 
 	# largest dimension along any axis
 	max_dim = max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min))
-	if options.verbose ==True: print("\n   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
+	if options.verbose and resize == False: print("\n   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
 	# compute cubic volume containing molecule and estimate the number of grid points based on grid spacing and volume size
 	cubic_volume = (2 * max_dim) ** 3
@@ -74,6 +88,12 @@ def occupied(grid, coords, radii, origin, options):
 	jdx = list(set(jdx))
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
+	
+	##visualize grid points quickly
+	# import pptk
+	# u = pptk.viewer(grid)
+	# v = pptk.viewer(grid[jdx])
+	
 	return grid[jdx]
 
 
@@ -88,6 +108,59 @@ def occupied_dens(grid, dens, options):
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(list) * spacing ** 3))
 	return grid[list]
 
+
+def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
+	"""Resize the grid to accomodate the sphere for volume calculations"""
+	if x_max < options.radius+options.radius*0.1: 
+		x_orig = x_max
+		x_max = options.radius+options.radius*0.1
+		diff = abs(x_max - x_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.xdim = mol.xdim + int(new_points)
+	if y_max < options.radius+options.radius*0.1: 
+		y_orig = y_max
+		y_max = options.radius+options.radius*0.1
+		diff = abs(y_max - y_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.ydim = mol.ydim + int(new_points)
+	if z_max < options.radius+options.radius*0.1: 
+		z_orig = z_max
+		z_max = options.radius+options.radius*0.1
+		diff = abs(z_max - z_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.zdim = mol.zdim + int(new_points)
+	if x_min > -(options.radius+options.radius*0.1): 
+		x_orig = x_min
+		x_min = -(options.radius+options.radius*0.1)
+		diff = abs(x_min - x_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.xdim = mol.xdim + int(new_points)
+	if y_min > -(options.radius+options.radius*0.1): 
+		y_orig = y_min
+		y_min = -(options.radius+options.radius*0.1)
+		diff = abs(y_min - y_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.ydim = mol.ydim + int(new_points)
+	if z_min > -(options.radius+options.radius*0.1): 
+		z_orig = z_min
+		z_min = -(options.radius+options.radius*0.1)
+		diff = abs(z_min - z_orig)
+		diff_round = grid_round(diff,options.grid)
+		new_points = diff_round / options.grid
+		mol.zdim = mol.zdim + int(new_points)
+	#expand grid with empty points to fit 
+	x_vals = np.linspace(x_min, x_max, mol.xdim)
+	y_vals = np.linspace(y_min, y_max, mol.ydim)
+	z_vals = np.linspace(z_min, z_max, mol.zdim)
+	grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+	
+	return grid
+	
 
 def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
 	"""Uses standard Verloop definitions and VDW spheres to define L, B1 and B5"""
@@ -206,22 +279,44 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 
 def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	""" Read which grid points occupy sphere"""
-	sphere, cube = 4 / 3 * math.pi * R ** 3, spacing ** 3
-	# Quick way to find all points in the grid within a sphere radius R
-	point_tree = spatial.cKDTree(all_grid)
-	n_voxel = len(point_tree.query_ball_point(origin, R))
-	tot_vol = n_voxel * cube
-	#print(tot_vol,n_voxel,cube)
-
-	# Quick way to find all occupied points within the same spherical volume
-	point_tree = spatial.cKDTree(occ_grid)
-	n_occ = len(point_tree.query_ball_point(origin, R))
-
-	occ_vol = n_occ * cube
-	free_vol = tot_vol - occ_vol
-	percent_buried_vol = occ_vol / tot_vol * 100.0
-	vol_err = tot_vol/sphere * 100.0
-
+	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
+	cube = spacing ** 3 # cube 
+	# cHullmax = spatial.ConvexHull(all_grid)
+	# print("Max cHull v",cHullmax.volume)
+	vol_err = 100.
+	old_err = sys.float_info.max
+	old_volume = sys.float_info.max
+	old_percent_buried_vol = sys.float_info.max
+	while abs(vol_err) > 5.0:
+		# Quick way to find all points in the grid within a sphere radius R
+		point_tree = spatial.cKDTree(all_grid)
+		n_voxel = len(point_tree.query_ball_point(origin, R))
+		tot_vol = n_voxel * cube
+		# Quick way to find all occupied points within the same spherical volume
+		point_tree = spatial.cKDTree(occ_grid)
+		n_occ = len(point_tree.query_ball_point(origin, R))
+		occ_vol = n_occ * cube
+		
+		free_vol = tot_vol - occ_vol 
+		percent_buried_vol = occ_vol / tot_vol * 100.0
+		#vol_err = tot_vol/sphere * 100.0
+		vol_err = abs(tot_vol-sphere)/sphere * 100.0
+		
+		if old_volume == tot_vol: #included max points
+			percent_buried_vol = old_percent_buried_vol
+			break
+		elif old_err < vol_err: #error is minimized, ignore most recent update
+			percent_buried_vol = old_percent_buried_vol
+			vol_err = old_err
+			break
+		else:
+			old_volume = tot_vol
+			old_err = vol_err
+			old_percent_buried_vol = percent_buried_vol
+			R = R+R*.10
+		if abs(vol_err) > 5.0 and verbose: 
+			if verbose: print("   Volume error too large ({:3.2f}%) adding more points to volume calculation.".format(vol_err))
+	
 	# experimental - in addition to occupied spherical volume, this will compute
 	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
@@ -234,7 +329,9 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	else: percent_shell_vol = 0.0
 
 	if verbose:
-		print("   RADIUS, {:5.2f}, VFREE, {:7.2f}, VBURIED, {:7.2f}, VTOTAL, {:7.2f}, VEXACT, {:7.2f}, NVOXEL, {}, %V_Bur, {:7.2f}%,  Tot/Ex, {:7.2f}%".format(R, free_vol, occ_vol, tot_vol, sphere, n_voxel, percent_buried_vol, vol_err))
-	if abs(vol_err-100.0) > 1.0:
+		print("   RADIUS: {:5.2f}, VFREE: {:7.2f}, VBURIED: {:7.2f}, VTOTAL: {:7.2f}, VEXACT: {:7.2f}, NVOXEL: {}, %V_Bur: {:7.2f}%,  Tot/Ex: {:7.2f}%".format(R, free_vol, occ_vol, tot_vol, sphere, n_voxel, percent_buried_vol, vol_err))
+	
+	if abs(vol_err) > 5.0:
 		print("   WARNING! {:5.2f}% error in estimating the exact spherical volume. The grid spacing is probably too big in relation to the sphere volume".format(vol_err))
+	
 	return percent_buried_vol, percent_shell_vol

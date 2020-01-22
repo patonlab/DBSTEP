@@ -205,24 +205,33 @@ class dbstep:
 				grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
 				# compute which grid points occupy molecule
 				occ_grid = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
-
+				#recompute larger grid to accommodate sphere
+				if options.volume: 
+					[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options,resize=True)
+					n_x_vals = 1 + round((x_max - x_min) / options.grid)
+					n_y_vals = 1 + round((y_max - y_min) / options.grid)
+					n_z_vals = 1 + round((z_max - z_min) / options.grid)
+					x_vals = np.linspace(x_min, x_max, n_x_vals)
+					y_vals = np.linspace(y_min, y_max, n_y_vals)
+					z_vals = np.linspace(z_min, z_max, n_z_vals)
+					grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+			
+		
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
 			y_vals = np.linspace(y_min, y_max, mol.ydim)
 			z_vals = np.linspace(z_min, z_max, mol.zdim)
-
 			# writes a new grid to cube file
 			writer.WriteCubeData(name, mol)
 			# define the grid points containing the molecule
-			grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+			grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))	
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
 			occ_grid = sterics.occupied_dens(grid, mol.DENSITY, options)
-
-		# testing - allows this grid to be visualized in PyMol with output py script
-		# - !SLOW to load in PyMOL for many grid points - basically kills PyMOL!
-		if options.debug == True:
-			for x,y,z in occ_grid: spheres.append("   SPHERE, {:5.3f}, {:5.3f}, {:5.3f}, {:5.3f}".format(x,y,z,0.02))
-
+			
+			#readjust sizing of grid to fit sphere
+			if options.volume:
+				grid = sterics.resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol)
+				
 		# Set up done so note the time
 		setup_time = time.time() - start
 
