@@ -281,8 +281,6 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 	""" Read which grid points occupy sphere"""
 	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
 	cube = spacing ** 3 # cube 
-	# cHullmax = spatial.ConvexHull(all_grid)
-	# print("Max cHull v",cHullmax.volume)
 	vol_err = 100.
 	old_err = sys.float_info.max
 	old_volume = sys.float_info.max
@@ -296,7 +294,6 @@ def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
 		point_tree = spatial.cKDTree(occ_grid)
 		n_occ = len(point_tree.query_ball_point(origin, R))
 		occ_vol = n_occ * cube
-		
 		free_vol = tot_vol - occ_vol 
 		percent_buried_vol = occ_vol / tot_vol * 100.0
 		#vol_err = tot_vol/sphere * 100.0

@@ -181,13 +181,15 @@ class dbstep:
 			except:
 				print("   Can't read your scan request. Try something like --scan 3:5:0.25"); exit()
 
-		if options.volume or options.sterimol == 'grid':
-			# Resize the molecule's grid if a larger radius has been requested
-			if r_max > xyz_max and options.volume:
-				xyz_max = sterics.grid_round(r_max, options.grid)
-				print("   You asked for a large radius ({})! Expanding the grid dimension to {} Angstrom".format(r_max, xyz_max))
-				x_max, y_max, z_max = xyz_max, xyz_max, xyz_max
-				x_min, y_min, z_min = -1.0 * xyz_max, -1.0 * xyz_max, -1.0 * xyz_max
+		# if options.volume or options.sterimol == 'grid':
+		# 	# Resize the molecule's grid if a larger radius has been requested
+		# 	if r_max > xyz_max and options.volume:
+		# 		#maybe don't do this in the case of scans, the molecule will already be in the box,
+		# 		#all sterimol values outside of it will be zero, this slows down the program a lot
+		# 		xyz_max = sterics.grid_round(r_max, options.grid)
+		# 		print("   You asked for a large radius ({})! Expanding the grid dimension to {} Angstrom".format(r_max, xyz_max))
+		# 		x_max, y_max, z_max = xyz_max, xyz_max, xyz_max
+		# 		x_min, y_min, z_min = -1.0 * xyz_max, -1.0 * xyz_max, -1.0 * xyz_max
 
 		# Iterate over the grid points to see whether this is within VDW radius of any atom(s)
 		# Grid point occupancy is either yes/no (1/0)
@@ -258,9 +260,13 @@ class dbstep:
 		Bmin_list = []
 		Bmax_list = []
 		for rad in np.linspace(r_min, r_max, r_intervals):
-			# The buried volume is defined in terms of occupied voxels. There is only one way to compute it
-			if options.volume:
-				bur_vol, bur_shell = sterics.buried_vol(occ_grid, grid, origin, rad, options.grid, strip_width, options.verbose)
+			# The buried volume is defined in terms of occupied voxels.
+			# Changed rad in args to options.radius
+			# Do we want this to also follow the scan as well? 
+			# it is v slow so for now it only calculates it at one radii
+			#need a fix for case that radius == 0, get divide by zero error
+			if options.volume and rad == r_min:
+				bur_vol, bur_shell = sterics.buried_vol(occ_grid, grid, origin, options.radius, options.grid, strip_width, options.verbose)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -300,7 +306,7 @@ class dbstep:
 		
 		# recompute L if a scan has been performed
 		if options.sterimol == 'grid' and r_intervals >1:
-			L, Bmax, Bmin, cyl = get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
+			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
 			print('\n   L parameter is {:5.2f} Ang'.format(L))
 		cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
 		# Stop timing the loop
