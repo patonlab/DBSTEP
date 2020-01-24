@@ -169,7 +169,7 @@ class dbstep:
 						mol.RADII = np.delete(mol.RADII,del_atom-1)
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
-			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
+			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options,resize=True)
 
 		# read the requested radius or range
 		if not options.scan:
@@ -255,12 +255,12 @@ class dbstep:
 			r_max = L
 			r_intervals = int(options.scand)
 			strip_width = L / float(options.scand)
+		Bmin_list = []
+		Bmax_list = []
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels. There is only one way to compute it
 			if options.volume:
 				bur_vol, bur_shell = sterics.buried_vol(occ_grid, grid, origin, rad, options.grid, strip_width, options.verbose)
-				self.bur_vol = bur_vol
-				self.bur_shell = bur_shell
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -269,7 +269,8 @@ class dbstep:
 					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES, options.spec_atom_1, options.spec_atom_2)
 				elif options.surface == 'density':
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
-
+			Bmin_list.append(Bmin)
+			Bmax_list.append(Bmax)
 			# Tabulate result
 			if options.volume:
 				# for pymol visualization
@@ -285,10 +286,17 @@ class dbstep:
 			for c in cyl:
 				cylinders.append(c)
 		
-		#for future reference
+		#for module reference
 		self.L = L
-		self.Bmax = Bmax
-		self.Bmin = Bmin
+		if options.volume:
+			self.bur_vol = bur_vol
+			self.bur_shell = bur_shell
+		if options.scan == False and options.scand == False:
+			self.Bmax = Bmax
+			self.Bmin = Bmin
+		else:
+			self.Bmax = Bmax_list
+			self.Bmin = Bmin_list
 		
 		# recompute L if a scan has been performed
 		if options.sterimol == 'grid' and r_intervals >1:
@@ -296,9 +304,11 @@ class dbstep:
 			print('\n   L parameter is {:5.2f} Ang'.format(L))
 		cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
 		# Stop timing the loop
-		call_time = time.time() - start - setup_time
+		calc_time = time.time() - start - setup_time
 		# Report timing for the whole program and write a PyMol script
-		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, call_time))
+		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, calc_time))
+		self.setup_time = setup_time
+		self.calc_time = calc_time
 		if options.commandline == False:
 			writer.xyz_export(file,mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval)
@@ -339,7 +349,7 @@ def main():
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
-	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii [rmin:rmax:interval]", default=False, metavar="scan")
+	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("--scand", dest="scand", action="store", help="Scan over an evenly distributed range of radii", default=False, metavar="scand")
 	parser.add_option("--center", dest="spec_atom_1", action="store", help="Specify the base atom", default=False, metavar="spec_atom_1")
 	parser.add_option("--ligand", dest="spec_atom_2", action="store", help="Specify the connected atom(s)", default=False, metavar="spec_atom_2")
