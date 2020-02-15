@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: dbstep
+Version: 1.0
+Summary: Dft Based Steric Parameters
+Home-page: UNKNOWN
+Author: 
+Author-email: robert.paton@colostate.edu
+License: UNKNOWN
+Description: # DBSTEP
+        DFT-based Steric Parameters 
+        
+        
+        run with python Dbstep.py file
+Keywords: compchem,steric,sterimol,informatics
+Platform: UNKNOWN
+Requires-Python: >=2.6
+Description-Content-Type: text/markdown

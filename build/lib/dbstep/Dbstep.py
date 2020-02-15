@@ -127,10 +127,6 @@ class dbstep:
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
 			
 		# Check if we want to calculate parameters for mono- bi- or tridentate ligand
-		spec_atom_2 = ''
-		if len(options.spec_atom_2) > 1 and isinstance(options.spec_atom_2,list):
-			spec_atom_2 = ','
-		options.spec_atom_2 = spec_atom_2.join(options.spec_atom_2)
 		options.spec_atom_2 = options.spec_atom_2.split(',')
 		if len(options.spec_atom_2) is 1:
 			# mono - obtain coords of atom to align along z axis
@@ -200,9 +196,9 @@ class dbstep:
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
 
 		if options.surface == 'vdw':
-			n_x_vals = int(1 + round((x_max - x_min) / options.grid))
-			n_y_vals = int(1 + round((y_max - y_min) / options.grid))
-			n_z_vals = int(1 + round((z_max - z_min) / options.grid))
+			n_x_vals = 1 + round((x_max - x_min) / options.grid)
+			n_y_vals = 1 + round((y_max - y_min) / options.grid)
+			n_z_vals = 1 + round((z_max - z_min) / options.grid)
 			x_vals = np.linspace(x_min, x_max, n_x_vals)
 			y_vals = np.linspace(y_min, y_max, n_y_vals)
 			z_vals = np.linspace(z_min, z_max, n_z_vals)

@@ -1,0 +1,137 @@
+# -*- coding: UTF-8 -*-
+import numpy as np
+import os
+
+
+"""
+getdata
+
+Parses data from files
+Currently supporting: .xyz, .log, .cube
+"""
+
+
+BOHR_TO_ANG = 0.529177249
+
+periodictable = ["","H","He","Li","Be","B","C","N","O","F","Ne",
+	"Na","Mg","Al","Si","P","S","Cl","Ar",
+	"K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","Ge","As","Se","Br","Kr",
+	"Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe",
+	"Cs","Ba","La","Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu","Hf","Ta","W","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn",
+	"Fr","Ra","Ac","Th","Pa","U","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No","Lr","Rf","Db","Sg","Bh","Hs","Mt","Ds","Rg","Cn","Nh","Fl","Mc","Lv","Ts","Og"]
+
+
+def element_id(massno, num=False):
+	"""Return element id number"""
+	try:
+		if num:
+			return periodictable.index(massno)
+		else: return periodictable[massno]
+	except IndexError:
+		return "XX"
+
+
+class GetCubeData:
+	""" Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data """
+	def __init__(self, file):
+		if not os.path.exists(file+".cube"): print("\nFATAL ERROR: cube file [ %s ] does not exist"%file)
+		def getATOMTYPES(self, outlines, format):
+			self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
+			if format == 'cube':
+				for i in range(2,len(outlines)):
+					try:
+						coord = outlines[i].split()
+						for j in range(len(coord)):
+							try:
+								coord[j] = float(coord[j])
+							except ValueError: pass
+						if i == 2:
+							self.ORIGIN = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+						elif i == 3:
+							self.xdim = int(coord[0])
+							self.SPACING = coord[1]*BOHR_TO_ANG
+							self.x_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+						elif i == 4:
+							self.ydim = int(coord[0])
+							self.y_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+						elif i == 5:
+							self.zdim = int(coord[0])
+							self.z_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+						elif len(coord) == 5:
+							if coord[0] == int(coord[0]) and isinstance(coord[2],float) == True and isinstance(coord[3],float) and isinstance(coord[4],float):
+								[atom, x,y,z] = [periodictable[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
+								self.ATOMNUM.append(int(coord[0]))
+								self.ATOMTYPES.append(atom)
+								self.CARTESIANS.append([x,y,z])
+						if coord[0] != int(coord[0]):
+							for val in coord:
+								self.DENSITY.append(val)
+							self.DENSITY_LINE.append(outlines[i])
+					except: pass
+		self.FORMAT = 'cube'
+		molfile = open(file+"."+self.FORMAT,"r")
+		mollines = molfile.readlines()
+		getATOMTYPES(self, mollines, self.FORMAT)
+		self.INCREMENTS=np.asarray([self.x_inc,self.y_inc,self.z_inc])
+		cube_data = np.zeros([self.xdim,self.ydim,self.zdim])
+		self.DENSITY = np.asarray(self.DENSITY)
+		self.DATA = np.reshape(self.DENSITY,(self.xdim,self.ydim,self.zdim))
+		vol_x = []
+		vol_y = []
+		vol_z = []
+		for i in range(self.xdim):
+			for j in range(self.ydim):
+				for k in range(self.zdim):
+					if self.DATA[i][j][k] > 0.05:
+						vol_x.append(self.ORIGIN[0]+(i-1)*self.x_inc[0] + (j-1)*self.x_inc[1] + (k-1)*self.x_inc[2])
+						vol_y.append(self.ORIGIN[1]+(i-1)*self.y_inc[0] + (j-1)*self.y_inc[1] + (k-1)*self.y_inc[2])
+						vol_z.append(self.ORIGIN[2]+(i-1)*self.z_inc[0] + (j-1)*self.z_inc[1] + (k-1)*self.z_inc[2])
+		self.ATOMTYPES = np.array(self.ATOMTYPES)
+		self.CARTESIANS = np.array(self.CARTESIANS)
+
+
+class GetXYZData:
+	""" Read XYZ Cartesians from file """
+	def __init__(self, file,ext, noH):
+		if ext == '.xyz':
+			if not os.path.exists(file+".xyz"):
+				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file)
+		elif ext == '.log':
+			if not os.path.exists(file+".log"):
+				print(("\nFATAL ERROR: log file [ %s ] does not exist"%file))
+		self.FORMAT = ext
+		molfile = open(file+self.FORMAT,"r")
+		outlines = molfile.readlines()
+
+		self.ATOMTYPES, self.CARTESIANS = [], []
+		if self.FORMAT == '.xyz':
+			for i in range(0,len(outlines)):
+				try:
+					coord = outlines[i].split()
+					for i in range(len(coord)):
+						try:
+							coord[i] = float(coord[i])
+						except ValueError: pass
+					if len(coord) == 4:
+						if isinstance(coord[1],float) and isinstance(coord[2],float) and isinstance(coord[3],float):
+							[atom, x,y,z] = [coord[0], coord[1], coord[2], coord[3]]
+							if noH == True and atom == "H":
+								pass
+							else:
+								self.ATOMTYPES.append(atom)
+								self.CARTESIANS.append([x,y,z])
+				except: pass
+		elif self.FORMAT == '.log':
+			for i, oline in enumerate(outlines):
+				if "Input orientation" in oline or "Standard orientation" in oline:
+					self.ATOMTYPES, self.CARTESIANS, carts = [], [], outlines[i + 5:]
+					for j, line in enumerate(carts):
+						if "-------" in line:
+							break
+						self.ATOMTYPES.append(element_id(int(line.split()[1])))
+						if len(line.split()) > 5:
+							self.CARTESIANS.append([float(line.split()[3]), float(line.split()[4]), float(line.split()[5])])
+						else:
+							self.CARTESIANS.append([float(line.split()[2]), float(line.split()[3]), float(line.split()[4])])
+		self.ATOMTYPES = np.array(self.ATOMTYPES)
+		self.CARTESIANS = np.array(self.CARTESIANS)

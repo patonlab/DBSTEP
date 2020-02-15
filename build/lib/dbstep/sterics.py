@@ -3,7 +3,7 @@ import math
 import sys
 import itertools
 import numpy as np
-from numba import prange,jit
+from numba import autojit, prange,jit
 import scipy.spatial as spatial	
 import time
 
@@ -19,7 +19,7 @@ Computes steric data: L, Bmin, Bmax, Buried Volume
 """
 
 
-@jit
+@autojit
 def parallel_grid_scan(xy_grid, angle):
 	"""angular sweep over grid points to find Bmin"""
 	rmax = 0.0
