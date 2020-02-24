@@ -78,9 +78,9 @@ class dbstep:
 			mol = getdata.GetCubeData(name)
 
 		# if atoms are not specified to align to, grab first and second atom in
-		if options.spec_atom_1 is False:
+		if options.spec_atom_1 == False:
 			options.spec_atom_1 = mol.ATOMTYPES[0]+str(1)
-		if options.spec_atom_2 is False:
+		if options.spec_atom_2 == False:
 			options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
 
 		# if surface = VDW the molecular volume is defined by tabulated radii
@@ -132,7 +132,7 @@ class dbstep:
 			spec_atom_2 = ','
 		options.spec_atom_2 = spec_atom_2.join(options.spec_atom_2)
 		options.spec_atom_2 = options.spec_atom_2.split(',')
-		if len(options.spec_atom_2) is 1:
+		if len(options.spec_atom_2) == 1:
 			# mono - obtain coords of atom to align along z axis
 			point,p_id=0.0,0
 			for n, atom in enumerate(mol.ATOMTYPES):
@@ -141,9 +141,9 @@ class dbstep:
 					point = mol.CARTESIANS[p_id]
 
 		# bi - obtain coords of point perpendicular to vector connecting ligands
-		elif len(options.spec_atom_2) is 2: point = calculator.bidentate(mol, options)
+		elif len(options.spec_atom_2) == 2: point = calculator.bidentate(mol, options)
 		# tri - obtain coords of point perpendicular to plane connecting ligands
-		elif len(options.spec_atom_2) is 3: point = calculator.tridentate(mol, options)
+		elif len(options.spec_atom_2) == 3: point = calculator.tridentate(mol, options)
 
 		# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 		# the x and y directions are arbitrary
@@ -214,9 +214,9 @@ class dbstep:
 				#recompute larger grid to accommodate sphere
 				if options.volume: 
 					[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options,resize=True)
-					n_x_vals = 1 + round((x_max - x_min) / options.grid)
-					n_y_vals = 1 + round((y_max - y_min) / options.grid)
-					n_z_vals = 1 + round((z_max - z_min) / options.grid)
+					n_x_vals = int(1 + round((x_max - x_min) / options.grid))
+					n_y_vals = int(1 + round((y_max - y_min) / options.grid))
+					n_z_vals = int(1 + round((z_max - z_min) / options.grid))
 					x_vals = np.linspace(x_min, x_max, n_x_vals)
 					y_vals = np.linspace(y_min, y_max, n_y_vals)
 					z_vals = np.linspace(z_min, z_max, n_z_vals)
@@ -247,7 +247,7 @@ class dbstep:
 		if options.volume:
 			print("   {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L"))
 
-		if options.scand is not False:
+		if options.scand != False:
 			# obtain L to get distributed intervals
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, 3.5, options.grid, strip_width)
@@ -386,7 +386,7 @@ def main():
 						files.append(file)
 			except IndexError: pass
 
-	if len(files) is 0: sys.exit("    Please specify a valid input file and try again.")
+	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
 
 	for file in files: 
 		# loop over all specified output files
