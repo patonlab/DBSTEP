@@ -16,9 +16,9 @@ setup(
   long_description_content_type='text/markdown',
   author='',
   author_email='robert.paton@colostate.edu',
-  keywords=['compchem', 'steric','sterimol','informatics'],
+  keywords=['compchem', 'steric', 'sterimol', 'informatics'],
   classifiers=[],
-  install_requires=["numpy", ],
+  install_requires=["numpy",'numba','scipy'],
   python_requires='>=2.6',
   include_package_data=True,
 )

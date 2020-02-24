@@ -1,3 +1,6 @@
 *.pyc
 .cache/
 .DS_Store
+dbstep.egg-info/
+dist/
+build/

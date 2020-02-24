@@ -89,7 +89,7 @@ def occupied(grid, coords, radii, origin, options):
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
 	
-	##visualize grid points quickly
+	#visualize grid points quickly
 	# import pptk
 	# u = pptk.viewer(grid)
 	# v = pptk.viewer(grid[jdx])
