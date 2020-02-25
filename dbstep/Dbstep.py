@@ -250,7 +250,7 @@ class dbstep:
 			# it is v slow so for now it only calculates it at one radii
 			#need a fix for case that radius == 0, get divide by zero error
 			if options.volume and rad == r_min:
-				bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, options.radius, options.grid, strip_width, options.verbose,options.shell)
+				bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, options.radius, options.grid, strip_width, options.verbose)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -351,7 +351,6 @@ def main():
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
-	parser.add_option("--shell", dest="shell",action="store_true", help="Request percent shell volume", default=False)
 	(options, args) = parser.parse_args()
 
 	# make sure upper/lower case doesn't matter
