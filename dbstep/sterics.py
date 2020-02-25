@@ -1,15 +1,8 @@
 # -*- coding: UTF-8 -*-
-import math
-import sys
-import itertools
+import sys, math
 import numpy as np
 from numba import prange,jit
 import scipy.spatial as spatial	
-import time
-
-#Avoid number error warnings
-import warnings
-warnings.filterwarnings("ignore")
 
 
 """
@@ -36,21 +29,20 @@ def grid_round(x, spacing):
 	return(round(x*n)/n)
 
 
-def max_dim(coords, radii, options,resize=False):
+def max_dim(coords, radii, options):
 	"""Establishes the smallest cuboid that contains all of the molecule, 
 	if volume is requested, make sure sphere fits fully inside space"""
 	spacing = options.grid
 	[x_min, x_max, y_min, y_max, z_min, z_max] = np.zeros(6)
 	
-	#expand grid to fit sphere so we can measure buried volume accurately
-	if resize:
-		ex_radius = options.radius + options.radius * 0.1 #expanded radius, make sure our full sphere fits in our grid
-		x_max = ex_radius
-		y_max = ex_radius
-		z_max = ex_radius
-		x_min = -ex_radius
-		y_min = -ex_radius
-		z_min = -ex_radius
+	#define grid to fit sphere so we can measure buried volume accurately
+	ex_radius = options.radius + options.radius * 0.1 #expanded radius, make sure our full sphere fits in our grid
+	x_max = ex_radius
+	y_max = ex_radius
+	z_max = ex_radius
+	x_min = -ex_radius
+	y_min = -ex_radius
+	z_min = -ex_radius
 	
 	for n, coord in enumerate(coords):
 		[x_plus,y_plus,z_plus] = coord + np.array([radii[n], radii[n], radii[n]])
@@ -77,12 +69,13 @@ def occupied(grid, coords, radii, origin, options):
 	spacing = options.grid
 	if options.verbose ==True: print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom.".format(spacing))
 	if options.verbose ==True: print("   There are {} grid points.".format(len(grid)))
-
-	idx, point_tree  = [], spatial.cKDTree(grid)
-	for n, coord in enumerate(coords):
-		center = coord + origin
-		idx.append(point_tree.query_ball_point(center, radii[n]))
-	# construct a list of indices of the grid array that are occupied
+	
+	idx =  [] 
+	point_tree = spatial.cKDTree(grid,balanced_tree=False,compact_nodes=False)
+	for n in range(len(coords)):
+		center = coords[n] + origin
+		idx.append(point_tree.query_ball_point(center, radii[n], n_jobs=-1))
+	#construct a list of indices of the grid array that are occupied
 	jdx = [y for x in idx for y in x]
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
@@ -94,7 +87,7 @@ def occupied(grid, coords, radii, origin, options):
 	# u = pptk.viewer(grid)
 	# v = pptk.viewer(grid[jdx])
 	
-	return grid[jdx]
+	return grid[jdx],point_tree
 
 
 def occupied_dens(grid, dens, options):
@@ -157,7 +150,7 @@ def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
 	x_vals = np.linspace(x_min, x_max, mol.xdim)
 	y_vals = np.linspace(y_min, y_max, mol.ydim)
 	z_vals = np.linspace(z_min, z_max, mol.zdim)
-	grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+	grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 	
 	return grid
 	
@@ -277,54 +270,35 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	return L, Bmax, Bmin, cyl
 
 
-def buried_vol(occ_grid, all_grid, origin, R, spacing, strip_width, verbose):
+def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose, shell):
 	""" Read which grid points occupy sphere"""
 	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
 	cube = spacing ** 3 # cube 
-	vol_err = 100.
-	old_err = sys.float_info.max
-	old_volume = sys.float_info.max
-	old_percent_buried_vol = sys.float_info.max
-	while abs(vol_err) > 5.0:
-		# Quick way to find all points in the grid within a sphere radius R
-		point_tree = spatial.cKDTree(all_grid)
-		n_voxel = len(point_tree.query_ball_point(origin, R))
-		tot_vol = n_voxel * cube
-		# Quick way to find all occupied points within the same spherical volume
-		point_tree = spatial.cKDTree(occ_grid)
-		n_occ = len(point_tree.query_ball_point(origin, R))
-		occ_vol = n_occ * cube
-		free_vol = tot_vol - occ_vol 
-		percent_buried_vol = occ_vol / tot_vol * 100.0
-		#vol_err = tot_vol/sphere * 100.0
-		vol_err = abs(tot_vol-sphere)/sphere * 100.0
-		
-		if old_volume == tot_vol: #included max points
-			percent_buried_vol = old_percent_buried_vol
-			break
-		elif old_err < vol_err: #error is minimized, ignore most recent update
-			percent_buried_vol = old_percent_buried_vol
-			vol_err = old_err
-			break
-		else:
-			old_volume = tot_vol
-			old_err = vol_err
-			old_percent_buried_vol = percent_buried_vol
-			R = R+R*.10
-		if abs(vol_err) > 5.0 and verbose: 
-			if verbose: print("   Volume error too large ({:3.2f}%) adding more points to volume calculation.".format(vol_err))
+	
+	# Find total points in the grid within a sphere radius R
+	n_voxel = len(point_tree.query_ball_point(origin, R))
+	tot_vol = n_voxel * cube
+	# Find occupied points within the same spherical volume
+	point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
+	n_occ = len(point_tree.query_ball_point(origin, R, n_jobs=-1))
+	occ_vol = n_occ * cube
+	free_vol = tot_vol - occ_vol 
+	percent_buried_vol = occ_vol / tot_vol * 100.0
+	vol_err = abs(tot_vol-sphere)/sphere * 100.0
+	if abs(vol_err) > 5.0 and verbose: 
+		if verbose: print("   Volume error is large ({:3.2f}%). Try adjusting grid spacing with --grid".format(vol_err))
 	
 	# experimental - in addition to occupied spherical volume, this will compute
 	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
-	if strip_width != 0.0:
+	if strip_width != 0.0 and shell:
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
-		point_tree = spatial.cKDTree(occ_grid)
-		shell_occ = len(point_tree.query_ball_point(origin, R + 0.5 * strip_width)) - len(point_tree.query_ball_point(origin, R - 0.5 * strip_width))
+		point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
+		shell_occ = len(point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1))
 		shell_occ_vol = shell_occ * cube
 		percent_shell_vol = shell_occ_vol / shell_vol * 100.0
 	else: percent_shell_vol = 0.0
-
+	
 	if verbose:
 		print("   RADIUS: {:5.2f}, VFREE: {:7.2f}, VBURIED: {:7.2f}, VTOTAL: {:7.2f}, VEXACT: {:7.2f}, NVOXEL: {}, %V_Bur: {:7.2f}%,  Tot/Ex: {:7.2f}%".format(R, free_vol, occ_vol, tot_vol, sphere, n_voxel, percent_buried_vol, vol_err))
 	

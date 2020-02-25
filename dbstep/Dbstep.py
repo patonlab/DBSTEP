@@ -4,15 +4,13 @@ from __future__ import print_function, absolute_import
 ###############################################################
 # known issues:
 # Hard - check the numerical results for some toy systems (e.g. spherically symmetrical, diatomics) where the correct alues can be defined manually. Then check against tabulate results for classical values, then compare QM-density derived values
-# a bit tricky - output the grid points as a series of small dots for visualization in pymol (this is v slow [unusable] with spheres)
-# Tricky - optimize for speed - avoid iterating over lists within lists
 # Moderate - Better output of isovalue cube and overall more automation of commands written to pymol script
 # Moderately trivial - if you remove Hs, the base atom ID messes up
 # Cosmetic - would be better to combine methods where either dens is used radii and can be chosen from the commandline
 ###############################################################
 
 #Python Libraries
-import itertools, os, sys, time
+import os, sys, time
 from glob import glob
 import numpy as np
 from optparse import OptionParser
@@ -53,6 +51,10 @@ class dbstep:
 	
 	Objects that can currently be referenced are:
 			L, Bmax, Bmin, bur_vol, bur_shell
+			setup_time, calc_time
+			
+	If steric scan is requested, Bmin and Bmax vars 
+	contain lists of params along scan
 	"""
 	def __init__(self, *args, **kwargs):
 		self.file = args[0]
@@ -173,7 +175,7 @@ class dbstep:
 						mol.RADII = np.delete(mol.RADII,del_atom-1)
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
-			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options,resize=True)
+			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
 
 		# read the requested radius or range
 		if not options.scan:
@@ -185,20 +187,9 @@ class dbstep:
 			except:
 				print("   Can't read your scan request. Try something like --scan 3:5:0.25"); exit()
 
-		# if options.volume or options.sterimol == 'grid':
-		# 	# Resize the molecule's grid if a larger radius has been requested
-		# 	if r_max > xyz_max and options.volume:
-		# 		#maybe don't do this in the case of scans, the molecule will already be in the box,
-		# 		#all sterimol values outside of it will be zero, this slows down the program a lot
-		# 		xyz_max = sterics.grid_round(r_max, options.grid)
-		# 		print("   You asked for a large radius ({})! Expanding the grid dimension to {} Angstrom".format(r_max, xyz_max))
-		# 		x_max, y_max, z_max = xyz_max, xyz_max, xyz_max
-		# 		x_min, y_min, z_min = -1.0 * xyz_max, -1.0 * xyz_max, -1.0 * xyz_max
-
 		# Iterate over the grid points to see whether this is within VDW radius of any atom(s)
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
-
 		if options.surface == 'vdw':
 			n_x_vals = int(1 + round((x_max - x_min) / options.grid))
 			n_y_vals = int(1 + round((y_max - y_min) / options.grid))
@@ -208,20 +199,9 @@ class dbstep:
 			z_vals = np.linspace(z_min, z_max, n_z_vals)
 			if options.volume or options.sterimol == 'grid':
 				# construct grid encapsulating molecule
-				grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
+				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 				# compute which grid points occupy molecule
-				occ_grid = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
-				#recompute larger grid to accommodate sphere
-				if options.volume: 
-					[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options,resize=True)
-					n_x_vals = int(1 + round((x_max - x_min) / options.grid))
-					n_y_vals = int(1 + round((y_max - y_min) / options.grid))
-					n_z_vals = int(1 + round((z_max - z_min) / options.grid))
-					x_vals = np.linspace(x_min, x_max, n_x_vals)
-					y_vals = np.linspace(y_min, y_max, n_y_vals)
-					z_vals = np.linspace(z_min, z_max, n_z_vals)
-					grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))
-			
+				occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)		
 		
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
@@ -230,7 +210,7 @@ class dbstep:
 			# writes a new grid to cube file
 			writer.WriteCubeData(name, mol)
 			# define the grid points containing the molecule
-			grid = np.array(list(itertools.product(x_vals, y_vals, z_vals)))	
+			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)	
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
 			occ_grid = sterics.occupied_dens(grid, mol.DENSITY, options)
 			
@@ -270,7 +250,7 @@ class dbstep:
 			# it is v slow so for now it only calculates it at one radii
 			#need a fix for case that radius == 0, get divide by zero error
 			if options.volume and rad == r_min:
-				bur_vol, bur_shell = sterics.buried_vol(occ_grid, grid, origin, options.radius, options.grid, strip_width, options.verbose)
+				bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, options.radius, options.grid, strip_width, options.verbose,options.shell)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -371,7 +351,7 @@ def main():
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
-
+	parser.add_option("--shell", dest="shell",action="store_true", help="Request percent shell volume", default=False)
 	(options, args) = parser.parse_args()
 
 	# make sure upper/lower case doesn't matter
