@@ -56,7 +56,7 @@ def max_dim(coords, radii, options):
 
 	# largest dimension along any axis
 	max_dim = max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min))
-	if options.verbose: print("\n   Molecule is bounded by the region X:[{:6.3f} to{:6.3f}] Y:[{:6.3f} to{:6.3f}] Z:[{:6.3f} to{:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
+	if options.verbose: print("\n   Molecule is bounded by the region X:[{:6.3f} to {:6.3f}] Y:[{:6.3f} to {:6.3f}] Z:[{:6.3f} to {:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
 	# compute cubic volume containing molecule and estimate the number of grid points based on grid spacing and volume size
 	cubic_volume = (2 * max_dim) ** 3
