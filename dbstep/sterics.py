@@ -270,7 +270,7 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	return L, Bmax, Bmin, cyl
 
 
-def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose, shell):
+def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose):
 	""" Read which grid points occupy sphere"""
 	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
 	cube = spacing ** 3 # cube 
@@ -291,7 +291,7 @@ def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose, s
 	# experimental - in addition to occupied spherical volume, this will compute
 	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
-	if strip_width != 0.0 and shell:
+	if strip_width != 0.0:
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
 		point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
 		shell_occ = len(point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1))
