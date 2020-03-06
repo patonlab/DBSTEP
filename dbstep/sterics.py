@@ -82,10 +82,11 @@ def occupied(grid, coords, radii, origin, options):
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
 	
-	#visualize grid points quickly
-	# import pptk
-	# u = pptk.viewer(grid)
-	# v = pptk.viewer(grid[jdx])
+	if options.debug:
+		#visualize grid points quickly
+		import pptk
+		u = pptk.viewer(grid)
+		v = pptk.viewer(grid[jdx])
 	
 	return grid[jdx],point_tree
 
@@ -225,8 +226,10 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
 	# this is a layer of the occupancy grid between Z-limits
-	if strip_width != 0: xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if abs(z) <= R + strip_width and abs(z) > R - strip_width])
-	else: xy_grid = occ_grid
+	if strip_width != 0: 
+		xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if z <= R + strip_width and z > R - strip_width])
+	else: 
+		xy_grid = occ_grid
 
 	if len(xy_grid) > 0:
 		#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
