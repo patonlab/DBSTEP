@@ -75,10 +75,14 @@ def occupied(grid, coords, radii, origin, options):
 	for n in range(len(coords)):
 		center = coords[n] + origin
 		idx.append(point_tree.query_ball_point(center, radii[n], n_jobs=-1))
-	#construct a list of indices of the grid array that are occupied
+	#construct a list of indices of the grid array that are occupied / unoccupied
 	jdx = [y for x in idx for y in x]
+	kdx = [i for i in range(len(grid)) if i not in jdx] 
+	
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
+	kdx = list(set(kdx))
+	
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
 	
@@ -87,8 +91,12 @@ def occupied(grid, coords, radii, origin, options):
 		import pptk
 		u = pptk.viewer(grid)
 		v = pptk.viewer(grid[jdx])
+		w = pptk.viewer(grid[kdx])
 	
-	return grid[jdx],point_tree
+	if options.qsar:
+		return grid[jdx],grid[kdx],point_tree
+	else:
+		return grid[jdx],point_tree
 
 
 def occupied_dens(grid, dens, options):

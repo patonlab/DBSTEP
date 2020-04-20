@@ -7,6 +7,8 @@ from __future__ import print_function, absolute_import
 # Moderate - Better output of isovalue cube and overall more automation of commands written to pymol script
 # Moderately trivial - if you remove Hs, the base atom ID messes up
 # Cosmetic - would be better to combine methods where either dens is used radii and can be chosen from the commandline
+
+#for debug mode, a grid can be displayed using a pptk 3d graph, install with pip
 ###############################################################
 
 #Python Libraries
@@ -46,14 +48,14 @@ BOHR_TO_ANG = 0.529177249
 
 
 class dbstep:
-	""" 
+	"""
 	dbstep object that contains coordinates, steric data
-	
+
 	Objects that can currently be referenced are:
 			L, Bmax, Bmin, bur_vol, bur_shell
 			setup_time, calc_time
-			
-	If steric scan is requested, Bmin and Bmax vars 
+
+	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
 	"""
 	def __init__(self, *args, **kwargs):
@@ -62,11 +64,11 @@ class dbstep:
 			self.options = kwargs['options']
 		else:
 			self.options = set_options(kwargs)
-		
+
 		#this is ugly but fix l8r
 		file = self.file
 		options = self.options
-		
+
 		start = time.time()
 		spheres, cylinders = [], []
 		name, ext = os.path.splitext(file)
@@ -85,6 +87,12 @@ class dbstep:
 		if options.spec_atom_2 == False:
 			options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
 
+		if options.qsar: 
+			if options.grid < 0.5: 
+				options.grid = 0.5
+				if options.verbose:
+					print("Adjusting grid spacing to 0.5A for QSAR analysis")
+					
 		# if surface = VDW the molecular volume is defined by tabulated radii
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a cube file
@@ -123,11 +131,11 @@ class dbstep:
 			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface)); exit()
 
 		# Translate molecule to place metal or specified atom at the origin
-		if options.surface == 'vdw': 
+		if options.surface == 'vdw':
 			mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
 		elif options.surface == 'density':
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
-			
+
 		# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 		spec_atom_2 = ''
 		if len(options.spec_atom_2) > 1 and isinstance(options.spec_atom_2,list):
@@ -191,18 +199,73 @@ class dbstep:
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
 		if options.surface == 'vdw':
-			n_x_vals = int(1 + round((x_max - x_min) / options.grid))
-			n_y_vals = int(1 + round((y_max - y_min) / options.grid))
-			n_z_vals = int(1 + round((z_max - z_min) / options.grid))
-			x_vals = np.linspace(x_min, x_max, n_x_vals)
-			y_vals = np.linspace(y_min, y_max, n_y_vals)
-			z_vals = np.linspace(z_min, z_max, n_z_vals)
+			if options.gridsize:
+				[x, y, z] = [float(val)/2 for val in options.gridsize.split(':')]
+				sizeflag = True
+				if x < x_max or -x > x_min:
+					sizeflag = False
+				elif y < y_max or -y > y_min:
+					sizeflag = False
+				elif z < z_max or -z > z_min:
+					sizeflag = False
+				if sizeflag:
+					n_x_vals = int(1 + round((x - (-x)) / options.grid))
+					n_y_vals = int(1 + round((y - (-y)) / options.grid))
+					n_z_vals = int(1 + round((y - (-y)) / options.grid))
+					x_vals = np.linspace(-x, x, n_x_vals)
+					y_vals = np.linspace(-y, y, n_y_vals)
+					z_vals = np.linspace(-z, z, n_z_vals)
+				else:
+					#sys exit
+					sys.exit("Your molecule is larger than the gridsize you selected")
+					
+			else:
+				n_x_vals = int(1 + round((x_max - x_min) / options.grid))
+				n_y_vals = int(1 + round((y_max - y_min) / options.grid))
+				n_z_vals = int(1 + round((z_max - z_min) / options.grid))
+				x_vals = np.linspace(x_min, x_max, n_x_vals)
+				y_vals = np.linspace(y_min, y_max, n_y_vals)
+				z_vals = np.linspace(z_min, z_max, n_z_vals)
+			
 			if options.volume or options.sterimol == 'grid':
 				# construct grid encapsulating molecule
 				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 				# compute which grid points occupy molecule
-				occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)		
-		
+				if options.qsar:
+					occ_grid, unocc_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+				else:
+					occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+
+			if options.qsar:
+				print("   Creating interaction energy grid xyz files in 'grid' directory")
+				probe = 'Ar'
+				path = os.getcwd()+'/grid_'+name+'/'
+				self.qsar_dir = path
+				os.mkdir(path)
+				self.interaction_energy = []
+				
+				for n, gridpoint in enumerate(unocc_grid):
+					self.interaction_energy.append(0.0)
+					xyzfile = open(path+'GRIDPOINT_'+probe+'_'+str(n)+'.xyz', 'w')
+					xyzfile.write(str(len(mol.ATOMTYPES)+1)+'\n')
+					xyzfile.write(path+'GRIDPOINT_'+probe+'_'+str(n)+'\n')
+
+					for i, atom in enumerate(mol.ATOMTYPES):
+						[x,y,z] = mol.CARTESIANS[i]
+						[gx,gy,gz] = gridpoint
+						xyzfile.write('{} {:10.5f} {:10.5f} {:10.5f}\n'.format(mol.ATOMTYPES[i], x,y,z))
+					xyzfile.write('{} {:10.5f} {:10.5f} {:10.5f}\n'.format(probe, gx,gy,gz))
+
+				xyzfile = open(path+'REF_'+probe+'.xyz', 'w')
+				xyzfile.write(str(len(mol.ATOMTYPES)+1)+'\n')
+				xyzfile.write('REF_'+probe+'\n')
+				for i, atom in enumerate(mol.ATOMTYPES):
+					[x,y,z] = mol.CARTESIANS[i]
+					[gx,gy,gz] = gridpoint
+
+					xyzfile.write('{} {:10.5f} {:10.5f} {:10.5f}\n'.format(mol.ATOMTYPES[i], x,y,z))
+				xyzfile.write('{} {:10.5f} {:10.5f} {:10.5f}\n'.format(probe,gx+100,gy+100,gz+100))
+
 		elif options.surface == 'density':
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
 			y_vals = np.linspace(y_min, y_max, mol.ydim)
@@ -210,7 +273,7 @@ class dbstep:
 			# writes a new grid to cube file
 			writer.WriteCubeData(name, mol)
 			# define the grid points containing the molecule
-			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)	
+			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
 			occ_grid = sterics.occupied_dens(grid, mol.DENSITY, options)
 			
@@ -246,7 +309,7 @@ class dbstep:
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels.
 			# Changed rad in args to options.radius
-			# Do we want this to also follow the scan as well? 
+			# Do we want this to also follow the scan as well?
 			# it is v slow so for now it only calculates it at one radii
 			#need a fix for case that radius == 0, get divide by zero error
 			if options.volume and rad == r_min:
@@ -275,7 +338,7 @@ class dbstep:
 			# for pymol visualization
 			for c in cyl:
 				cylinders.append(c)
-		
+
 		#for module reference
 		self.L = L
 		if options.volume:
@@ -287,7 +350,7 @@ class dbstep:
 		else:
 			self.Bmax = Bmax_list
 			self.Bmin = Bmin_list
-		
+
 		# recompute L if a scan has been performed
 		if options.sterimol == 'grid' and r_intervals >1:
 			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
@@ -302,22 +365,23 @@ class dbstep:
 		if options.commandline == False:
 			writer.xyz_export(file,mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval)
-	
-		
+
+
 def set_options(kwargs):
 	#set default options and options provided
 	p = OptionParser()
 	(options, args) = p.parse_args()
-	
+
 	var_dict = {'verbose': ['verbose',False], 'v': ['verbose',False], 'grid': ['grid',0.05],
 	'scalevdw':['SCALE_VDW',1.0], 'noH':['noH',False], 'addmetals':['add_metals',False],
 	'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
 	'ligand':['spec_atom_2',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
 	's' : ['sterimol','grid'], 'sterimol':['sterimol','grid'],'surface':['surface','density'],
 	'debug':['debug',False],'volume':['volume',False],'t': ['timing',False],
-	'timing': ['timing',False],'commandline':['commandline',False]
+	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
+	'gridsize': ['gridsize', False]
 	}
-	
+
 	for key in var_dict:
 		vars(options)[var_dict[key][0]] = var_dict[key][1]
 	for key in kwargs:
@@ -325,17 +389,17 @@ def set_options(kwargs):
 			vars(options)[var_dict[key][0]] = kwargs[key]
 		else:
 			print("Warning! Option: [", key,":", kwargs[key],"] provided but no option exists, try -h to see available options.")
-	
+
 	return options
-	
-		
+
+
 def main():
 	files=[]
 	# get command line inputs. Use -h to list all possible arguments and default values
 	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
 	parser.add_option("--center", dest="spec_atom_1", action="store", help="Specify the base atom", default=False, metavar="spec_atom_1")
 	parser.add_option("--ligand", dest="spec_atom_2", action="store", help="Specify the connected atom(s)", default=False, metavar="spec_atom_2")
-	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")	
+	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("-s", "--sterimol", dest="sterimol", action="store",choices=['grid','classic'], help="Type of Sterimol Calculation (classic or grid=default)", default='grid', metavar="sterimol")
@@ -347,7 +411,9 @@ def main():
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("--scand", dest="scand", action="store", help="Scan over an evenly distributed range of radii", default=False, metavar="scand")
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
-	parser.add_option("--debug", dest="debug", action="store_true", help="mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
+	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
+	parser.add_option("--qsar", dest="qsar", action="store_true", help="Construct a grid with probe atom at each point for QSAR study (this generates a lot of files!)", default=False, metavar="qsar")
+	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'x:y:z'")
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
@@ -366,7 +432,7 @@ def main():
 			except IndexError: pass
 
 	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
-	for file in files: 
+	for file in files:
 		# loop over all specified output files
 		dbstep(file,options=options)
 
