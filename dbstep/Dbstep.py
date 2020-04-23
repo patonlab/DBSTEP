@@ -157,7 +157,7 @@ class dbstep:
 
 		# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 		# the x and y directions are arbitrary
-		if len(mol.CARTESIANS) > 1:
+		if len(mol.CARTESIANS) > 1 and options.norot == False:
 			if options.surface == 'vdw':
 				mol.CARTESIANS = calculator.rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point, options)
 			elif options.surface == 'density':
@@ -243,7 +243,7 @@ class dbstep:
 				self.qsar_dir = path
 				os.mkdir(path)
 				self.interaction_energy = []
-				
+				self.unocc_grid = unocc_grid
 				for n, gridpoint in enumerate(unocc_grid):
 					self.interaction_energy.append(0.0)
 					xyzfile = open(path+'GRIDPOINT_'+probe+'_'+str(n)+'.xyz', 'w')
@@ -374,7 +374,7 @@ def set_options(kwargs):
 
 	var_dict = {'verbose': ['verbose',False], 'v': ['verbose',False], 'grid': ['grid',0.05],
 	'scalevdw':['SCALE_VDW',1.0], 'noH':['noH',False], 'addmetals':['add_metals',False],
-	'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
+	'norot':['norot',False],'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
 	'ligand':['spec_atom_2',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
 	's' : ['sterimol','grid'], 'sterimol':['sterimol','grid'],'surface':['surface','density'],
 	'debug':['debug',False],'volume':['volume',False],'t': ['timing',False],
@@ -402,6 +402,7 @@ def main():
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
+	parser.add_option("--norot",dest='norot',action="store_true",help="Do not rotate the molecules (use if structures have been pre-aligned)")
 	parser.add_option("-s", "--sterimol", dest="sterimol", action="store",choices=['grid','classic'], help="Type of Sterimol Calculation (classic or grid=default)", default='grid', metavar="sterimol")
 	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.05, type=float, metavar="grid")
 	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='density', metavar="surface")
