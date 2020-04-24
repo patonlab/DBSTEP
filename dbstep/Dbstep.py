@@ -12,7 +12,7 @@ from __future__ import print_function, absolute_import
 ###############################################################
 
 #Python Libraries
-import os, sys, time
+import os, sys, time, shutil
 from glob import glob
 import numpy as np
 from optparse import OptionParser
@@ -64,6 +64,9 @@ class dbstep:
 			self.options = kwargs['options']
 		else:
 			self.options = set_options(kwargs)
+		if 'QSAR' in kwargs:
+			QSAR = kwargs['QSAR']
+		else: QSAR = False
 
 		#this is ugly but fix l8r
 		file = self.file
@@ -91,7 +94,7 @@ class dbstep:
 			if options.grid < 0.5: 
 				options.grid = 0.5
 				if options.verbose:
-					print("Adjusting grid spacing to 0.5A for QSAR analysis")
+					print("   Adjusting grid spacing to 0.5A for QSAR analysis")
 					
 		# if surface = VDW the molecular volume is defined by tabulated radii
 		# This is necessary when a density cube is not supplied
@@ -184,7 +187,11 @@ class dbstep:
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
-
+			if options.gridsize != None:
+				if options.verbose: print("   Grid sizing requested: "+options.gridsize)
+		if QSAR:
+			self.dimensions = [x_min, x_max, y_min, y_max, z_min, z_max]
+			return
 		# read the requested radius or range
 		if not options.scan:
 			r_min, r_max, strip_width = options.radius, options.radius, 0.0
@@ -199,25 +206,26 @@ class dbstep:
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
 		if options.surface == 'vdw':
-			if options.gridsize:
-				[x, y, z] = [float(val)/2 for val in options.gridsize.split(':')]
+			if options.gridsize != None:
+				[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = [float(val) for val in options.gridsize.replace(':',',').split(',')]
 				sizeflag = True
-				if x < x_max or -x > x_min:
+				if x_plus < x_max or x_minus > x_min:
 					sizeflag = False
-				elif y < y_max or -y > y_min:
+				elif y_plus < y_max or y_minus > y_min:
 					sizeflag = False
-				elif z < z_max or -z > z_min:
+				elif z_plus < z_max or z_minus > z_min:
 					sizeflag = False
 				if sizeflag:
-					n_x_vals = int(1 + round((x - (-x)) / options.grid))
-					n_y_vals = int(1 + round((y - (-y)) / options.grid))
-					n_z_vals = int(1 + round((y - (-y)) / options.grid))
-					x_vals = np.linspace(-x, x, n_x_vals)
-					y_vals = np.linspace(-y, y, n_y_vals)
-					z_vals = np.linspace(-z, z, n_z_vals)
+					n_x_vals = int(1 + round((x_plus - x_minus) / options.grid))
+					n_y_vals = int(1 + round((y_plus - y_minus)/ options.grid))
+					n_z_vals = int(1 + round((z_plus - z_minus) / options.grid))
+					x_vals = np.linspace(x_minus, x_plus, n_x_vals)
+					y_vals = np.linspace(y_minus, y_plus, n_y_vals)
+					z_vals = np.linspace(z_minus, z_plus, n_z_vals)
 				else:
 					#sys exit
-					sys.exit("Your molecule is larger than the gridsize you selected")
+					sys.exit("ERROR: Your molecule is larger than the gridsize you selected,\n"
+						"       please try again with a larger gridsize")
 					
 			else:
 				n_x_vals = int(1 + round((x_max - x_min) / options.grid))
@@ -237,13 +245,18 @@ class dbstep:
 					occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
 			if options.qsar:
-				print("   Creating interaction energy grid xyz files in 'grid' directory")
+				if options.verbose: print("\n   Creating interaction energy grid xyz files in 'grid_"+name+"' directory")
 				probe = 'Ar'
 				path = os.getcwd()+'/grid_'+name+'/'
 				self.qsar_dir = path
+				if os.path.exists(path):
+					if options.verbose: print("   Overwriting: "+path)
+					shutil.rmtree(path)
 				os.mkdir(path)
+				
 				self.interaction_energy = []
 				self.unocc_grid = unocc_grid
+				
 				for n, gridpoint in enumerate(unocc_grid):
 					self.interaction_energy.append(0.0)
 					xyzfile = open(path+'GRIDPOINT_'+probe+'_'+str(n)+'.xyz', 'w')
@@ -414,7 +427,7 @@ def main():
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
 	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	parser.add_option("--qsar", dest="qsar", action="store_true", help="Construct a grid with probe atom at each point for QSAR study (this generates a lot of files!)", default=False, metavar="qsar")
-	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'x:y:z'")
+	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'xmin,xmax:ymin,ymax:zmin,zmax'")
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
@@ -433,6 +446,27 @@ def main():
 			except IndexError: pass
 
 	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
+	
+	#in qsar mode, loop through and get dimensions of molecules
+	if options.qsar:
+		mols=[]
+		for file in files: 
+			mols.append(dbstep(file,options=options,QSAR=True))
+		xmin,xmax,ymin,ymax,zmin,zmax = 0,0,0,0,0,0
+		for mol in mols:
+			[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = mol.dimensions
+			if x_plus >= xmax: xmax = x_plus
+			if y_plus >= ymax: ymax = y_plus
+			if z_plus >= zmax: zmax = z_plus
+			if x_minus <= xmin: xmin = x_minus
+			if y_minus <= ymin: ymin = y_minus
+			if z_minus <= zmin: zmin = z_minus
+		dim = [xmin,xmax,ymin,ymax,zmin,zmax]
+		for i in range(len(dim)):
+			if i%2: dim[i]+=3
+			else: dim[i]-=3
+		options.gridsize = str(dim[0])+','+str(dim[1])+':'+str(dim[2])+','+str(dim[3])+':'+str(dim[4])+','+str(dim[5])
+		if options.verbose: print("   Grid size for QSAR mode will be: "+options.gridsize)
 	for file in files:
 		# loop over all specified output files
 		dbstep(file,options=options)
