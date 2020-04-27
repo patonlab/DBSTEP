@@ -77,11 +77,11 @@ def occupied(grid, coords, radii, origin, options):
 		idx.append(point_tree.query_ball_point(center, radii[n], n_jobs=-1))
 	#construct a list of indices of the grid array that are occupied / unoccupied
 	jdx = [y for x in idx for y in x]
-	kdx = [i for i in range(len(grid)) if i not in jdx] 
+	if options.qsar: kdx = [i for i in range(len(grid)) if i not in jdx] 
 	
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	kdx = list(set(kdx))
+	if options.qsar: kdx = list(set(kdx))
 	
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
@@ -164,7 +164,7 @@ def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
 	return grid
 	
 
-def get_classic_sterimol(coords, radii, atoms, spec_atom_1, spec_atom_2):
+def get_classic_sterimol(coords, radii, atoms):
 	"""Uses standard Verloop definitions and VDW spheres to define L, B1 and B5"""
 	L, Bmax, Bmin, xmax, ymax, cyl, rad_hist_hy,rad_hist_rw, x_hist_rw, y_hist_rw,x_hist_hy, y_hist_hy  = 0.0, 0.0, 0.0, 0.0, 0.0, [], [], [], [], [], [], []
 	for n, coord in enumerate(coords):
