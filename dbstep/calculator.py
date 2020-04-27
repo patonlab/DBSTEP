@@ -72,12 +72,8 @@ def tridentate(MOL, options):
 def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False, cube_inc=False):
 	"""Rotates molecule around X- and Y-axes to align M-L bond to Z-axis"""
 	for n, atom in enumerate(atoms):
-		# if atom in metals: met_id, met_atom = n, atom
-		# if atom == "P": lig_id, lig_atom = n, atom
 		if atom+str(n+1) == spec_atom_1:
 			center_id = n
-		# if atom+str(n+1) == spec_atom_2:
-		# 	lig_id, lig_atom = n, atom
 	try:
 		ml_vec = lig_point - coords[center_id]
 		# ml_vec = coords[lig_id]- coords[center_id]
@@ -200,7 +196,7 @@ def translate_mol(MOL, options, origin):
 			if atom in metals:
 				base_id, base_atom = n, atom
 			# otherwise just use the first atom
-			if n ==0:
+			if n == 0:
 				base_id, base_atom = n, atom
 		else:
 			if atom+str(n+1) == spec_atom:

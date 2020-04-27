@@ -3,10 +3,14 @@ from __future__ import print_function, absolute_import
 
 ###############################################################
 # known issues:
-# Hard - check the numerical results for some toy systems (e.g. spherically symmetrical, diatomics) where the correct alues can be defined manually. Then check against tabulate results for classical values, then compare QM-density derived values
-# Moderate - Better output of isovalue cube and overall more automation of commands written to pymol script
+# Hard - check the numerical results for some toy systems 
+	# (e.g. spherically symmetrical, diatomics) where the correct values can be defined manually. 
+	# Then check against tabulate results for classical values, then compare QM-density derived values
 # Moderately trivial - if you remove Hs, the base atom ID messes up
-# Cosmetic - would be better to combine methods where either dens is used radii and can be chosen from the commandline
+# for grid sterimol, may be a problem that the value for Bmin slips between grid points to give an unusually low
+	# add a check/warning for this (warning, Bmin is unusually small)
+	# shoudn't be smaller than base atom VDW radius 
+	
 
 #for debug mode, a grid can be displayed using a pptk 3d graph, install with pip
 ###############################################################
@@ -22,7 +26,7 @@ from dbstep import sterics, getdata, calculator, writer
 #Chemistry Arrays
 
 #Bondi Van der Waals radii taken from [J. Phys. Chem. 1964, 68, 441] & [J. Phys. Chem. A. 2009, 103, 5806-5812]
-# All other elements set to 2.0A
+# All other elements set to 2.0A - common in other chemistry programs
 bondi = {"Bq": 0.00, "H": 1.09,"He": 1.40,
 	"Li":1.81,"Be":1.53,"B":1.92,"C":1.70,"N":1.55,"O":1.52,"F":1.47,"Ne":1.54,
 	"Na":2.27,"Mg":1.73,"Al":1.84,"Si":2.10,"P":1.80,"S":1.80,"Cl":1.75,"Ar":1.88,
@@ -80,7 +84,12 @@ class dbstep:
 		# if noH is requested these atoms are skipped to make things go faster
 		if ext == '.xyz' or ext == '.log':
 			options.surface = 'vdw'
-			mol = getdata.GetXYZData(name,ext, options.noH)
+			mol = getdata.GetXYZData(name,ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			if options.noH:
+				options.spec_atom_1 = mol.spec_atom_1
+				options.spec_atom_2 = mol.spec_atom_2
+			if len(mol.ATOMTYPES) == 1:
+				sys.exit("Only one atom found in "+self.file+" - Please try again with a different input file.")
 		if ext == '.cube':
 			mol = getdata.GetCubeData(name)
 
@@ -88,7 +97,10 @@ class dbstep:
 		if options.spec_atom_1 == False:
 			options.spec_atom_1 = mol.ATOMTYPES[0]+str(1)
 		if options.spec_atom_2 == False:
-			options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
+			try:
+				options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
+			except IndexError as error:
+				pass
 
 		if options.qsar: 
 			if options.grid < 0.5: 
@@ -309,7 +321,7 @@ class dbstep:
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, 3.5, options.grid, strip_width)
 			elif options.sterimol == 'classic':
 				if options.surface == 'vdw':
-					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES, options.spec_atom_1, options.spec_atom_2)
+					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES)
 				elif options.surface == 'density':
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
 			#set interval based on L
@@ -332,7 +344,7 @@ class dbstep:
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
 			elif options.sterimol == 'classic':
 				if options.surface == 'vdw':
-					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES, options.spec_atom_1, options.spec_atom_2)
+					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES)
 				elif options.surface == 'density':
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
 			Bmin_list.append(Bmin)
@@ -447,7 +459,8 @@ def main():
 
 	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
 	
-	#in qsar mode, loop through and get dimensions of molecules
+	#in qsar mode, loop through and get dimensions of molecules to create uniform grid sizing 
+	#(3A larger than greatest magnitudes in xyz directions)
 	if options.qsar:
 		mols=[]
 		for file in files: 

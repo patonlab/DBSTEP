@@ -92,7 +92,7 @@ class GetCubeData:
 
 class GetXYZData:
 	""" Read XYZ Cartesians from file """
-	def __init__(self, file,ext, noH):
+	def __init__(self, file, ext, noH, spec_atom_1, spec_atom_2):
 		if ext == '.xyz':
 			if not os.path.exists(file+".xyz"):
 				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file)
@@ -115,11 +115,8 @@ class GetXYZData:
 					if len(coord) == 4:
 						if isinstance(coord[1],float) and isinstance(coord[2],float) and isinstance(coord[3],float):
 							[atom, x,y,z] = [coord[0], coord[1], coord[2], coord[3]]
-							if noH == True and atom == "H":
-								pass
-							else:
-								self.ATOMTYPES.append(atom)
-								self.CARTESIANS.append([x,y,z])
+							self.ATOMTYPES.append(atom)
+							self.CARTESIANS.append([x,y,z])
 				except: pass
 		elif self.FORMAT == '.log':
 			for i, oline in enumerate(outlines):
@@ -135,3 +132,41 @@ class GetXYZData:
 							self.CARTESIANS.append([float(line.split()[2]), float(line.split()[3]), float(line.split()[4])])
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
+		#remove hydrogens if requested, update spec_atom numbering if necessary
+		if noH:
+			center_id,lig_id = -1,-1
+			for n,atom in enumerate(self.ATOMTYPES):
+				if atom+str(n+1) == spec_atom_1:
+					center_id = n
+				elif atom+str(n+1) == spec_atom_2:
+					lig_id = n
+			hs=[]
+			for n,atom in enumerate(self.ATOMTYPES):
+				if atom == "H":
+					hs.append(n)
+			center_sub,lig_sub = 0,0
+			for n in range(len(hs)):
+				if hs[n] < center_id:
+					center_sub -= 1
+				if hs[n] < lig_id:
+					lig_sub -= 1
+			center_id += center_sub
+			lig_id += lig_sub
+			print("Before",self.ATOMTYPES)
+			print(self.CARTESIANS)
+			print(spec_atom_1,center_id, spec_atom_2, lig_id)
+			
+			self.ATOMTYPES = np.delete(self.ATOMTYPES,hs)
+			self.CARTESIANS = np.delete(self.CARTESIANS,hs,0)
+			
+			if center_id >= 0: 
+				self.spec_atom_1 = self.ATOMTYPES[center_id]+str(center_id+1)
+			else:
+				self.spec_atom_1 = False
+			if lig_id >= 0: 
+				self.spec_atom_2 = self.ATOMTYPES[lig_id]+str(lig_id+1)
+			else:
+				self.spec_atom_2 = False
+			print("After",self.ATOMTYPES)
+			print(self.CARTESIANS)
+			print(spec_atom_1,spec_atom_2)
