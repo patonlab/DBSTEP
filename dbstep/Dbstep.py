@@ -199,8 +199,8 @@ class dbstep:
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
-			if options.gridsize != None:
-				if options.verbose: print("   Grid sizing requested: "+options.gridsize)
+			if options.gridsize != False:
+				if options.verbose: print("   Grid sizing requested: "+str(options.gridsize))
 		if QSAR:
 			self.dimensions = [x_min, x_max, y_min, y_max, z_min, z_max]
 			return
@@ -218,7 +218,7 @@ class dbstep:
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
 		if options.surface == 'vdw':
-			if options.gridsize != None:
+			if options.gridsize != False:
 				[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = [float(val) for val in options.gridsize.replace(':',',').split(',')]
 				sizeflag = True
 				if x_plus < x_max or x_minus > x_min:
@@ -396,7 +396,7 @@ def set_options(kwargs):
 	#set default options and options provided
 	p = OptionParser()
 	(options, args) = p.parse_args()
-
+	#dictionary containing default values for options 
 	var_dict = {'verbose': ['verbose',False], 'v': ['verbose',False], 'grid': ['grid',0.05],
 	'scalevdw':['SCALE_VDW',1.0], 'noH':['noH',False], 'addmetals':['add_metals',False],
 	'norot':['norot',False],'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
@@ -439,7 +439,7 @@ def main():
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
 	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	parser.add_option("--qsar", dest="qsar", action="store_true", help="Construct a grid with probe atom at each point for QSAR study (this generates a lot of files!)", default=False, metavar="qsar")
-	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'xmin,xmax:ymin,ymax:zmin,zmax'")
+	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'xmin,xmax:ymin,ymax:zmin,zmax'",default=False)
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
