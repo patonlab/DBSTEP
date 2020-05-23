@@ -35,8 +35,18 @@ def max_dim(coords, radii, options):
 	spacing = options.grid
 	[x_min, x_max, y_min, y_max, z_min, z_max] = np.zeros(6)
 	
-	#define grid to fit sphere so we can measure buried volume accurately
-	ex_radius = options.radius + options.radius * 0.1 #expanded radius, make sure our full sphere fits in our grid
+	#define grid to fit sphere so we can measure buried volume accurately. 
+	#if we are doing a scan, choose largest possible
+	if not options.scan:
+		#expanded radius, make sure our full sphere fits in our grid
+		ex_radius = options.radius + options.radius * 0.1 
+	else:
+		try:
+			[r_min, r_max, strip_width] = [float(scan) for scan in options.scan.split(':')]
+			ex_radius = r_max + r_max * 0.1 
+		except:
+			print("   Can't read your scan request. Try something like --scan 3:5:0.25"); exit()
+			
 	x_max = ex_radius
 	y_max = ex_radius
 	z_max = ex_radius
@@ -91,7 +101,7 @@ def occupied(grid, coords, radii, origin, options):
 		import pptk
 		u = pptk.viewer(grid)
 		v = pptk.viewer(grid[jdx])
-		w = pptk.viewer(grid[kdx])
+		if options.qsar: w = pptk.viewer(grid[kdx])
 	
 	if options.qsar:
 		return grid[jdx],grid[kdx],point_tree
@@ -281,8 +291,15 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 	return L, Bmax, Bmin, cyl
 
 
-def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose):
+def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 	""" Read which grid points occupy sphere"""
+	verbose = options.verbose
+	
+	#if doing a scan, use scan radius for volume
+	if strip_width != 0.0: R = rad
+	else: R = options.radius
+	
+	spacing = options.grid
 	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
 	cube = spacing ** 3 # cube 
 	
@@ -306,9 +323,24 @@ def buried_vol(occ_grid, point_tree, origin, R, spacing, strip_width, verbose):
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
 		point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
 		shell_occ = len(point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1))
+		if options.debug:
+			# this may take a while
+			import pptk
+			a = point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)
+			b = point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1)
+			for pt in b:
+				if pt in a:
+					a.remove(pt)
+			u = pptk.viewer(occ_grid[a])
 		shell_occ_vol = shell_occ * cube
 		percent_shell_vol = shell_occ_vol / shell_vol * 100.0
 	else: percent_shell_vol = 0.0
+	
+	#Fix, sometimes approximations of volume are greater than 100
+	if percent_buried_vol > 100.00:
+		percent_buried_vol = 100.00
+	if percent_shell_vol > 100.00:
+		percent_shell_vol = 100.00
 	
 	if verbose:
 		print("   RADIUS: {:5.2f}, VFREE: {:7.2f}, VBURIED: {:7.2f}, VTOTAL: {:7.2f}, VEXACT: {:7.2f}, NVOXEL: {}, %V_Bur: {:7.2f}%,  Tot/Ex: {:7.2f}%".format(R, free_vol, occ_vol, tot_vol, sphere, n_voxel, percent_buried_vol, vol_err))
