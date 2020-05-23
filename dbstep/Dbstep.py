@@ -198,6 +198,8 @@ class dbstep:
 						mol.RADII = np.delete(mol.RADII,del_atom-1)
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
+			
+			#determine grid size based on molecule vdw radii and radius selected for buried vol
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
 			if options.gridsize != False:
 				if options.verbose: print("   Grid sizing requested: "+str(options.gridsize))
@@ -218,6 +220,7 @@ class dbstep:
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
 		if options.surface == 'vdw':
+			# user can choose to increase grid size / use in QSAR studies
 			if options.gridsize != False:
 				[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = [float(val) for val in options.gridsize.replace(':',',').split(',')]
 				sizeflag = True
@@ -238,7 +241,6 @@ class dbstep:
 					#sys exit
 					sys.exit("ERROR: Your molecule is larger than the gridsize you selected,\n"
 						"       please try again with a larger gridsize")
-					
 			else:
 				n_x_vals = int(1 + round((x_max - x_min) / options.grid))
 				n_y_vals = int(1 + round((y_max - y_min) / options.grid))
@@ -333,12 +335,13 @@ class dbstep:
 		Bmax_list = []
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels.
-			# Changed rad in args to options.radius
-			# Do we want this to also follow the scan as well?
-			# it is v slow so for now it only calculates it at one radii
-			#need a fix for case that radius == 0, get divide by zero error
-			if options.volume and rad == r_min:
-				bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, options.radius, options.grid, strip_width, options.verbose)
+			# If a scan is requested, radius of sphere = rad
+			if options.volume:
+				if rad == 0:
+					bur_vol, bur_shell = 0.0,0.0
+				else:
+					if options.vol_shell: strip_width = options.vol_shell
+					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -402,7 +405,7 @@ def set_options(kwargs):
 	'norot':['norot',False],'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
 	'ligand':['spec_atom_2',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
 	's' : ['sterimol','grid'], 'sterimol':['sterimol','grid'],'surface':['surface','density'],
-	'debug':['debug',False],'volume':['volume',False],'t': ['timing',False],
+	'debug':['debug',False],'volume':['volume',False],'volume-shell':['vol_shell',False],'t': ['timing',False],
 	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
 	'gridsize': ['gridsize', False]
 	}
@@ -434,6 +437,7 @@ def main():
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
+	parser.add_option("--volume-shell",dest="vol_shell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("--scand", dest="scand", action="store", help="Scan over an evenly distributed range of radii", default=False, metavar="scand")
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
