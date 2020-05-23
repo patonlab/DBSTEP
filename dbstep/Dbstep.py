@@ -101,7 +101,9 @@ class dbstep:
 				options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
 			except IndexError as error:
 				pass
-
+				
+		if options.vol_shell: options.volume = True
+		
 		if options.qsar: 
 			if options.grid < 0.5: 
 				options.grid = 0.5
