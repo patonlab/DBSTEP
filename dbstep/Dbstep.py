@@ -102,7 +102,7 @@ class dbstep:
 			except IndexError as error:
 				pass
 				
-		if options.vol_shell: options.volume = True
+		if options.vshell: options.volume = True
 		
 		if options.qsar: 
 			if options.grid < 0.5: 
@@ -342,7 +342,7 @@ class dbstep:
 				if rad == 0:
 					bur_vol, bur_shell = 0.0,0.0
 				else:
-					if options.vol_shell: strip_width = options.vol_shell
+					if options.vshell: strip_width = options.vshell
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
@@ -407,7 +407,7 @@ def set_options(kwargs):
 	'norot':['norot',False],'r':['radius',3.5],'scan':['scan',False],'scand':['scand',False],'center':['spec_atom_1',False],
 	'ligand':['spec_atom_2',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
 	's' : ['sterimol','grid'], 'sterimol':['sterimol','grid'],'surface':['surface','density'],
-	'debug':['debug',False],'volume':['volume',False],'volume-shell':['vol_shell',False],'t': ['timing',False],
+	'debug':['debug',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
 	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
 	'gridsize': ['gridsize', False]
 	}
@@ -439,7 +439,7 @@ def main():
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
-	parser.add_option("--volume-shell",dest="vol_shell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
+	parser.add_option("--vshell",dest="vshell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("--scand", dest="scand", action="store", help="Scan over an evenly distributed range of radii", default=False, metavar="scand")
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
