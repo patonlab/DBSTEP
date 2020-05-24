@@ -322,12 +322,17 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 	if strip_width != 0.0:
 		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
 		point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
-		shell_occ = len(point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1))
+		R_pos = R + 0.5 * strip_width
+		if R < strip_width: 
+			R_neg = 0.0
+		else:
+			R_neg = R - 0.5 * strip_width
+		shell_occ = len(point_tree.query_ball_point(origin, R_pos, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R_neg, n_jobs=-1))
 		if options.debug:
 			# this may take a while
 			import pptk
-			a = point_tree.query_ball_point(origin, R + 0.5 * strip_width, n_jobs=-1)
-			b = point_tree.query_ball_point(origin, R - 0.5 * strip_width, n_jobs=-1)
+			a = point_tree.query_ball_point(origin,R_pos , n_jobs=-1)
+			b = point_tree.query_ball_point(origin,R_neg, n_jobs=-1)
 			for pt in b:
 				if pt in a:
 					a.remove(pt)
