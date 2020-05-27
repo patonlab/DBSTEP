@@ -333,8 +333,8 @@ class dbstep:
 			r_max = L
 			r_intervals = int(options.scand)
 			strip_width = L / float(options.scand)
-		Bmin_list = []
-		Bmax_list = []
+		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
+	
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels.
 			# If a scan is requested, radius of sphere = rad
@@ -354,6 +354,8 @@ class dbstep:
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
 			Bmin_list.append(Bmin)
 			Bmax_list.append(Bmax)
+			bur_vol_list.append(bur_vol)
+			bur_shell_list.append(bur_shell)
 			# Tabulate result
 			if options.volume:
 				# for pymol visualization
@@ -369,17 +371,20 @@ class dbstep:
 			for c in cyl:
 				cylinders.append(c)
 
-		#for module reference
+		#for later reference
 		self.L = L
-		if options.volume:
-			self.bur_vol = bur_vol
-			self.bur_shell = bur_shell
 		if options.scan == False and options.scand == False:
 			self.Bmax = Bmax
 			self.Bmin = Bmin
+			if options.volume:
+				self.bur_vol = bur_vol
+				self.bur_shell = bur_shell
 		else:
 			self.Bmax = Bmax_list
-			self.Bmin = Bmin_list
+			self.Bmin = Bmin_list 
+			if options.volume:
+				self.bur_vol = bur_vol_list
+				self.bur_shell = bur_shell_list
 
 		# recompute L if a scan has been performed
 		if options.sterimol == 'grid' and r_intervals >1:
