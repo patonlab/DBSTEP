@@ -344,6 +344,8 @@ class dbstep:
 				else:
 					if options.vshell: strip_width = options.vshell
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options)
+				bur_vol_list.append(bur_vol)
+				bur_shell_list.append(bur_shell)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol == 'grid':
 				L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
@@ -354,8 +356,7 @@ class dbstep:
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
 			Bmin_list.append(Bmin)
 			Bmax_list.append(Bmax)
-			bur_vol_list.append(bur_vol)
-			bur_shell_list.append(bur_shell)
+			
 			# Tabulate result
 			if options.volume:
 				# for pymol visualization
