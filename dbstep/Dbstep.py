@@ -256,7 +256,9 @@ class dbstep:
 				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 				# compute which grid points occupy molecule
 				if options.qsar:
-					occ_grid, unocc_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					occ_grid, unocc_grid, onehot_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					# for i in range(len(onehot)):
+					# 	print(i,onehot[i],grid[i])
 				else:
 					occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
@@ -271,7 +273,9 @@ class dbstep:
 				os.mkdir(path)
 				
 				self.interaction_energy = []
+				self.grid = grid
 				self.unocc_grid = unocc_grid
+				self.onehot_grid = onehot_grid
 				
 				for n, gridpoint in enumerate(unocc_grid):
 					self.interaction_energy.append(0.0)
@@ -356,7 +360,7 @@ class dbstep:
 					print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)"); exit()
 			Bmin_list.append(Bmin)
 			Bmax_list.append(Bmax)
-			
+	
 			# Tabulate result
 			if options.volume:
 				# for pymol visualization
@@ -455,6 +459,7 @@ def main():
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
+	parser.add_option("--atom3",dest='atom3',action='store',help='align a third atom to the positive x direction',default=False)
 	(options, args) = parser.parse_args()
 
 	# make sure upper/lower case doesn't matter

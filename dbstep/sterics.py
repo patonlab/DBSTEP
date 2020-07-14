@@ -91,7 +91,11 @@ def occupied(grid, coords, radii, origin, options):
 	
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	if options.qsar: kdx = list(set(kdx))
+	if options.qsar: 
+		kdx = list(set(kdx))
+		onehot = np.zeros(len(grid))
+		for i in jdx:
+			onehot[i] = 1.
 	
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
@@ -104,7 +108,7 @@ def occupied(grid, coords, radii, origin, options):
 		if options.qsar: w = pptk.viewer(grid[kdx])
 	
 	if options.qsar:
-		return grid[jdx],grid[kdx],point_tree
+		return grid[jdx],grid[kdx],onehot,point_tree
 	else:
 		return grid[jdx],point_tree
 
