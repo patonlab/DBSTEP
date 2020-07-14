@@ -74,8 +74,10 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 	for n, atom in enumerate(atoms):
 		if atom+str(n+1) == spec_atom_1:
 			center_id = n
+	atom3 = options.atom3
 	try:
 		ml_vec = lig_point - coords[center_id]
+		
 		# ml_vec = coords[lig_id]- coords[center_id]
 		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
 		newcoord=[]
@@ -169,7 +171,46 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 						qz = w[2]*math.cos(phi) - w[0]*math.sin(phi)
 						rot2 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
 						new_inc[i]=rot2
-
+			newcoord = np.asarray(newcoord)
+			
+			#if a third atom requested, rotate around z axis to align atom3 to the positive x direction & y=0
+			if atom3 != False:
+				#get atom 2-3 vector
+				for n, atom in enumerate(atoms):
+					if atom+str(n+1) == atom3:
+						atom3_id = n
+				
+				atom23_vec = newcoord[atom3_id] - lig_point
+				xy =[atom23_vec[0],atom23_vec[1]]
+				if xy != [0.0,0.0]:
+					u_xy = unit_vector(xy)
+					rot_angle = angle_between(xy, [1.0, 0.0])
+					phi = rot_angle /180. * math.pi
+					quadrant_check = math.atan2(u_xy[1],u_xy[0])
+					if quadrant_check > 0 and quadrant_check <= math.pi:
+						phi = 2 * math.pi - phi
+					if options.verbose ==True: print('   Rotating molecule about Z-axis {0:.2f} degrees'.format(phi*180/math.pi))
+			
+					for i,atom in enumerate(atoms):
+						center = [0.,0.,0.]
+						#rotate coords around z axis
+						v = [float(newcoord[i][0]) - center[0], float(newcoord[i][1]) - center[1], float(newcoord[i][2]) - center[2]]
+						px = v[0]*math.cos(phi) - v[1]*math.sin(phi)
+						py = v[0]*math.sin(phi) + v[1]*math.cos(phi)
+						pz = v[2]
+						rot2 = [round(px,8), round(py,8), round(pz,8)]
+						newcoord[i]=rot2
+			
+					if cube_inc is not False:
+						for i in range(len(cube_inc)):
+							#center = cube_origin
+							w = [float(new_inc[i][0]) - center[0], float(new_inc[i][1]) - center[1], float(new_inc[i][2]) - center[2]]
+							qx = w[0]*math.cos(phi) - w[1]*math.sin(phi)
+							qy = w[0]*math.sin(phi) + w[1]*math.cos(phi)
+							qz = w[2]
+							rot2 = [round(qx,8), round(qy,8), round(qz,8)]
+							new_inc[i]=rot2
+				newcoord = np.asarray(newcoord)
 		if len(newcoord) !=0:
 			if cube_inc is not False:
 				return newcoord, np.asarray(new_inc)
@@ -182,7 +223,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 				return coords
 
 	except Exception as e:
-		print("\nERR: ",e)
+		print("\nRotation Error: ",e)
 		#print("   WARNING! Unable to find a M-P bond vector to rotate the molecule")
 	return coords
 
