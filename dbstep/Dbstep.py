@@ -21,7 +21,7 @@ from glob import glob
 import numpy as np
 from optparse import OptionParser
 
-from dbstep import sterics, getdata, calculator, writer
+from dbstep import sterics, parse_data, calculator, writer
 
 #Chemistry Arrays
 
@@ -81,17 +81,20 @@ class dbstep:
 		name, ext = os.path.splitext(file)
 		r_intervals, origin = 1, np.array([0,0,0])
 
-		# if noH is requested these atoms are skipped to make things go faster
-		if ext == '.xyz' or ext == '.log':
+		#Parse coordinate/volumetric information
+		if ext == '.cube':
+			mol = parse_data.GetCubeData(name)
+		else:
 			options.surface = 'vdw'
-			mol = getdata.GetXYZData(name,ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			mol = parse_data.GetData_cclib(name,ext, options.noH,options.spec_atom_1, options.spec_atom_2)
 			if options.noH:
 				options.spec_atom_1 = mol.spec_atom_1
 				options.spec_atom_2 = mol.spec_atom_2
-			if len(mol.ATOMTYPES) == 1:
-				sys.exit("Only one atom found in "+self.file+" - Please try again with a different input file.")
-		if ext == '.cube':
-			mol = getdata.GetCubeData(name)
+		
+		if len(mol.ATOMTYPES) <= 1:
+			sys.exit("One or zero atoms found in "+self.file+" - Please try again with a different input file.")
+		
+	
 
 		# if atoms are not specified to align to, grab first and second atom in
 		if options.spec_atom_1 == False:
