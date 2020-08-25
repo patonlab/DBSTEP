@@ -472,9 +472,8 @@ def main():
 	if len(sys.argv) > 1:
 		for elem in sys.argv[1:]:
 			try:
-				if os.path.splitext(elem)[1] in [".xyz", ".log", ".cube"]:
-					for file in glob(elem):
-						files.append(file)
+				for file in glob(elem):
+					files.append(file)
 			except IndexError: pass
 
 	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
