@@ -79,8 +79,33 @@ class dbstep:
 		spheres, cylinders = [], []
 		name, ext = os.path.splitext(file)
 		r_intervals, origin = 1, np.array([0,0,0])
-		print_params = []
 		
+		# if atoms are not specified upon input, grab first and second atom in file
+		# allow for multiple ways to specify atoms (H1 or just 1)
+		if options.spec_atom_1 == False:
+			options.spec_atom_1 = 1
+		else: 
+			try: 
+				options.spec_atom_1 = int(options.spec_atom_1) 
+			except:
+				options.spec_atom_1 = int(''.join([s for s in options.spec_atom_1 if s.isdigit()]))
+
+		if options.spec_atom_2 == False:
+			options.spec_atom_2 = 2
+		else:
+			try:
+				options.spec_atom_2 = int(options.spec_atom_2)
+			except: 
+				if ',' in options.spec_atom_2:
+					try: 
+						options.spec_atom_2 = [int(s) for s in options.spec_atom_2.split(',') if s.isdigit()]
+					except: 
+						atom2_id = []
+						for i in options.spec_atom_2.split(','):
+							atom2_id.append([int(x) for x in s if x.isdigit()][0])
+				else:
+					options.spec_atom_2 = int(''.join([s for s in options.spec_atom_2 if s.isdigit()]))
+			 
 		#Parse coordinate/volumetric information
 		if ext == '.cube':
 			mol = parse_data.GetCubeData(name)
@@ -93,16 +118,6 @@ class dbstep:
 		
 		if len(mol.ATOMTYPES) <= 1:
 			sys.exit("One or zero atoms found in "+self.file+" - Please try again with a different input file.")
-		
-	
-		# if atoms are not specified upon input, grab first and second atom in file
-		if options.spec_atom_1 == False:
-			options.spec_atom_1 = mol.ATOMTYPES[0]+str(1)
-		if options.spec_atom_2 == False:
-			try:
-				options.spec_atom_2 = mol.ATOMTYPES[1]+str(2)
-			except IndexError as error:
-				pass
 		
 		#flag volume if buried shell requested
 		if options.vshell: options.volume = True
@@ -162,22 +177,19 @@ class dbstep:
 		if options.sterimol:
 			# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 			spec_atom_2 = ''
-			if len(options.spec_atom_2) > 1 and isinstance(options.spec_atom_2,list):
-				spec_atom_2 = ','
-			options.spec_atom_2 = spec_atom_2.join(options.spec_atom_2)
-			options.spec_atom_2 = options.spec_atom_2.split(',')
-			if len(options.spec_atom_2) == 1:
+			if isinstance(options.spec_atom_2,int):
 				# mono - obtain coords of atom to align along z axis
-				point,p_id=0.0,0
-				for n, atom in enumerate(mol.ATOMTYPES):
-					if atom+str(n+1) == options.spec_atom_2[0]:
-						p_id = n
-						point = mol.CARTESIANS[p_id]
-
-			# bi - obtain coords of point perpendicular to vector connecting ligands
-			elif len(options.spec_atom_2) == 2: point = calculator.bidentate(mol, options)
-			# tri - obtain coords of point perpendicular to plane connecting ligands
-			elif len(options.spec_atom_2) == 3: point = calculator.tridentate(mol, options)
+				point,p_id = 0.0,0
+				p_id = options.spec_atom_2 - 1
+				point = mol.CARTESIANS[p_id]
+			if isinstance(options.spec_atom_2,str):
+				# spec_atom_2 = ','
+				# options.spec_atom_2 = spec_atom_2.join(options.spec_atom_2)
+				options.spec_atom_2 = options.spec_atom_2.split(',')
+				# bi - obtain coords of point perpendicular to vector connecting ligands
+				if len(options.spec_atom_2) == 2: point = calculator.bidentate(mol, options)
+				# tri - obtain coords of point perpendicular to plane connecting ligands
+				elif len(options.spec_atom_2) == 3: point = calculator.tridentate(mol, options)
 
 			# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 			# the x and y directions are arbitrary
@@ -395,7 +407,9 @@ class dbstep:
 		if options.measure == 'grid' and r_intervals >1 and options.sterimol:
 			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
 			print('\n   L parameter is {:5.2f} Ang'.format(L))
-			cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
+		
+		if options.sterimol: cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
+		
 		# Stop timing the loop
 		calc_time = time.time() - start - setup_time
 		# Report timing for the whole program and write a PyMol script
@@ -437,8 +451,8 @@ def main():
 	files=[]
 	# get command line inputs. Use -h to list all possible arguments and default values
 	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
-	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom", default=False, metavar="spec_atom_1")
-	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s)", default=False, metavar="spec_atom_2")
+	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom number", default=False, metavar="spec_atom_1")
+	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s) number(s) (ex: 3 or 3,4)", default=False, metavar="spec_atom_2")
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")

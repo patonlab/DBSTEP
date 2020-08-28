@@ -191,34 +191,29 @@ class GetData_cclib:
 		
 		#remove hydrogens if requested, update spec_atom numbering if necessary
 		if noH:
-			center_id,lig_id = -1,-1
-			for n,atom in enumerate(self.ATOMTYPES):
-				if atom+str(n+1) == spec_atom_1:
-					center_id = n
-				elif atom+str(n+1) == spec_atom_2:
-					lig_id = n
+			atom1_id, atom2_id = spec_atom_1, spec_atom_2
 			hs=[]
 			for n,atom in enumerate(self.ATOMTYPES):
 				if atom == "H":
 					hs.append(n)
 			center_sub,lig_sub = 0,0
 			for n in range(len(hs)):
-				if hs[n] < center_id:
+				if hs[n] < atom1_id:
 					center_sub -= 1
-				if hs[n] < lig_id:
+				if hs[n] < atom2_id:
 					lig_sub -= 1
-			center_id += center_sub
-			lig_id += lig_sub
+			atom1_id += center_sub
+			atom2_id += lig_sub
 			
 			self.ATOMTYPES = np.delete(self.ATOMTYPES,hs)
 			self.CARTESIANS = np.delete(self.CARTESIANS,hs,0)
 			
 			if center_id >= 0: 
-				self.spec_atom_1 = self.ATOMTYPES[center_id]+str(center_id+1)
+				self.spec_atom_1 = atom1_id
 			else:
 				self.spec_atom_1 = False
 			if lig_id >= 0: 
-				self.spec_atom_2 = self.ATOMTYPES[lig_id]+str(lig_id+1)
+				self.spec_atom_2 = atom2_id
 			else:
 				self.spec_atom_2 = False
 	
