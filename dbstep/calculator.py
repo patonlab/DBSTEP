@@ -34,51 +34,41 @@ def unit_vector(vector):
 	
 def bidentate(MOL, options):
 	"""returns vector between two atoms """
-	coords, atoms, spec_atom_1, spec_atom_2 = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1,  options.spec_atom_2
-	#find point on line made by atoms in spec_atom_2 perpendicular to spec_atom_1
-	for n, atom in enumerate(atoms):
-		if atom+str(n+1) == spec_atom_1: #maybe use later to get perpendicular?
-			c_id = n
-			a = coords[c_id]
-		elif atom+str(n+1) == spec_atom_2[0]:
-			l1_id = n
-			b = coords[l1_id]
-		elif atom+str(n+1) == spec_atom_2[1]:
-			l2_id= n
-			c = coords[l2_id]
+	coords, spec_atom_2 = MOL.CARTESIANS, options.spec_atom_2
+	
+	l1_id = int(spec_atom_2[0]) - 1
+	b = coords[l1_id]
+	
+	l2_id = int(spec_atom_2[1]) - 1
+	c = coords[l2_id]
+	
 	return b + c
 
 
 def tridentate(MOL, options):
 	"""returns vector between three atoms """
-	coords, atoms, spec_atom_1, spec_atom_2 = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1,  options.spec_atom_2
-	#find point on plane made by atoms in spec_atom_2 perpendicular to spec_atom_1
-	for n, atom in enumerate(atoms):
-		if atom+str(n+1) == spec_atom_1: #maybe use later to get perpendicular?
-			c_id = n
-			a = coords[c_id]
-		elif atom+str(n+1) == spec_atom_2[0]:
-			l1_id = n
-			b = coords[l1_id]
-		elif atom+str(n+1) == spec_atom_2[1]:
-			l2_id = n
-			c = coords[l2_id]
-		elif atom+str(n+1) == spec_atom_2[2]:
-			l3_id = n
-			d = coords[l3_id]
+	coords, spec_atom_2 = MOL.CARTESIANS, options.spec_atom_2
+	
+	l1_id = int(spec_atom_2[0]) - 1
+	b = coords[l1_id]
+	
+	l2_id = int(spec_atom_2[1]) - 1
+	c = coords[l2_id]
+	
+	l3_id = int(spec_atom_2[2]) - 1
+	d = coords[l3_id]
+	
 	return b + c + d
-
+	
 
 def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False, cube_inc=False):
 	"""Rotates molecule around X- and Y-axes to align M-L bond to Z-axis"""
-	for n, atom in enumerate(atoms):
-		if atom+str(n+1) == spec_atom_1:
-			center_id = n
+	center_id = spec_atom_1 - 1
 	atom3 = options.atom3
+	
 	try:
 		ml_vec = lig_point - coords[center_id]
 		
-		# ml_vec = coords[lig_id]- coords[center_id]
 		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
 		newcoord=[]
 		new_inc=[]
@@ -224,34 +214,24 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 
 	except Exception as e:
 		print("\nRotation Error: ",e)
-		#print("   WARNING! Unable to find a M-P bond vector to rotate the molecule")
 	return coords
 
 	
 def translate_mol(MOL, options, origin):
 	"""# Translates molecule to place center atom at cartesian origin [0,0,0]"""
 	coords, atoms, spec_atom = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1
-	for n, atom in enumerate(atoms):
-		if not spec_atom:
-			# if no center is specified, try to default to metal
-			if atom in metals:
-				base_id, base_atom = n, atom
-			# otherwise just use the first atom
-			if n == 0:
-				base_id, base_atom = n, atom
-		else:
-			if atom+str(n+1) == spec_atom:
-				base_id, base_atom = n, atom
+	base_id = spec_atom - 1
+	base_atom = atoms[base_id]
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
 			if options.verbose: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
 		else:
-			if options.verbose ==True: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
+			if options.verbose == True: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
 	except:
-		   sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
+		   sys.exit("   WARNING! Unable to find an atom to set at the origin")
 	return coords
 
 
@@ -264,7 +244,7 @@ def translate_dens(mol, options, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, or
 			if atom in metals:
 				base_id, base_atom = n, atom
 		else:
-			if atom+str(n+1) == spec_atom:
+			if n+1 == spec_atom:
 				base_id, base_atom = n, atom
 	try:
 		displacement = coords[base_id] - origin

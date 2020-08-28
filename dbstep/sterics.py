@@ -200,7 +200,10 @@ def get_classic_sterimol(coords, radii, atoms):
 		if radius > Bmax:
 			Bmax, xmax, ymax = radius, x, y
 			# don't actually need this for Sterimol. It's used to draw a vector direction along B5 to be displayed in PyMol
-			theta = np.arctan(y/x)
+			if x == 0: 
+				theta = 0
+			else: 
+				theta = np.arctan(y/x)
 			if x < 0: theta += math.pi
 			if x != 0. and y!= 0.:
 				x_disp, y_disp = radii[n] * math.cos(theta), radii[n] * math.sin(theta)
