@@ -77,7 +77,12 @@ class dbstep:
 
 		start = time.time()
 		spheres, cylinders = [], []
-		name, ext = os.path.splitext(file)
+		if isinstance(file,str):
+			name, ext = os.path.splitext(file)
+		else:
+			name = file
+			ext = 'rdkit'
+			
 		r_intervals, origin = 1, np.array([0,0,0])
 		
 		# if atoms are not specified upon input, grab first and second atom in file
@@ -108,10 +113,12 @@ class dbstep:
 			 
 		#Parse coordinate/volumetric information
 		if ext == '.cube':
+			options.surface = 'density'
 			mol = parse_data.GetCubeData(name)
+		elif ext == 'rdkit':
+			mol = parse_data.GetData_RDKit(name, options.noH, options.spec_atom_1, options.spec_atom_2)
 		else:
-			options.surface = 'vdw'
-			mol = parse_data.GetData_cclib(name,ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			mol = parse_data.GetData_cclib(name, ext, options.noH,options.spec_atom_1, options.spec_atom_2)
 			if options.noH:
 				options.spec_atom_1 = mol.spec_atom_1
 				options.spec_atom_2 = mol.spec_atom_2
@@ -168,7 +175,7 @@ class dbstep:
 			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface)); exit()
 
 		# Translate molecule to place atom1 at the origin
-		if options.surface == 'vdw':
+		if options.surface == 'vdw' and options.sterimol or options.volume:
 			mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
 		elif options.surface == 'density':
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
@@ -275,9 +282,9 @@ class dbstep:
 				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 				# compute which grid points occupy molecule
 				if options.qsar:
-					occ_grid, unocc_grid, onehot_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 				else:
-					occ_grid, point_tree = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
 			if options.qsar:
 				if options.verbose: print("\n   Creating interaction energy grid xyz files in 'grid_"+name+"' directory")
@@ -325,7 +332,7 @@ class dbstep:
 			# define the grid points containing the molecule
 			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
-			occ_grid = sterics.occupied_dens(grid, mol.DENSITY, options)
+			occ_grid,occ_vol = sterics.occupied_dens(grid, mol.DENSITY, options)
 			
 			#adjust sizing of grid to fit sphere if necessary
 			if options.volume:
@@ -379,14 +386,14 @@ class dbstep:
 			elif options.volume:
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
 				print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell))
-			else:
+			elif options.sterimol:
 				if not options.scan:
 					print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
 				else:
 					print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
-
 		#for object reference
+		self.occ_vol = occ_vol
 		if options.sterimol: self.L = L
 		if options.scan == False:
 			if options.sterimol: 
@@ -416,7 +423,7 @@ class dbstep:
 		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, calc_time))
 		self.setup_time = setup_time
 		self.calc_time = calc_time
-		if options.commandline == False:
+		if options.commandline == False and ext != 'rdkit':
 			writer.xyz_export(file,mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval)
 
@@ -429,9 +436,9 @@ def set_options(kwargs):
 	var_dict = {'verbose': ['verbose',False], 'v': ['verbose',False], 'grid': ['grid',0.05],
 	'scalevdw':['SCALE_VDW',1.0], 'noH':['noH',False], 'addmetals':['add_metals',False],
 	'norot':['norot',False],'r':['radius',3.5],'scan':['scan',False],'atom1':['spec_atom_1',False],
-	'atom2':['spec_atom_2',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
-	's' : ['sterimol',False], 'sterimol':['sterimol',False],'surface':['surface','density'],
-	'debug':['debug',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
+	'atom2':['spec_atom_2',False],'atom3':['atom3',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
+	's' : ['sterimol',False], 'sterimol':['sterimol',False],'surface':['surface','vdw'],
+	'debug':['debug',False],'b':['volume',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
 	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
 	'gridsize': ['gridsize', False], 'measure':['measure','grid']
 	}
@@ -460,10 +467,10 @@ def main():
 	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False, metavar="sterimol")
 	parser.add_option("--measure", dest="measure", action="store",choices=['grid','classic'], help="Measurement type for Sterimol Calculation (classic or grid=default)", default='grid', metavar="measures")
 	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.05, type=float, metavar="grid")
-	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='density', metavar="surface")
+	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='vdw', metavar="surface")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
-	parser.add_option("--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
+	parser.add_option("-b","--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("--vshell",dest="vshell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
@@ -488,8 +495,8 @@ def main():
 			except IndexError: pass
 
 	if len(files) == 0: sys.exit("    Please specify a valid input file and try again.")
-	if options.volume == False and options.sterimol == False:
-		sys.exit("    Please specify steric parameter to compute (--sterimol and/or --volume)")
+	# if options.volume == False and options.sterimol == False:
+	# 	sys.exit("    Please specify steric parameter to compute (--sterimol and/or --volume)")
 	
 	#in qsar mode, loop through and get dimensions of molecules to create uniform grid sizing 
 	#(3A larger than greatest magnitudes in xyz directions)
@@ -511,9 +518,9 @@ def main():
 			if i%2: dim[i]+=3
 			else: dim[i]-=3
 		options.gridsize = str(dim[0])+','+str(dim[1])+':'+str(dim[2])+','+str(dim[3])+':'+str(dim[4])+','+str(dim[5])
-		if options.verbose: print("   Grid size for QSAR mode will be: "+options.gridsize)
+		if options.verbose: print("   Grid size for QSAR mode is: "+options.gridsize)
+	# loop over all specified output files
 	for file in files:
-		# loop over all specified output files
 		dbstep(file,options=options)
 
 if __name__ == "__main__":

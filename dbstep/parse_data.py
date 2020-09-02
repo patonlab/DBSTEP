@@ -137,34 +137,34 @@ class GetXYZData:
 		self.CARTESIANS = np.array(self.CARTESIANS)
 		#remove hydrogens if requested, update spec_atom numbering if necessary
 		if noH:
-			center_id,lig_id = -1,-1
+			atom1_id,atom2_id = -1,-1
 			for n,atom in enumerate(self.ATOMTYPES):
 				if atom+str(n+1) == spec_atom_1:
-					center_id = n
+					atom1_id = n
 				elif atom+str(n+1) == spec_atom_2:
-					lig_id = n
+					atom2_id = n
 			hs=[]
 			for n,atom in enumerate(self.ATOMTYPES):
 				if atom == "H":
 					hs.append(n)
 			center_sub,lig_sub = 0,0
 			for n in range(len(hs)):
-				if hs[n] < center_id:
+				if hs[n] < atom1_id:
 					center_sub -= 1
-				if hs[n] < lig_id:
+				if hs[n] < atom2_id:
 					lig_sub -= 1
-			center_id += center_sub
-			lig_id += lig_sub
+			atom1_id += center_sub
+			atom2_id += lig_sub
 			
 			self.ATOMTYPES = np.delete(self.ATOMTYPES,hs)
 			self.CARTESIANS = np.delete(self.CARTESIANS,hs,0)
 			
-			if center_id >= 0: 
-				self.spec_atom_1 = self.ATOMTYPES[center_id]+str(center_id+1)
+			if atom1_id >= 0: 
+				self.spec_atom_1 = self.ATOMTYPES[atom1_id]+str(atom1_id+1)
 			else:
 				self.spec_atom_1 = False
-			if lig_id >= 0: 
-				self.spec_atom_2 = self.ATOMTYPES[lig_id]+str(lig_id+1)
+			if atom2_id >= 0: 
+				self.spec_atom_2 = self.ATOMTYPES[atom2_id]+str(atom2_id+1)
 			else:
 				self.spec_atom_2 = False
 
@@ -183,6 +183,8 @@ class GetData_cclib:
 		#parse coordinate from file
 		filename = file+ext
 		parsed = cclib.io.ccread(filename)
+		
+		self.FORMAT = ext 
 		
 		#store cartesians and symbols
 		self.CARTESIANS = np.array(parsed.atomcoords[-1])
@@ -208,11 +210,62 @@ class GetData_cclib:
 			self.ATOMTYPES = np.delete(self.ATOMTYPES,hs)
 			self.CARTESIANS = np.delete(self.CARTESIANS,hs,0)
 			
-			if center_id >= 0: 
+			if atom1_id >= 0: 
 				self.spec_atom_1 = atom1_id
 			else:
 				self.spec_atom_1 = False
-			if lig_id >= 0: 
+			if atom2_id >= 0: 
+				self.spec_atom_2 = atom2_id
+			else:
+				self.spec_atom_2 = False
+	
+	
+class GetData_RDKit:
+	"""
+	Extract coordinates and atom types from rdkit mol object
+	
+	Attributes:
+		ATOMTYPES (numpy array): List of elements present in molecular file
+		CARTESIANS (numpy array): List of Cartesian (x,y,z) coordinates for each atom
+		FORMAT (str): file format
+	"""
+	def __init__(self, mol, noH, spec_atom_1, spec_atom_2):
+		self.ATOMTYPES, self.CARTESIANS = [],[]
+		self.FORMAT = 'RDKit-'
+		#store cartesians and symbols from mol object
+		for i in range(mol.GetNumAtoms()):
+			self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
+			pos = mol.GetConformer().GetAtomPosition(i)
+			self.CARTESIANS.append([pos.x, pos.y, pos.z])
+			#print(mol.GetAtoms()[i].GetSymbol(),[pos.x, pos.y, pos.z])
+
+		self.CARTESIANS = np.array(self.CARTESIANS)
+		self.ATOMTYPES = np.array(self.ATOMTYPES)
+		
+		#remove hydrogens if requested, update spec_atom numbering if necessary
+		if noH:
+			atom1_id, atom2_id = spec_atom_1, spec_atom_2
+			hs=[]
+			for n,atom in enumerate(self.ATOMTYPES):
+				if atom == "H":
+					hs.append(n)
+			center_sub,lig_sub = 0,0
+			for n in range(len(hs)):
+				if hs[n] < atom1_id:
+					center_sub -= 1
+				if hs[n] < atom2_id:
+					lig_sub -= 1
+			atom1_id += center_sub
+			atom2_id += lig_sub
+			
+			self.ATOMTYPES = np.delete(self.ATOMTYPES,hs)
+			self.CARTESIANS = np.delete(self.CARTESIANS,hs,0)
+			
+			if atom1_id >= 0: 
+				self.spec_atom_1 = atom1_id
+			else:
+				self.spec_atom_1 = False
+			if atom2_id >= 0: 
 				self.spec_atom_2 = atom2_id
 			else:
 				self.spec_atom_2 = False
