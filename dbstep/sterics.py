@@ -98,7 +98,8 @@ def occupied(grid, coords, radii, origin, options):
 			onehot[i] = 1.
 	
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
-	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(jdx) * spacing ** 3))
+	occ_vol = len(jdx) * spacing ** 3
+	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
 	
 	if options.debug:
 		#visualize grid points quickly
@@ -110,7 +111,7 @@ def occupied(grid, coords, radii, origin, options):
 	if options.qsar:
 		return grid[jdx],grid[kdx],onehot,point_tree
 	else:
-		return grid[jdx],point_tree
+		return grid[jdx],point_tree,occ_vol
 
 
 def occupied_dens(grid, dens, options):
@@ -121,8 +122,9 @@ def occupied_dens(grid, dens, options):
 
 	for n, density in enumerate(dens):
 		if density > isoval: list.append(n)
-	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(len(list) * spacing ** 3))
-	return grid[list]
+	occ_vol = len(list) * spacing ** 3
+	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
+	return grid[list],occ_vol
 
 
 def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
