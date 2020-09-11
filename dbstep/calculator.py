@@ -31,34 +31,15 @@ def unit_vector(vector):
 	""" Returns the unit vector of the vector """
 	return vector / np.linalg.norm(vector)
 	
-	
-def bidentate(MOL, options):
-	"""returns vector between two atoms """
-	coords, spec_atom_2 = MOL.CARTESIANS, options.spec_atom_2
-	
-	l1_id = int(spec_atom_2[0]) - 1
-	b = coords[l1_id]
-	
-	l2_id = int(spec_atom_2[1]) - 1
-	c = coords[l2_id]
-	
-	return b + c
 
-
-def tridentate(MOL, options):
-	"""returns vector between three atoms """
-	coords, spec_atom_2 = MOL.CARTESIANS, options.spec_atom_2
+def point_vec(coords, spec_atom_2):
+	"""returns coordinate vector between any number of atoms """
+	point = np.array([0.0,0.0,0.0])
 	
-	l1_id = int(spec_atom_2[0]) - 1
-	b = coords[l1_id]
-	
-	l2_id = int(spec_atom_2[1]) - 1
-	c = coords[l2_id]
-	
-	l3_id = int(spec_atom_2[2]) - 1
-	d = coords[l3_id]
-	
-	return b + c + d
+	for atom in spec_atom_2:
+		point += coords[atom-1]
+		
+	return point
 	
 
 def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False, cube_inc=False):

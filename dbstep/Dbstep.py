@@ -55,7 +55,9 @@ class dbstep:
 	dbstep object that contains coordinates, steric data
 
 	Objects that can currently be referenced are:
-			L, Bmax, Bmin, bur_vol, bur_shell
+			grid, onehot_grid, unocc_grud
+			L, Bmax, Bmin, 
+			occ_vol, bur_vol, bur_shell
 			setup_time, calc_time
 
 	If steric scan is requested, Bmin and Bmax variables
@@ -63,6 +65,18 @@ class dbstep:
 	"""
 	def __init__(self, *args, **kwargs):
 		self.file = args[0]
+		#QSAR specifications
+		self.dimensions, self.qsar_dir, self.interaction_energy = False, False, []
+		#Grid Information
+		self.grid, self.unocc_grid, self.onehot_grid = False, False, False
+		#Sterimol Parameters
+		self.L, self.Bmin, self.Bmax = False, False, False
+		#Volume Parameters
+		self.occ_vol, self.bur_vol, self.bur_shell = False, False, False
+		#Time Information
+		self.setup_time, self.calc_time = False, False
+		
+		
 		if 'options' in kwargs:
 			self.options = kwargs['options']
 		else:
@@ -71,7 +85,6 @@ class dbstep:
 			QSAR = kwargs['QSAR']
 		else: QSAR = False
 
-		#this is ugly but fix l8r
 		file = self.file
 		options = self.options
 
@@ -94,22 +107,27 @@ class dbstep:
 				options.spec_atom_1 = int(options.spec_atom_1) 
 			except:
 				options.spec_atom_1 = int(''.join([s for s in options.spec_atom_1 if s.isdigit()]))
-
+		#set default for atom 2
 		if options.spec_atom_2 == False:
 			options.spec_atom_2 = 2
 		else:
 			try:
-				options.spec_atom_2 = int(options.spec_atom_2)
+				#check if int was supplied
+				options.spec_atom_2 = [int(options.spec_atom_2)]
 			except: 
+				#check for multiple atoms supplied
 				if ',' in options.spec_atom_2:
 					try: 
+						#list of ints supplied
 						options.spec_atom_2 = [int(s) for s in options.spec_atom_2.split(',') if s.isdigit()]
 					except: 
+						#atoms and atom types supplied
 						atom2_id = []
 						for i in options.spec_atom_2.split(','):
 							atom2_id.append([int(x) for x in s if x.isdigit()][0])
 				else:
-					options.spec_atom_2 = int(''.join([s for s in options.spec_atom_2 if s.isdigit()]))
+					#single atom and atom type supplied
+					options.spec_atom_2 = [int(''.join([s for s in options.spec_atom_2 if s.isdigit()]))]
 			 
 		#Parse coordinate/volumetric information
 		if ext == '.cube':
@@ -124,7 +142,7 @@ class dbstep:
 				options.spec_atom_2 = mol.spec_atom_2
 		
 		if len(mol.ATOMTYPES) <= 1:
-			sys.exit("One or zero atoms found in "+self.file+" - Please try again with a different input file.")
+			sys.exit("One or zero atoms found in "+file+" - Please try again with a different input file.")
 		
 		#flag volume if buried shell requested
 		if options.vshell: options.volume = True
@@ -184,19 +202,7 @@ class dbstep:
 		if options.sterimol:
 			# Check if we want to calculate parameters for mono- bi- or tridentate ligand
 			spec_atom_2 = ''
-			if isinstance(options.spec_atom_2,int):
-				# mono - obtain coords of atom to align along z axis
-				point,p_id = 0.0,0
-				p_id = options.spec_atom_2 - 1
-				point = mol.CARTESIANS[p_id]
-			if isinstance(options.spec_atom_2,str):
-				# spec_atom_2 = ','
-				# options.spec_atom_2 = spec_atom_2.join(options.spec_atom_2)
-				options.spec_atom_2 = options.spec_atom_2.split(',')
-				# bi - obtain coords of point perpendicular to vector connecting ligands
-				if len(options.spec_atom_2) == 2: point = calculator.bidentate(mol, options)
-				# tri - obtain coords of point perpendicular to plane connecting ligands
-				elif len(options.spec_atom_2) == 3: point = calculator.tridentate(mol, options)
+			point = calculator.point_vec(mol.CARTESIANS, options.spec_atom_2)
 
 			# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
 			# the x and y directions are arbitrary
@@ -296,7 +302,6 @@ class dbstep:
 					shutil.rmtree(path)
 				os.mkdir(path)
 				
-				self.interaction_energy = []
 				self.grid = grid
 				self.unocc_grid = unocc_grid
 				self.onehot_grid = onehot_grid
