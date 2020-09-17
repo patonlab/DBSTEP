@@ -142,7 +142,10 @@ class dbstep:
 				options.spec_atom_2 = mol.spec_atom_2
 		
 		if len(mol.ATOMTYPES) <= 1:
-			sys.exit("One or zero atoms found in "+file+" - Please try again with a different input file.")
+			if mol.FORMAT == 'RDKit-':
+				sys.exit("One or zero atoms found in RDKit mol object - Please try again with a different input molecule or add 3D coordinates")
+			else:
+				sys.exit("One or zero atoms found in "+file+" - Please try again with a different input file.")
 		
 		#flag volume if buried shell requested
 		if options.vshell: options.volume = True

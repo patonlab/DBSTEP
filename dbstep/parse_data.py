@@ -230,14 +230,23 @@ class GetData_RDKit:
 		FORMAT (str): file format
 	"""
 	def __init__(self, mol, noH, spec_atom_1, spec_atom_2):
-		self.ATOMTYPES, self.CARTESIANS = [],[]
 		self.FORMAT = 'RDKit-'
 		#store cartesians and symbols from mol object
-		for i in range(mol.GetNumAtoms()):
-			self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
-			pos = mol.GetConformer().GetAtomPosition(i)
-			self.CARTESIANS.append([pos.x, pos.y, pos.z])
-			#print(mol.GetAtoms()[i].GetSymbol(),[pos.x, pos.y, pos.z])
+		try:
+			self.ATOMTYPES, self.CARTESIANS = [],[]
+			for i in range(mol.GetNumAtoms()):
+				self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
+				pos = mol.GetConformer().GetAtomPosition(i)
+				self.CARTESIANS.append([pos.x, pos.y, pos.z])
+		except ValueError:
+			self.ATOMTYPES, self.CARTESIANS = [],[]
+			print("Mol object does not have 3D coordinates!")
+			# self.ATOMTYPES, self.CARTESIANS = [],[]
+			# AllChem.EmbedMolecule(mol,randomSeed=42) #currently not importing any rdkit so this will fails
+			# for i in range(mol.GetNumAtoms()):
+			# 	self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
+			# 	pos = mol.GetConformer().GetAtomPosition(i)
+			# 	self.CARTESIANS.append([pos.x, pos.y, pos.z])
 
 		self.CARTESIANS = np.array(self.CARTESIANS)
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
