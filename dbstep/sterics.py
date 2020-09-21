@@ -243,7 +243,7 @@ def get_classic_sterimol(coords, radii, atoms):
 	return L, Bmax, Bmin, cyl
 
 
-def get_cube_sterimol(occ_grid, R, spacing, strip_width):
+def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos):
 	"""Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
 	conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used,
 	which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres.
@@ -257,6 +257,9 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width):
 		xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if z <= R + strip_width and z > R - strip_width])
 	else: 
 		xy_grid = occ_grid
+	
+	if measure_pos:
+		xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if z >= 0])
 
 	if len(xy_grid) > 0:
 		#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
