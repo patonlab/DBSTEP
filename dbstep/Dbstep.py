@@ -373,7 +373,7 @@ class dbstep:
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
 			if options.sterimol:
 				if options.measure == 'grid':
-					L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width)
+					L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width, options.pos)
 				elif options.measure == 'classic':
 					if options.surface == 'vdw':
 						L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII,mol.ATOMTYPES)
@@ -448,7 +448,7 @@ def set_options(kwargs):
 	's' : ['sterimol',False], 'sterimol':['sterimol',False],'surface':['surface','vdw'],
 	'debug':['debug',False],'b':['volume',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
 	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
-	'gridsize': ['gridsize', False], 'measure':['measure','grid']
+	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
 	}
 
 	for key in var_dict:
@@ -468,27 +468,28 @@ def main():
 	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
 	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom number", default=False, metavar="spec_atom_1")
 	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s) number(s) (ex: 3 or 3,4)", default=False, metavar="spec_atom_2")
+	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False, metavar="sterimol")
+	parser.add_option("-b","--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
+	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
+	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
+	parser.add_option("--measure", dest="measure", action="store",choices=['grid','classic'], help="Measurement type for Sterimol Calculation (classic or grid=default)", default='grid', metavar="measures")
+	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='vdw', metavar="surface")
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atoms to ignore", default=False, metavar="exclude")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("--norot",dest='norot',action="store_true",help="Do not rotate the molecules (use if structures have been pre-aligned)",default=False)
-	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False, metavar="sterimol")
-	parser.add_option("--measure", dest="measure", action="store",choices=['grid','classic'], help="Measurement type for Sterimol Calculation (classic or grid=default)", default='grid', metavar="measures")
 	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.05, type=float, metavar="grid")
-	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='vdw', metavar="surface")
+	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in postive direction (from atom1 toward atom2). ", default=False, metavar="pos")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
-	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
-	parser.add_option("-b","--volume",dest="volume",action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("--vshell",dest="vshell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
-	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
-	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
-	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	parser.add_option("--qsar", dest="qsar", action="store_true", help="Construct a grid with probe atom at each point for QSAR study (this generates a lot of files!)", default=False, metavar="qsar")
 	parser.add_option("--gridsize", dest="gridsize", action="store",help="Set size of grid to analyze molecule centered at origin 'xmin,xmax:ymin,ymax:zmin,zmax'",default=False)
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("-t", "--timing",dest="timing",action="store_true", help="Request timing information", default=False)
-	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
 	parser.add_option("--atom3",dest='atom3',action='store',help='align a third atom to the positive x direction',default=False)
+	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
+	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
+	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	(options, args) = parser.parse_args()
 
 	# make sure upper/lower case doesn't matter
