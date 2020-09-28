@@ -435,11 +435,12 @@ class dbstep:
 			writer.xyz_export(file,mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval)
 
-
+class options_add:
+        pass
+		
 def set_options(kwargs):
 	#set default options and options provided
-	p = OptionParser()
-	(options, args) = p.parse_args()
+	options = options_add()
 	#dictionary containing default values for options 
 	var_dict = {'verbose': ['verbose',False], 'v': ['verbose',False], 'grid': ['grid',0.05],
 	'scalevdw':['SCALE_VDW',1.0], 'noH':['noH',False], 'addmetals':['add_metals',False],
