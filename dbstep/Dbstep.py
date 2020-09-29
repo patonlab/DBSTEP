@@ -125,6 +125,8 @@ class dbstep:
 						atom2_id = []
 						for i in options.spec_atom_2.split(','):
 							atom2_id.append([int(x) for x in s if x.isdigit()][0])
+				elif isinstance(options.spec_atom_2,list):
+					pass
 				else:
 					#single atom and atom type supplied
 					options.spec_atom_2 = [int(''.join([s for s in options.spec_atom_2 if s.isdigit()]))]
@@ -135,6 +137,11 @@ class dbstep:
 			mol = parse_data.GetCubeData(name)
 		elif ext == 'rdkit':
 			mol = parse_data.GetData_RDKit(name, options.noH, options.spec_atom_1, options.spec_atom_2)
+		elif ext == ".xyz":
+			mol = parse_data.GetXYZData(name, ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			if options.noH:
+				options.spec_atom_1 = mol.spec_atom_1
+				options.spec_atom_2 = mol.spec_atom_2
 		else:
 			mol = parse_data.GetData_cclib(name, ext, options.noH,options.spec_atom_1, options.spec_atom_2)
 			if options.noH:
