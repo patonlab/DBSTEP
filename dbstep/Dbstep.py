@@ -225,12 +225,7 @@ class dbstep:
 		# Remove metals from the steric analysis. This is done by default and can be switched off by --addmetals
 		# This can't be done for densities
 		if options.surface == 'vdw':
-			for i, atom in enumerate(mol.ATOMTYPES):
-				if atom in metals and options.add_metals == False:
-					mol.ATOMTYPES = np.delete(mol.ATOMTYPES,i)
-					mol.CARTESIANS = np.delete(mol.CARTESIANS,i, axis=0)
-					mol.RADII = np.delete(mol.RADII,i)
-
+			
 			# Find maximum horizontal and vertical directions (coordinates + vdw) in which the molecule is fully contained
 			# First remove any atoms that have been requested to be removed from the analysis
 			if options.exclude != False:
@@ -243,6 +238,13 @@ class dbstep:
 					except:
 						print("   WARNING! Unable to remove the atoms requested")
 			
+			#remove metals
+			for i, atom in enumerate(mol.ATOMTYPES):
+				if atom in metals and options.add_metals == False:
+					mol.ATOMTYPES = np.delete(mol.ATOMTYPES,i)
+					mol.CARTESIANS = np.delete(mol.CARTESIANS,i, axis=0)
+					mol.RADII = np.delete(mol.RADII,i)
+
 			#determine grid size based on molecule vdw radii and radius selected for buried vol
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
 			if options.gridsize != False:

@@ -243,7 +243,7 @@ def get_classic_sterimol(coords, radii, atoms):
 	return L, Bmax, Bmin, cyl
 
 
-def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos):
+def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 	"""Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
 	conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used,
 	which does not require VDW radii, and this also looks something a bit closer to a solvent-accessible surface than the sum-of-spheres.
