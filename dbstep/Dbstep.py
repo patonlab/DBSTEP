@@ -410,7 +410,8 @@ class dbstep:
 					print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
 		#for object reference
-		self.occ_vol = occ_vol
+		if options.measure == "grid":
+			self.occ_vol = occ_vol
 		if options.sterimol: self.L = L
 		if options.scan == False:
 			if options.sterimol: 
