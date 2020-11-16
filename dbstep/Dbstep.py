@@ -109,7 +109,7 @@ class dbstep:
 				options.spec_atom_1 = int(''.join([s for s in options.spec_atom_1 if s.isdigit()]))
 		#set default for atom 2
 		if options.spec_atom_2 == False:
-			options.spec_atom_2 = 2
+			options.spec_atom_2 = [2]
 		else:
 			try:
 				#check if int was supplied
