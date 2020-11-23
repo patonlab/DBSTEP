@@ -1,16 +1,21 @@
+![DBSTEP](DBSTEP_Banner.png)
+===
+
 # DBSTEP
 DFT-based Steric Parameters 
 
-Allows user to calculate steric parameters from `.xyz`, `.log`, Gaussian density `.cube` files (greater support coming soon).
+Allows a user to compute steric parameters from chemical structures. 
 
-Calculate Sterimol parameters (L, Bmin, Bmax), %Buried Volume, Sterimol2Vec and Vol2Vec parameters
+Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2</sup>, Sterimol2Vec and Vol2Vec parameters
 
 #### Install 
 - To run as a module (python -m dbstep), download this reposotory and install with ```python setup.py install```
 
 #### Running 
+File parsing is done by the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823), which can parse many common quantum chemistry output files along with other common chemical structure file formats. For a full list of acceptable file types, see their documentation [here](https://cclib.github.io/).
 
-- Run as a command line module with: `python -m dbstep file`
+To execute the program:
+- Run as a command line module with: `python -m dbstep file --atom1 a1idx --atom2 a2idx`
 
 - Run in a Python program by importing: `import dbstep.Dbstep as db` (example below)
 ```
@@ -32,6 +37,8 @@ For buried volume parameters, only the `--atom1 [atom]` argument is necessary to
 
 If no atoms are specified, the first two atoms in the file will be used as reference. 
 
+### Dependencies
+Non-standard dependencies will be installed upon installing DBSTEP, but include [numpy](https://numpy.org/), [numba](https://numba.pydata.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
 
 ### Examples
 Examples for obtaining Sterimol, Sterimol2Vec, Percent Buried Volume and Vol2Vec parameter sets are shown below (all example files found in examples/ directory).
@@ -96,3 +103,15 @@ H	0.76	2.03	-1.25
      3.50      53.41      26.75
      4.00      41.61       9.59
  ```
+ 
+ ### Acknowledgements
+ 
+  This work is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
+  
+    <img src="https://www.nsf.gov/images/logos/NSF_4-Color_bitmap_Logo.png" width="50" height="50">
+    <img src="https://pbs.twimg.com/profile_images/1168617043106521088/SOLQaZ8M_400x400.jpg" width="50" height="50"> 
+  
+ ### References
+ 
+ 1. Verloop, A., Drug Design. Ariens, E. J., Ed. Academic   Press: New York,, **1976**; Vol. III
+ 2. Hillier, A. C.;  Sommer, W. J.;  Yong, B. S.;  Petersen, J. L.;  Cavallo, L.; Nolan, S. P., *Organometallics* **2003**, *22*, 4322-4326.
