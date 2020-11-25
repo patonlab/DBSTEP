@@ -113,5 +113,5 @@ H	0.76	2.03	-1.25
   
  ### References
  
- 1. Verloop, A., Drug Design. Ariens, E. J., Ed. Academic   Press: New York,, **1976**; Vol. III
- 2. Hillier, A. C.;  Sommer, W. J.;  Yong, B. S.;  Petersen, J. L.;  Cavallo, L.; Nolan, S. P., *Organometallics* **2003**, *22*, 4322-4326.
+ 1. Verloop, A., Drug Design. Ariens, E. J., Ed. Academic Press: New York,, **1976**; Vol. III
+ 2. Hillier, A. C.;  Sommer, W. J.;  Yong, B. S.;  Petersen, J. L.;  Cavallo, L.; Nolan, S. P. *Organometallics* **2003**, *22*, 4322-4326.
