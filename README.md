@@ -8,10 +8,20 @@ Allows a user to compute steric parameters from chemical structures.
 
 Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2</sup>, Sterimol2Vec and Vol2Vec parameters
 
-#### Install 
-- To run as a module (python -m dbstep), download this reposotory and install with ```python setup.py install```
+## Features
+* complete this list 
+* complete this list 
 
-#### Running 
+## Requirements
+* Python 3.6, or 3.7 (true?)
+
+#### Install 
+- To run as a module (python -m dbstep), download this repository and install with ```python setup.py install```
+
+## Conda and PyPI (`pip`)
+- Instructions go here
+
+#### Usage 
 File parsing is done by the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823), which can parse many common quantum chemistry output files along with other common chemical structure file formats. For a full list of acceptable file types, see their documentation [here](https://cclib.github.io/).
 
 To execute the program:
@@ -28,7 +38,6 @@ To execute the program:
     Bmax = mol.Bmax
 ```
 
-### Use
 DBSTEP currently takes a coordinate file (.xyz or Gaussian output) and two reference atoms for steric measurement.  Sterimol parameters are output to the user using the `--sterimol` argument, volume parameters can be requested with the `--volume` command. Atoms are specified by referring to the index of an atom in a coordinate file, (ex: "2", referencing the second atom in the file, with indexing starting at 1).
 
 For Sterimol parameters, two atoms need to be specified using the arguments `--atom1 [atom1idx]` and `--atom2 [atom2idx]`. The L parameter is measured starting from the specified atom1 coordinates, extending through the  atom1-atom2 axis until the end of the molecule is reached. The Bmin and Bmax parameters are measured on the axis perpendicular to L. 
@@ -106,7 +115,7 @@ H	0.76	2.03	-1.25
  
  ### Acknowledgements
  
-  This work is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
+  This work is developed by Guilian Luchini and Robert Paton supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
   
   <img src="https://www.nsf.gov/images/logos/NSF_4-Color_bitmap_Logo.png" width="50" height="50">
   <img src="https://pbs.twimg.com/profile_images/1168617043106521088/SOLQaZ8M_400x400.jpg" width="50" height="50"> 
