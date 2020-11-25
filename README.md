@@ -1,4 +1,4 @@
-![DBSTEP](DBSTEP_Banner.png)
+![DBSTEP](DBSTEP_banner.png)
 ===
 
 # DBSTEP
