@@ -176,7 +176,7 @@ class dbstep:
 			# generate Bondi radii from atom types
 			try:
 				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
-				if options.verbose ==True: print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
+				if options.verbose: print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
 			except:
 				mol.RADII = []
 				for atom in mol.ATOMTYPES:
@@ -359,11 +359,12 @@ class dbstep:
 		setup_time = time.time() - start
 		# message user
 		if options.verbose: print("\n   Steric parameters will be generated in {} mode for {}\n".format(options.measure, file))
-
-		if options.volume and options.sterimol:
-			print("   {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L"))
-		elif options.volume:
-			print("   {:>6} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur"))
+		
+		if not options.quiet:
+			if options.volume and options.sterimol:
+				print("   {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L"))
+			elif options.volume:
+				print("   {:>6} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur"))
 
 		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
 		
@@ -399,15 +400,15 @@ class dbstep:
 			if options.volume and options.sterimol:
 				# for pymol visualization
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
-				print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
+				if not options.quiet: print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
 			elif options.volume:
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
-				print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell))
+				if not options.quiet: print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell))
 			elif options.sterimol:
 				if not options.scan:
-					print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
+					if not options.quiet: print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
 				else:
-					print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
+					if not options.quiet: print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
 		#for object reference
 		if options.measure == "grid":
@@ -431,14 +432,15 @@ class dbstep:
 		# recompute L if a scan has been performed to get an overall L
 		if options.measure == 'grid' and r_intervals >1 and options.sterimol:
 			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
-			print('\n   L parameter is {:5.2f} Ang'.format(L))
+			if not options.quiet:  print('\n   L parameter is {:5.2f} Ang'.format(L))
 		
 		if options.sterimol: cylinders.append('   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,'.format(L))
 		
 		# Stop timing the loop
 		calc_time = time.time() - start - setup_time
 		# Report timing for the whole program and write a PyMol script
-		if options.timing == True: print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, calc_time))
+		if options.timing == True and not options.quiet: 
+			print('   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)'.format(setup_time, calc_time))
 		self.setup_time = setup_time
 		self.calc_time = calc_time
 		if options.commandline == False and ext != 'rdkit':
@@ -458,7 +460,7 @@ def set_options(kwargs):
 	'atom2':['spec_atom_2',False],'atom3':['atom3',False],'exclude':['exclude',False],'isoval':['isoval',0.002],
 	's' : ['sterimol',False], 'sterimol':['sterimol',False],'surface':['surface','vdw'],
 	'debug':['debug',False],'b':['volume',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
-	'timing': ['timing',False],'commandline':['commandline',False],'qsar':['qsar',False],
+	'timing': ['timing',False],'commandline':['commandline',False],'quiet':['quiet',False],'qsar':['qsar',False],
 	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
 	}
 
@@ -500,6 +502,7 @@ def main():
 	parser.add_option("--atom3",dest='atom3',action='store',help='align a third atom to the positive x direction',default=False)
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
+	parser.add_option("--quiet", dest="quiet",action="store_true", help="Requests no print statements to command line", default=False)
 	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	(options, args) = parser.parse_args()
 
