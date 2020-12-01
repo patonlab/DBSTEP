@@ -92,21 +92,32 @@ H	2.03	0.76	-1.25
 H	0.76	2.03	-1.25
 ```
 
+A visualization of these parameters can be shown in the program PyMOL using the two output files created by DBSTEP, showing the L parameter in blue, Bmin parameter in green and Bmax parameter in red. 
+
+![Example1](Example1.png)
 
 2. Sterimol2Vec Parameters for Ph
 
     The `--scan` argument is formatted as `rmin:rmax:interval` where rmin is the distance from the center along the L axis to start measurements, rmax dictates when to stop measurements, and interval is the frequency of measurements. In this case the length of the molecule (~6A) is measured in 1.0A intervals
-```
->>>python -m dbstep examples/Ph.xyz --sterimol --atom1 2 --atom2 5 --scan 0.0:6.0:1.0
 
-     Ph.xyz / R:  0.00 / Bmin:  1.65 / Bmax:  3.16 
-     Ph.xyz / R:  1.00 / Bmin:  1.65 / Bmax:  3.16 
-     Ph.xyz / R:  2.00 / Bmin:  1.65 / Bmax:  3.16 
-     Ph.xyz / R:  3.00 / Bmin:  1.65 / Bmax:  3.16 
-     Ph.xyz / R:  4.00 / Bmin:  1.65 / Bmax:  3.16 
-     Ph.xyz / R:  5.00 / Bmin:  1.65 / Bmax:  3.11 
-     Ph.xyz / R:  6.00 / Bmin:  1.15 / Bmax:  1.17 
 ```
+>>>python -m dbstep examples/Ph.xyz --sterimol --atom1 1 --atom2 2 --scan 0.0:6.0:1.0
+
+    Ph.xyz / R:  0.00 / Bmin:  1.55 / Bmax:  2.86 
+    Ph.xyz / R:  0.50 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  1.00 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  1.50 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  2.00 / Bmin:  1.65 / Bmax:  3.15 
+    Ph.xyz / R:  2.50 / Bmin:  1.65 / Bmax:  2.91 
+    Ph.xyz / R:  3.00 / Bmin:  1.65 / Bmax:  3.16 
+
+    L parameter is  5.95 Ang
+
+```
+ 
+ Displayed in PyMOL, each new Bmin and Bmax axis is added along the L axis. 
+ ![Example2](Example2.png)
+ 
  
 3. Percent Buried Volume 
  
@@ -117,6 +128,9 @@ H	0.76	2.03	-1.25
       R/Å     %V_Bur     %S_Bur
      3.50      41.77       0.00
  ```
+ 
+ For percent buried volume, the PyMOL script will overlay an appropriate sized sphere where measurement took place.
+  ![Example3](Example3.png)
  
 4. Vol2Vec Parameters
  
