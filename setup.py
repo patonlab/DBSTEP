@@ -24,4 +24,5 @@ setup(
   install_requires=["numpy",'numba','scipy','cclib'],
   python_requires='>=3.6',
   include_package_data=True,
+  package_data={'': ['*.csv']},
 )

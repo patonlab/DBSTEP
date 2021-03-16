@@ -492,6 +492,10 @@ def main():
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("--norot",dest='norot',action="store_true",help="Do not rotate the molecules (use if structures have been pre-aligned)",default=False)
 	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.05, type=float, metavar="grid")
+	parser.add_option("--2d", dest="graph",action="store_true", help="[2D sterics only] Specify input text file containing SMILES strings to analyze 2D contributions",default=False)
+	parser.add_option("--fg",  dest="shared_fg", action="store", default="", help="[2D sterics only] SMILES pattern (e.g. 'C(O)=O') of a shared functional group or atom - this is used to define the origin")
+	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics only] Maximum path length (bonds) along which to include steric contributions")
+	parser.add_option("--2d-type", dest="voltype", action="store", default="Crippen", help="[2D sterics only] Method for determining atomic contribution to total volume [Crippen, McGowan]")
 	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in postive direction (from atom1 toward atom2). ", default=False, metavar="pos")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
 	parser.add_option("--vshell",dest="vshell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")
@@ -509,7 +513,7 @@ def main():
 	# make sure upper/lower case doesn't matter
 	options.surface = options.surface.lower()
 
-	# Get Coordinate files - can be xyz, log or cube
+	# Get input files from commandline
 	if len(sys.argv) > 1:
 		for elem in sys.argv[1:]:
 			try:
@@ -542,9 +546,18 @@ def main():
 			else: dim[i]-=3
 		options.gridsize = str(dim[0])+','+str(dim[1])+':'+str(dim[2])+','+str(dim[3])+':'+str(dim[4])+','+str(dim[5])
 		if options.verbose: print("   Grid size for QSAR mode is: "+options.gridsize)
+	
 	# loop over all specified output files
 	for file in files:
-		dbstep(file,options=options)
+		if options.graph: 
+			try:
+				from dbstep import graph
+			except ModuleNotFoundError as e:
+				print(e,"\nPlease install necessary modules and try again.")
+			vec_df = graph.mol_to_vec(file,options.shared_fg,options.voltype,options.max_path_length,options.verbose)
+			vec_df.to_csv(file.split('.')[0]+"_2d_output.csv",index=False)
+		else:
+			dbstep(file,options=options)
 
 if __name__ == "__main__":
 	main()
