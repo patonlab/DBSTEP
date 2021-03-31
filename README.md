@@ -25,6 +25,13 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 * `--noH` - exclude hydrogen atoms from steric measurements
 * `--addmetals` - add metals to steric measurements (traditionally metal centers are removed from steric measurements)
 
+### 2-D Graph contribution features
+* Compute graph-based steric contributions in layers spanning outward from a reference functional group with the following input options:
+    * `--2d` - Toggle 2D measurements on
+    * `--fg` - Specify an atom or functional group to use as a reference as a SMILES string 
+    * `--maxpath` - The number of layers to measure. A connectivity matrix is used to compute the shortest path to each atom from the reference functional group. 
+    * `--2d-type` - The type of steric contributions to use. Options include Crippen molar refractivities or McGowan volume
+
 ## Requirements & Dependencies
 * Python 3.6 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [numba](https://numba.pydata.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
