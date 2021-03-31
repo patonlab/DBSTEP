@@ -3,6 +3,7 @@ from rdkit.Chem import rdmolops, rdMolDescriptors, Crippen, GraphDescriptors
 import numpy as np
 import pandas as pd
 import pkg_resources
+import sys
 
 def crippenHContribs(mol,contribs):
     """Adds Crippen molar refractivity atomic contributions from attached H atoms to a heavy atom's contribution""" 
@@ -67,7 +68,10 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
             ["layer0",..."layerN","Structure" (SMILES string),"Property" (optional)]
 	"""
     # computes the atomic contributions to volume/sterics at discrete number of bond lengths away from a particular atom/functional group
-    mollist, y_val, vec_df = [], [], []
+    mollist, y_val, vec_df, columns = [], [], [], []
+    [columns.append(str(col)+'_'+voltype.lower()) for col in range(0,max_path_length)]
+    if shared_fg == False:
+        sys.exit("Please specify a common functional group pattern as a SMILES string using the --fg argument. Exiting.")
     for line in open(smifile):
         toks = line.split()
         mol2vec = []
@@ -75,7 +79,7 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
         if len(toks) > 1: # expects a smiles string, followed by a property value on each line
             # parse structure from input
             smi, prop = toks[0:2]
-            y_val.append(float(prop))
+            y_val.append(prop)
         elif len(toks) == 1:
             smi = toks[0]
         mollist.append(smi)
@@ -121,11 +125,10 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
             # condense H atom contributions to attached heavy atom
             mr, apolsCondensed = crippenHContribs(molH,mrs)
             vols = apolsCondensed
-        if voltype.lower() == 'mcgowan':
+        elif voltype.lower() == 'mcgowan':
             #grab mcgowan volumes 
             molH = Chem.AddHs(mol)
             vols = mcgowanHContribs(molH)
-            
         
         # this is the radial count up to the max_path_length
         for level in range(0,max_path_length):
@@ -140,7 +143,7 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
 
         # create the vector from the successive graph levels
         vec_df.append(mol2vec)
-    vec_df = pd.DataFrame(vec_df)
+    vec_df = pd.DataFrame(vec_df,columns=columns)
     vec_df['Structure'] = np.array(mollist)
     if len(y_val) > 0:
         vec_df['Property'] = np.array(y_val)
