@@ -25,8 +25,8 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 * `--noH` - exclude hydrogen atoms from steric measurements
 * `--addmetals` - add metals to steric measurements (traditionally metal centers are removed from steric measurements)
 
-### 2-D Graph contribution features
-* Compute graph-based steric contributions in layers spanning outward from a reference functional group with the following input options:
+### 2-D Graph contribution features (Requires RDKit and Pandas packages to be installed):
+* Compute graph-based steric contributions in layers spanning outward from a reference functional group with the following input options: 
     * `--2d` - Toggle 2D measurements on
     * `--fg` - Specify an atom or functional group to use as a reference as a SMILES string 
     * `--maxpath` - The number of layers to measure. A connectivity matrix is used to compute the shortest path to each atom from the reference functional group. 
@@ -153,6 +153,33 @@ A visualization of these parameters can be shown in the program PyMOL using the 
      4.00      41.61       9.59
  ```
  
+ 5. 2D Additive sterics
+ 
+    To calculate 2d graph-based additive sterics, the arguments --2d --fg --maxpath and --2d-type can be used. An input file listing SMILES strings of desired molecule measurements is necessary for calculation. The --fg argument specifies a SMILES string that is common in all provided SMILES inputs to use as a reference point for layer 0. A connectivity matrix will then be used to find atoms 1, 2, 3... N bonds away where N is the max path length specified with the --maxpath argument. One of two types of measurements will be summed at each layer, either Crippen molar refractivities or McGowan volumes, computed for each atom. This can be changed with the --2d-type argument. 
+    
+```
+>>>python -m dbstep examples/smiles.txt --2d --fg "C(O)=O" --maxpath 5 --2d-type mcgowan
+```
+    where smiles.txt looks like: 
+```
+CC(O)=O
+CCC(O)=O 
+CCCC(O)=O 
+CCCCC(O)=O
+CC(C)C(O)=O
+CCC(C)C(O)=O
+```
+    The output will then be written to the file "smiles_2d_output.csv" in the format: 
+|0_mcgowan|	1_mcgowan|	2_mcgowan|	3_mcgowan|	4_mcgowan|	Structure|
+| ------- | ------- | ------- | ------- | ------- | ------- |
+|4.55|	11.68|	0|	0|	0|	CC(O)=O|
+|4.55|	8.21|	11.68|	0|	0|	CCC(O)=O|
+|4.55|	8.21|	8.21|	11.68|	0|	CCCC(O)=O|
+|4.55|	8.21|	8.21|	8.21|	11.68|	CCCCC(O)=O|
+|4.55|	4.74|	23.36|	0|	0|	CC(C)C(O)=O|
+|4.55|	4.74|	19.89|	11.68|	0|	CCC(C)C(O)=O|
+
+
  ### Acknowledgements
  
   This work is developed by Guilian Luchini and Robert Paton and is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)

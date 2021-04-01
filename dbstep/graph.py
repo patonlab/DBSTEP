@@ -111,6 +111,9 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
                 print("Parsing functional group from this structure failed. Skipping this structure")
                 vec_df.append(pd.Series())
                 continue
+            else:
+                if verbose:
+                    print("Found by parsing functional group as",lower_fg)
     
         base_id = mol.GetSubstructMatch(patt)[0]        
         
