@@ -9,7 +9,6 @@ from __future__ import print_function, absolute_import
 # for grid sterimol, may be a problem that the value for Bmin slips between grid points to give an unusually low
 	# add a check/warning for this (warning, Bmin is unusually small)
 	# shoudn't be smaller than base atom VDW radius 
-	
 
 #for debug mode, a grid can be displayed using a pptk 3d graph, install with pip
 ###############################################################
