@@ -17,7 +17,7 @@ setup(
   author='Guilian Luchini, Robert Paton',
   author_email='patonlab@colostate.edu',
   url = 'https://github.com/bobbypaton/DBSTEP',
-  download_url = 'https://github.com/bobbypaton/DBSTEP/archive/1.0-alpha.tar.gz',  
+  download_url = 'https://github.com/bobbypaton/DBSTEP/archive/refs/tags/1.1-alpha.tar.gz',  
   keywords=['compchem', 'steric', 'sterimol', 'informatics'],
   license="MIT",
   classifiers=['License :: OSI Approved :: MIT License',],
