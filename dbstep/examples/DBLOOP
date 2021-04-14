@@ -2,6 +2,6 @@ FILES=*xyz
 OPTIONS=$*
 for xyzfile in $FILES
 do
-  python -m dbstep $xyzfile --center H1 --ligand C2 $OPTIONS
+  python -m dbstep $xyzfile --atom1 1 --atom2 2 $OPTIONS
 done
 

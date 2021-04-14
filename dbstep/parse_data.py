@@ -121,18 +121,27 @@ class GetXYZData:
 							self.ATOMTYPES.append(atom)
 							self.CARTESIANS.append([x,y,z])
 				except: pass
-		elif self.FORMAT == '.log':
-			for i, oline in enumerate(outlines):
-				if "Input orientation" in oline or "Standard orientation" in oline:
-					self.ATOMTYPES, self.CARTESIANS, carts = [], [], outlines[i + 5:]
-					for j, line in enumerate(carts):
-						if "-------" in line:
-							break
-						self.ATOMTYPES.append(element_id(int(line.split()[1])))
-						if len(line.split()) > 5:
-							self.CARTESIANS.append([float(line.split()[3]), float(line.split()[4]), float(line.split()[5])])
-						else:
-							self.CARTESIANS.append([float(line.split()[2]), float(line.split()[3]), float(line.split()[4])])
+		elif self.FORMAT == '.com' or self.FORMAT == '.gjf':
+			for i in range(0,len(outlines)):
+				if outlines[i].find("#") > -1:
+					if len(outlines[i+1].split()) == 0: 
+						start = i+5
+					if len(outlines[i+2].split()) == 0: 
+						start = i+6
+					break
+			for i in range(start,len(outlines)):
+				try:
+					coord = outlines[i].split()
+					for i in range(len(coord)):
+						try:
+							coord[i] = float(coord[i])
+						except ValueError: pass
+					if len(coord) == 4:
+						if isinstance(coord[1],float) and isinstance(coord[2],float) and isinstance(coord[3],float):
+							[atom, x,y,z] = [coord[0], coord[1], coord[2], coord[3]]
+							self.ATOMTYPES.append(atom)
+							self.CARTESIANS.append([x,y,z])
+				except: pass
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
 		#remove hydrogens if requested, update spec_atom numbering if necessary
