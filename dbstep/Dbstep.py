@@ -494,7 +494,7 @@ def main():
 	parser.add_option("--2d", dest="graph",action="store_true", help="[2D sterics only] Specify input text file containing SMILES strings to analyze 2D contributions",default=False)
 	parser.add_option("--fg",  dest="shared_fg", action="store", default=False, help="[2D sterics only] SMILES pattern (e.g. 'C(O)=O') of a shared functional group or atom - this is used to define the origin")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics only] Maximum path length (bonds) along which to include steric contributions (Default: 9)")
-	parser.add_option("--2d-type", dest="voltype", action="store", default="crippen",choices=['crippen','mcgowan'], help="[2D sterics only] Method for determining atomic contribution to total volume. Options include 'crippen' or 'mcgowan' (Default: crippen)")
+	parser.add_option("--2d-type", dest="voltype", action="store", default="crippen",choices=['crippen','mcgowan','degree'], help="[2D sterics only] Method for determining atomic contribution to total volume. Options include 'crippen'=default,'mcgowan', or 'degree'")
 	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in postive direction (from atom1 toward atom2). ", default=False, metavar="pos")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
 	parser.add_option("--vshell",dest="vshell",action="store",help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False,type=float, metavar="radius")

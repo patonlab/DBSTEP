@@ -19,6 +19,13 @@ def crippenHContribs(mol,contribs):
             ccontribs.append(contrib)
     return res,ccontribs
     
+def degreeContribs(mol):
+    contribs = []
+    for i,at in enumerate(mol.GetAtoms()): #grab all atom contributions
+        deg = at.GetDegree()
+        contribs.append(deg)
+    return contribs
+    
 def load_mcgowan():
     stream = pkg_resources.resource_stream(__name__, 'mcgowan.csv')
     return pd.read_csv(stream)
@@ -132,6 +139,8 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
             #grab mcgowan volumes 
             molH = Chem.AddHs(mol)
             vols = mcgowanHContribs(molH)
+        elif voltype.lower() == 'degree':
+            vols = degreeContribs(mol)
         
         # this is the radial count up to the max_path_length
         for level in range(0,max_path_length):
