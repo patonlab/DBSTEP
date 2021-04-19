@@ -1,5 +1,5 @@
 {% set name = "dbstep" %}
-{% set version = "1.1a0" %}
+{% set version = "1.2a0" %}
 
 package:
   name: "{{ name|lower }}"
