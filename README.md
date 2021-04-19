@@ -4,6 +4,8 @@
 # DBSTEP
 DFT-based Steric Parameters 
 
+[![DOI](https://zenodo.org/badge/198946518.svg)](https://zenodo.org/badge/latestdoi/198946518)
+
 Allows a user to compute steric parameters from chemical structures. 
 
 Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2</sup>, Sterimol2Vec and Vol2Vec parameters
@@ -36,16 +38,22 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 * Python 3.6 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [numba](https://numba.pydata.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
 
-#### Install 
+## Install 
 - To run as a module (python -m dbstep), download this repository and install with ```python setup.py install```
 
-## Conda and PyPI (`pip`)
+#### Conda and PyPI (`pip`)
 - Install using conda
     `conda install -c patonlab dbstep`
 - Or using pip
     `pip install dbstep`
 
-#### Usage 
+## Citing DBSTEP
+Please reference the DOI of our Zenodo repository with:
+```
+Luchini, G.; Paton, R. S. DBSTEP: DFT Based Steric Parameters. 2021, DOI: 10.5281/zenodo.4702097
+```
+
+## Usage 
 File parsing is done by the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823), which can parse many quantum chemistry output files along with other common chemical structure file formats (sdf, xyz, pdb). For a full list of acceptable cclib file types, see their documentation [here](https://cclib.github.io/). Additionally, if used in a Python script, DBSTEP can also read coordinate information from [RDKit](https://www.rdkit.org/) mol objects if three-dimensional coordinates are present along with Gaussian 16 cube files containing volumetric density information.
 
 To execute the program:
