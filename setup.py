@@ -10,7 +10,7 @@ with io.open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 setup(
   name='dbstep',
   packages=['dbstep'],
-  version='1.1-alpha',
+  version='1.2-alpha',
   description='DFT Based Steric Parameters',
   long_description=long_description,
   long_description_content_type='text/markdown',
