@@ -68,23 +68,111 @@ class WriteCubeData:
 		molfile.close()
 
 
-def pymol_export(file, mol, spheres, cylinders, isoval):
+def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 	"""Outputs a python script that can be imported into PyMol (with 'run script.py')"""
 	fullpath = os.path.abspath(file)
 	log = Logger(file.split(".")[0],"py", "steric")
 	log.Writeonlyfile('from pymol.cgo import *')
 	log.Writeonlyfile('from pymol import cmd\n')
-
-	for n,sphere in enumerate(spheres):
-		sphere_id = str(n)+"_sphere_"+sphere.split(',')[-1].lstrip()
-		log.Writeonlyfile('sphere = [')
-		log.Writeonlyfile(sphere)
-		log.Writeonlyfile(']\ncmd.load_cgo(sphere'+', '+'"'+sphere_id+'")')
-
+	
+	if visv == 'circle' or viss: 
+		log.Writeonlyfile('def cgoCircle(r=3.5, cr=1.0, cg=0.4, cb=0.8, w=8.0, z=0.0, name=None):'
+		'\n  """'
+		'\n  Create a CGO circle'
+		'\n  from https://pymolwiki.org/index.php/CgoCircle'
+		'\n  PARAMS'
+		'\n        x, y, z'
+		'\n          X, Y and Z coordinates of the origin'
+		'\n        r'
+		'\n          Radius of the circle'
+		'\n        cr, cg, cb'
+		'\n          Color triplet, [r,g,b] where r,g,b are all [0.0,1.0].'
+		'\n        w'
+		'\n          Line width of the circle'
+		'\n  RETURNS'
+		'\n        the CGO object (it also loads it into PyMOL, too).'
+		'\n'
+		'\n  """'
+		'\n  x, y = 0.0, 0.0'
+		'\n' 
+		'\n  r = abs(float(r))'
+		'\n  cr = abs(float(cr))'
+		'\n  cg = abs(float(cg))'
+		'\n  cb = abs(float(cb))'
+		'\n  w = float(w)'
+		'\n'
+		'\n  obj = [ BEGIN, LINES, COLOR, cr, cg, cb ]'
+		'\n  for i in range(180):'
+		'\n        obj.append( VERTEX )'
+		'\n        obj.append(r*math.cos(i) + x )'
+		'\n        obj.append(r*math.sin(i) + y )'
+		'\n        obj.append(z)'
+		'\n        obj.append( VERTEX )'
+		'\n        obj.append(r*math.cos(i+0.1) + x )'
+		'\n        obj.append(r*math.sin(i+0.1) + y )'
+		'\n        obj.append(z)'
+		'\n  obj.append(END)'
+		'\n  if cb == 0.0:' 
+		'\n        if cr == 0.0:'
+		'\n              cName = "BminC_"+str(z)'
+		'\n        else:'
+		'\n              cName = "BmaxC_"+str(z)'
+		'\n  else:'
+		'\n        if name is not None:'
+		'\n            cName = "circle_"+str(r)+name'
+		'\n        else:'
+		'\n            cName = "circle_"+str(r)'
+		'\n  cmd.load_cgo( obj, cName )'
+		'\n  cmd.set("cgo_line_width", w, cName )'
+		'\n  return obj')
+		log.Writeonlyfile('\ncmd.extend( "cgoCircle", cgoCircle )')
+	
+	#visualize volumes 
+	if len(spheres) == 1:
+		sphere = spheres[0]
+		sphere_r = abs(float(sphere.split(',')[-2].strip()))
+		if visv == 'circle':
+			log.Writeonlyfile('cgoCircle(r='+str(sphere_r)+',name="a")')
+			log.Writeonlyfile('cgoCircle(r='+str(sphere_r)+',name="b")')
+			log.Writeonlyfile('cgoCircle(r='+str(sphere_r)+',name="c")')
+			log.Writeonlyfile('cmd.rotate([1,0,0],90,object="circle_'+str(sphere_r)+'b",origin=[0,0,0])')
+			log.Writeonlyfile('cmd.rotate([1,0,0],90,object="circle_'+str(sphere_r)+'c",origin=[0,0,0])')
+			log.Writeonlyfile('cmd.rotate([0,0,1],90,object="circle_'+str(sphere_r)+'c",origin=[0,0,0])')
+		else:
+			sphere_id = "sphere_"+str(sphere_r)
+			log.Writeonlyfile('\nsphere = [')
+			log.Writeonlyfile(sphere)
+			log.Writeonlyfile(']')
+			log.Writeonlyfile('cmd.load_cgo(sphere,"'+sphere_id+'")')
+	else:
+		for n,sphere in enumerate(spheres):
+			sphere_r = abs(float(sphere.split(',')[-2].strip()))
+			if visv == 'circle':
+				log.Writeonlyfile('cgoCircle(r='+str(sphere_r)+')')
+			else:
+				sphere_id = "sphere_"+str(sphere_r)
+				log.Writeonlyfile('\nsphere = [')
+				log.Writeonlyfile(sphere)
+				log.Writeonlyfile(']')
+				log.Writeonlyfile('cmd.load_cgo(sphere,"'+sphere_id+'")')
+		
+	#visualize sterimol param cylinders (cylinders ordered: Bmax, Bmin then L is always last)
 	log.Writeonlyfile('\ncylinder = [')
 	for n,cyl in enumerate(cylinders): log.Writeonlyfile(cyl)
-	log.Writeonlyfile(']\ncmd.load_cgo(cylinder, '+'"axes"'+')')
-
+	log.Writeonlyfile(']\ncmd.load_cgo(cylinder, '+'"axes"'+')\n')
+	
+	#visualize circles outlining Bmin, Bmax - need z, r and rgb colors
+	if viss:
+		for i in range(len(cylinders)-1): 
+			cyl_vals = cylinders[i].split(',')
+			z = cyl_vals[3].strip()
+			x = float(cyl_vals[4].strip())
+			y = float(cyl_vals[5].strip())
+			r = str((x**2+y**2)**0.5)
+			cr = cyl_vals[11].strip()
+			cg = cyl_vals[12].strip()
+			log.Writeonlyfile('cgoCircle(r='+r+',z='+z+',cr='+cr+',cg='+cg+',cb=0.0)')
+	
 	name, ext = os.path.splitext(fullpath)
 	base, ext = os.path.splitext(file)
 	if ext == '.cube':

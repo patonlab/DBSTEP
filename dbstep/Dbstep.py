@@ -398,10 +398,10 @@ class dbstep:
 			# Tabulate result
 			if options.volume and options.sterimol:
 				# for pymol visualization
-				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
+				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet: print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
 			elif options.volume:
-				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f}".format(rad))
+				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet: print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell))
 			elif options.sterimol:
 				if not options.scan:
@@ -444,7 +444,7 @@ class dbstep:
 		self.calc_time = calc_time
 		if options.commandline == False and ext != 'rdkit':
 			writer.xyz_export(file,mol)
-			writer.pymol_export(file, mol, spheres, cylinders, options.isoval)
+			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
 
 class options_add:
         pass
@@ -505,6 +505,8 @@ def main():
 	parser.add_option("--atom3",dest='atom3',action='store',help='align a third atom to the positive x direction',default=False)
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False , metavar="verbose")
 	parser.add_option("--commandline", dest="commandline",action="store_true", help="Requests no new files be created", default=False)
+	parser.add_option("--visv",dest="visv",action="store",choices=['circle','sphere'],help="Visualize volume as a sphere or a circle outline in PyMOL.", default="circle")
+	parser.add_option("--viss",dest="viss",action="store_true",help="Visualize sterimol parameters Bmin and Bmax in PyMOL as circle outlines.", default=False)
 	parser.add_option("--quiet", dest="quiet",action="store_true", help="Requests no print statements to command line", default=False)
 	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
 	(options, args) = parser.parse_args()
