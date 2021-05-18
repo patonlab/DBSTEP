@@ -41,7 +41,7 @@ class GetCubeData:
 		self.FORMAT = 'cube'
 		molfile = open(file+"."+self.FORMAT,"r")
 		mollines = molfile.readlines()
-		self._get_ATOMTYPES(mollines, self.FORMAT)
+		self._get_ATOMTYPES(mollines)
 		self.INCREMENTS=np.asarray([self.x_inc,self.y_inc,self.z_inc])
 		cube_data = np.zeros([self.xdim,self.ydim,self.zdim])
 		self.DENSITY = np.asarray(self.DENSITY)
@@ -59,7 +59,7 @@ class GetCubeData:
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
 
-	def _get_ATOMTYPES(self, outlines, format):
+	def _get_ATOMTYPES(self, outlines):
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
 		for i in range(2,len(outlines)):
 			try:
