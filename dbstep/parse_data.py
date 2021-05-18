@@ -38,43 +38,10 @@ class GetCubeData:
 	""" Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data """
 	def __init__(self, file):
 		if not os.path.exists(file+".cube"): print("\nFATAL ERROR: cube file [ %s ] does not exist"%file)
-		def getATOMTYPES(self, outlines, format):
-			self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
-			if format == 'cube':
-				for i in range(2,len(outlines)):
-					try:
-						coord = outlines[i].split()
-						for j in range(len(coord)):
-							try:
-								coord[j] = float(coord[j])
-							except ValueError: pass
-						if i == 2:
-							self.ORIGIN = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
-						elif i == 3:
-							self.xdim = int(coord[0])
-							self.SPACING = coord[1]*BOHR_TO_ANG
-							self.x_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
-						elif i == 4:
-							self.ydim = int(coord[0])
-							self.y_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
-						elif i == 5:
-							self.zdim = int(coord[0])
-							self.z_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
-						elif len(coord) == 5:
-							if coord[0] == int(coord[0]) and isinstance(coord[2],float) == True and isinstance(coord[3],float) and isinstance(coord[4],float):
-								[atom, x,y,z] = [periodictable[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
-								self.ATOMNUM.append(int(coord[0]))
-								self.ATOMTYPES.append(atom)
-								self.CARTESIANS.append([x,y,z])
-						if coord[0] != int(coord[0]):
-							for val in coord:
-								self.DENSITY.append(val)
-							self.DENSITY_LINE.append(outlines[i])
-					except: pass
 		self.FORMAT = 'cube'
 		molfile = open(file+"."+self.FORMAT,"r")
 		mollines = molfile.readlines()
-		getATOMTYPES(self, mollines, self.FORMAT)
+		self._get_ATOMTYPES(mollines, self.FORMAT)
 		self.INCREMENTS=np.asarray([self.x_inc,self.y_inc,self.z_inc])
 		cube_data = np.zeros([self.xdim,self.ydim,self.zdim])
 		self.DENSITY = np.asarray(self.DENSITY)
@@ -92,6 +59,39 @@ class GetCubeData:
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
 
+	def _get_ATOMTYPES(self, outlines, format):
+		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
+		if format == 'cube':
+			for i in range(2,len(outlines)):
+				try:
+					coord = outlines[i].split()
+					for j in range(len(coord)):
+						try:
+							coord[j] = float(coord[j])
+						except ValueError: pass
+					if i == 2:
+						self.ORIGIN = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+					elif i == 3:
+						self.xdim = int(coord[0])
+						self.SPACING = coord[1]*BOHR_TO_ANG
+						self.x_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+					elif i == 4:
+						self.ydim = int(coord[0])
+						self.y_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+					elif i == 5:
+						self.zdim = int(coord[0])
+						self.z_inc = [coord[1]*BOHR_TO_ANG,coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+					elif len(coord) == 5:
+						if coord[0] == int(coord[0]) and isinstance(coord[2],float) == True and isinstance(coord[3],float) and isinstance(coord[4],float):
+							[atom, x,y,z] = [periodictable[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
+							self.ATOMNUM.append(int(coord[0]))
+							self.ATOMTYPES.append(atom)
+							self.CARTESIANS.append([x,y,z])
+					if coord[0] != int(coord[0]):
+						for val in coord:
+							self.DENSITY.append(val)
+						self.DENSITY_LINE.append(outlines[i])
+				except: pass
 
 class GetXYZData:
 	""" Read XYZ Cartesians from file """
