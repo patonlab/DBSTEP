@@ -70,8 +70,9 @@ class WriteCubeData:
 
 def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 	"""Outputs a python script that can be imported into PyMol (with 'run script.py')"""
-	fullpath = os.path.abspath(file)
-	log = Logger(file.split(".")[0],"py", "steric")
+	base, ext = os.path.splitext(file)
+
+	log = Logger(base, "py", "steric")
 	log.Writeonlyfile('from pymol.cgo import *')
 	log.Writeonlyfile('from pymol import cmd\n')
 	
@@ -172,11 +173,12 @@ def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 			cr = cyl_vals[11].strip()
 			cg = cyl_vals[12].strip()
 			log.Writeonlyfile('cgoCircle(r='+r+',z='+z+',cr='+cr+',cg='+cg+',cb=0.0)')
-	
-	name, ext = os.path.splitext(fullpath)
-	base, ext = os.path.splitext(file)
+
+	full_path = os.path.abspath(file)
+	name, ext = os.path.splitext(full_path)
+
 	if ext == '.cube':
-		log.Writeonlyfile('\ncmd.load("'+fullpath+'", '+'"dens"'+')')
+		log.Writeonlyfile('\ncmd.load("'+full_path+'", '+'"dens"'+')')
 		log.Writeonlyfile('\ncmd.load("'+name+'_radius.cube", '+'"distances"'+')')
 		log.Writeonlyfile('\ncmd.isosurface("isodens", "dens", '+str(isoval)+')')
 
@@ -188,9 +190,10 @@ def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 
 def xyz_export(file,mol):
 	"""Write xyz coordinates of molecule to file"""
-	log = Logger(file.split(".")[0],"xyz", "transform")
+	name, ext = os.path.splitext(file)
+	log = Logger(name, "xyz", "transform")
 	log.Writeonlyfile(str(len(mol.ATOMTYPES)))
-	log.Writeonlyfile(file.split(".")[0].split('/')[-1].split('\\')[-1])
+	log.Writeonlyfile(name.split('/')[-1].split('\\')[-1])
 	coords = ''
 	for i in range(len(mol.ATOMTYPES)):
 		coords += mol.ATOMTYPES[i]+'\t'
