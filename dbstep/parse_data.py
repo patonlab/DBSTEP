@@ -43,25 +43,14 @@ class GetCubeData:
 		mollines = molfile.readlines()
 		self._get_ATOMTYPES(mollines)
 		self.INCREMENTS = np.asarray([self.x_inc, self.y_inc, self.z_inc])
-		cube_data = np.zeros([self.xdim, self.ydim, self.zdim])
 		self.DENSITY = np.asarray(self.DENSITY)
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
-		vol_x = []
-		vol_y = []
-		vol_z = []
-		for i in range(self.xdim):
-			for j in range(self.ydim):
-				for k in range(self.zdim):
-					if self.DATA[i][j][k] > 0.05:
-						vol_x.append(self.ORIGIN[0]+(i-1)*self.x_inc[0] + (j-1)*self.x_inc[1] + (k-1)*self.x_inc[2])
-						vol_y.append(self.ORIGIN[1]+(i-1)*self.y_inc[0] + (j-1)*self.y_inc[1] + (k-1)*self.y_inc[2])
-						vol_z.append(self.ORIGIN[2]+(i-1)*self.z_inc[0] + (j-1)*self.z_inc[1] + (k-1)*self.z_inc[2])
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		self.CARTESIANS = np.array(self.CARTESIANS)
 
 	def _get_ATOMTYPES(self, outlines):
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
-		for i in range(2,len(outlines)):
+		for i in range(2, len(outlines)):
 			try:
 				coord = outlines[i].split()
 				for j in range(len(coord)):
@@ -98,12 +87,12 @@ class GetXYZData:
 	def __init__(self, file, ext, noH, spec_atom_1, spec_atom_2):
 		if ext == '.xyz':
 			if not os.path.exists(file+".xyz"):
-				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist"%file)
+				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist" % file)
 		elif ext == '.log':
 			if not os.path.exists(file+".log"):
-				print(("\nFATAL ERROR: log file [ %s ] does not exist"%file))
+				print(("\nFATAL ERROR: log file [ %s ] does not exist" % file))
 		self.FORMAT = ext
-		molfile = open(file+self.FORMAT,"r")
+		molfile = open(file+self.FORMAT, "r")
 		outlines = molfile.readlines()
 
 		self.ATOMTYPES, self.CARTESIANS = [], []
