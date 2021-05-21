@@ -69,41 +69,10 @@ class dbstep:
 			ext = 'rdkit'
 			
 		r_intervals, origin = 1, np.array([0,0,0])
-		
-		# if atoms are not specified upon input, grab first and second atom in file
-		# allow for multiple ways to specify atoms (H1 or just 1)
-		if options.spec_atom_1 == False:
-			options.spec_atom_1 = 1
-		else: 
-			try: 
-				options.spec_atom_1 = int(options.spec_atom_1) 
-			except:
-				options.spec_atom_1 = int(''.join([s for s in options.spec_atom_1 if s.isdigit()]))
-		#set default for atom 2
-		if options.spec_atom_2 == False:
-			options.spec_atom_2 = [2]
-		else:
-			try:
-				#check if int was supplied
-				options.spec_atom_2 = [int(options.spec_atom_2)]
-			except: 
-				#check for multiple atoms supplied
-				if ',' in options.spec_atom_2:
-					try: 
-						#list of ints supplied
-						options.spec_atom_2 = [int(s) for s in options.spec_atom_2.split(',') if s.isdigit()]
-					except: 
-						#atoms and atom types supplied
-						atom2_id = []
-						for i in options.spec_atom_2.split(','):
-							atom2_id.append([int(x) for x in s if x.isdigit()][0])
-				elif isinstance(options.spec_atom_2,list):
-					pass
-				else:
-					#single atom and atom type supplied
-					options.spec_atom_2 = [int(''.join([s for s in options.spec_atom_2 if s.isdigit()]))]
-			 
-		#Parse coordinate/volumetric information
+
+		self._get_spec_atoms(options)
+
+		# Parse coordinate/volumetric information
 		if ext == '.cube':
 			options.surface = 'density'
 			mol = parse_data.GetCubeData(name)
@@ -418,6 +387,37 @@ class dbstep:
 		if options.commandline == False and ext != 'rdkit':
 			writer.xyz_export(file,mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
+
+	def _get_spec_atoms(self, options):
+		# if atoms are not specified upon input, grab first and second atom in file
+		# allow for multiple ways to specify atoms (H1 or just 1)
+		if not options.spec_atom_1:
+			options.spec_atom_1 = 1
+		else:
+			try:
+				options.spec_atom_1 = int(options.spec_atom_1)
+			except ValueError:
+				sys.exit(f'{options.spec_atom_1} is not a valid input for atom1. Please enter an integer index.')
+		# set default for atom 2
+		if not options.spec_atom_2:
+			options.spec_atom_2 = [2]
+		else:
+			try:
+				# check if int was supplied
+				options.spec_atom_2 = [int(options.spec_atom_2)]
+			except ValueError:
+				# check for multiple atoms supplied
+				if ',' in options.spec_atom_2:
+					# list of ints supplied
+					options.spec_atom_2 = [
+						int(s) if s.isdigit()
+						else sys.exit(f'{s} is not a valid input for atom2. Please enter an integer index.')
+						for s in options.spec_atom_2.split(',')]
+				else:
+					sys.exit(
+						f'{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n'
+						f'\tAn int, comma separated ints, or a python list of ints')
+
 
 class options_add:
         pass
