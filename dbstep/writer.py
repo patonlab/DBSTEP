@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 import os
-
+from dbstep.constants import BOHR_TO_ANG
 
 """
 writer
@@ -8,10 +8,6 @@ writer
 Contains classes and methods to write data to files
 
 """
-
-
-BOHR_TO_ANG = 0.529177249
-
 
 
 class Logger:
