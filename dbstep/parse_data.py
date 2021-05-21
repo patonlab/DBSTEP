@@ -2,6 +2,7 @@
 import os, sys
 import numpy as np
 import cclib
+from dbstep.constants import BOHR_TO_ANG, periodic_table
 
 
 """
@@ -14,22 +15,12 @@ Currently supporting:
 """
 
 
-BOHR_TO_ANG = 0.529177249
-
-periodictable = ["","H","He","Li","Be","B","C","N","O","F","Ne",
-	"Na","Mg","Al","Si","P","S","Cl","Ar",
-	"K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","Ge","As","Se","Br","Kr",
-	"Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe",
-	"Cs","Ba","La","Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu","Hf","Ta","W","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn",
-	"Fr","Ra","Ac","Th","Pa","U","Np","Pu","Am","Cm","Bk","Cf","Es","Fm","Md","No","Lr","Rf","Db","Sg","Bh","Hs","Mt","Ds","Rg","Cn","Nh","Fl","Mc","Lv","Ts","Og"]
-
-
 def element_id(massno, num=False):
 	"""Return element id number"""
 	try:
 		if num:
-			return periodictable.index(massno)
-		else: return periodictable[massno]
+			return periodic_table.index(massno)
+		else: return periodic_table[massno]
 	except IndexError:
 		return "XX"
 
@@ -71,7 +62,7 @@ class GetCubeData:
 					self.z_inc = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
 				elif len(coord) == 5:
 					if coord[0] == int(coord[0]) and isinstance(coord[2], float) and isinstance(coord[3], float) and isinstance(coord[4], float):
-						[atom, x,y,z] = [periodictable[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
+						[atom, x,y,z] = [periodic_table[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
 						self.ATOMNUM.append(int(coord[0]))
 						self.ATOMTYPES.append(atom)
 						self.CARTESIANS.append([x,y,z])
@@ -186,7 +177,7 @@ class GetData_cclib:
 		
 		# store cartesians and symbols
 		self.CARTESIANS = np.array(parsed.atomcoords[-1])
-		[self.ATOMTYPES.append(periodictable[i]) for i in parsed.atomnos]
+		[self.ATOMTYPES.append(periodic_table[i]) for i in parsed.atomnos]
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
 		
 		# remove hydrogens if requested, update spec_atom numbering if necessary
