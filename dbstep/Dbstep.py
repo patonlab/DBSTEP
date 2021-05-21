@@ -413,6 +413,8 @@ class dbstep:
 						int(s) if s.isdigit()
 						else sys.exit(f'{s} is not a valid input for atom2. Please enter an integer index.')
 						for s in options.spec_atom_2.split(',')]
+				elif isinstance(options.spec_atom_2, list):
+					pass
 				else:
 					sys.exit(
 						f'{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n'
