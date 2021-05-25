@@ -126,36 +126,15 @@ class GetXYZData:
 		self.CARTESIANS = np.array(self.CARTESIANS)
 		#remove hydrogens if requested, update spec_atom numbering if necessary
 		if noH:
-			atom1_id,atom2_id = -1, -1
-			for n,atom in enumerate(self.ATOMTYPES):
-				if atom+str(n+1) == spec_atom_1:
-					atom1_id = n
-				elif atom+str(n+1) == spec_atom_2:
-					atom2_id = n
-			hs=[]
-			for n,atom in enumerate(self.ATOMTYPES):
-				if atom == "H":
-					hs.append(n)
-			center_sub,lig_sub = 0, 0
-			for n in range(len(hs)):
-				if hs[n] < atom1_id:
-					center_sub -= 1
-				if hs[n] < atom2_id:
-					lig_sub -= 1
-			atom1_id += center_sub
-			atom2_id += lig_sub
-			
-			self.ATOMTYPES = np.delete(self.ATOMTYPES, hs)
-			self.CARTESIANS = np.delete(self.CARTESIANS, hs, 0)
-			
-			if atom1_id >= 0: 
-				self.spec_atom_1 = self.ATOMTYPES[atom1_id]+str(atom1_id+1)
-			else:
-				self.spec_atom_1 = False
-			if atom2_id >= 0: 
-				self.spec_atom_2 = self.ATOMTYPES[atom2_id]+str(atom2_id+1)
-			else:
-				self.spec_atom_2 = False
+			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
+			self.spec_atoms = [spec_atom_1] + spec_atom_2
+			spec_atoms = [
+				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
+				for spec_atom in self.spec_atoms]
+			self.spec_atom_1 = spec_atoms[0]
+			self.spec_atom_2 = spec_atoms[1:]
+			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
+			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]
 
 			
 class GetData_cclib:
@@ -182,31 +161,15 @@ class GetData_cclib:
 		
 		# remove hydrogens if requested, update spec_atom numbering if necessary
 		if noH:
-			atom1_id, atom2_id = spec_atom_1, spec_atom_2
-			hs=[]
-			for n,atom in enumerate(self.ATOMTYPES):
-				if atom == "H":
-					hs.append(n)
-			center_sub,lig_sub = 0, 0
-			for n in range(len(hs)):
-				if hs[n] < atom1_id:
-					center_sub -= 1
-				if hs[n] < atom2_id:
-					lig_sub -= 1
-			atom1_id += center_sub
-			atom2_id += lig_sub
-			
-			self.ATOMTYPES = np.delete(self.ATOMTYPES, hs)
-			self.CARTESIANS = np.delete(self.CARTESIANS, hs, 0)
-			
-			if atom1_id >= 0: 
-				self.spec_atom_1 = atom1_id
-			else:
-				self.spec_atom_1 = False
-			if atom2_id >= 0: 
-				self.spec_atom_2 = atom2_id
-			else:
-				self.spec_atom_2 = False
+			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
+			self.spec_atoms = [spec_atom_1] + spec_atom_2
+			spec_atoms = [
+				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
+				for spec_atom in self.spec_atoms]
+			self.spec_atom_1 = spec_atoms[0]
+			self.spec_atom_2 = spec_atoms[1:]
+			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
+			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]
 	
 	
 class GetData_RDKit:
@@ -242,28 +205,12 @@ class GetData_RDKit:
 		
 		# remove hydrogens if requested, update spec_atom numbering if necessary
 		if noH:
-			atom1_id, atom2_id = spec_atom_1, spec_atom_2
-			hs=[]
-			for n,atom in enumerate(self.ATOMTYPES):
-				if atom == "H":
-					hs.append(n)
-			center_sub,lig_sub = 0,0
-			for n in range(len(hs)):
-				if hs[n] < atom1_id:
-					center_sub -= 1
-				if hs[n] < atom2_id:
-					lig_sub -= 1
-			atom1_id += center_sub
-			atom2_id += lig_sub
-			
-			self.ATOMTYPES = np.delete(self.ATOMTYPES, hs)
-			self.CARTESIANS = np.delete(self.CARTESIANS, hs, 0)
-			
-			if atom1_id >= 0: 
-				self.spec_atom_1 = atom1_id
-			else:
-				self.spec_atom_1 = False
-			if atom2_id >= 0: 
-				self.spec_atom_2 = atom2_id
-			else:
-				self.spec_atom_2 = False
+			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
+			self.spec_atoms = [spec_atom_1] + spec_atom_2
+			spec_atoms = [
+				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
+				for spec_atom in self.spec_atoms]
+			self.spec_atom_1 = spec_atoms[0]
+			self.spec_atom_2 = spec_atoms[1:]
+			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
+			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]
