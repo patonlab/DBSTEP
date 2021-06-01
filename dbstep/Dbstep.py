@@ -79,7 +79,7 @@ class dbstep:
 		elif ext == 'rdkit':
 			mol = parse_data.GetData_RDKit(name, options.noH, options.spec_atom_1, options.spec_atom_2)
 		elif ext in [".xyz",'.com','.gjf']:
-			mol = parse_data.GetXYZData(name, ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			mol = parse_data.XYZParser(file, ext[1:], options.noH,options.spec_atom_1, options.spec_atom_2)
 			if options.noH:
 				options.spec_atom_1 = mol.spec_atom_1
 				options.spec_atom_2 = mol.spec_atom_2
