@@ -75,7 +75,7 @@ class dbstep:
 		# Parse coordinate/volumetric information
 		if ext == '.cube':
 			options.surface = 'density'
-			mol = parse_data.GetCubeData(name)
+			mol = parse_data.CubeParser(file, "cube")
 		elif ext == 'rdkit':
 			mol = parse_data.GetData_RDKit(name, options.noH, options.spec_atom_1, options.spec_atom_2)
 		elif ext in [".xyz",'.com','.gjf']:
