@@ -43,7 +43,7 @@ class DataParser(ABC):
 		Basic member variable initialization
 
 		Args:
-			input_format (string): input_format of the input molecule
+			input_format (str): input_format of the input molecule
 			noH (bool, optional): boolean which specifies whether
 			spec_atom_1 (int, optional): specifies atom1
 			spec_atom_2 (list of int, optional): contains atom2(s)
@@ -77,7 +77,7 @@ class DataParser(ABC):
 		""""Reads file and returns the lines using readlines()
 
 		Args:
-		file (string): the path to the file
+		file (str): the path to the file
 
 		Returns:
 			list with lines of the file
@@ -88,24 +88,20 @@ class DataParser(ABC):
 
 class CubeParser(DataParser):
 	""" Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data """
+
 	def __init__(self, file, input_format):
-		if not os.path.exists(file+".cube"): print("\nFATAL ERROR: cube file [ %s ] does not exist"%file)
 		super().__init__(input_format)
 		self.parse_input(DataParser.get_file_lines(file))
 		self.INCREMENTS = np.asarray([self.x_inc, self.y_inc, self.z_inc])
 		self.DENSITY = np.asarray(self.DENSITY)
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
 
-	def parse_input(self, _input):
-		"""Parses input from a cube file.
-
-		Args:
-			_input (list of strings): each line of the cube file
-		"""
+	def parse_input(self, file_lines):
+		"""Parses input from a cube file."""
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
-		for i in range(2, len(_input)):
+		for i in range(2, len(file_lines)):
 			try:
-				coord = _input[i].split()
+				coord = file_lines[i].split()
 				for j in range(len(coord)):
 					try:
 						coord[j] = float(coord[j])
@@ -131,28 +127,25 @@ class CubeParser(DataParser):
 				if coord[0] != int(coord[0]):
 					for val in coord:
 						self.DENSITY.append(val)
-					self.DENSITY_LINE.append(_input[i])
+					self.DENSITY_LINE.append(file_lines[i])
 			except: pass
 
 
-class GetXYZData:
-	""" Read XYZ Cartesians from file """
-	def __init__(self, file, ext, noH, spec_atom_1, spec_atom_2):
-		if ext == '.xyz':
-			if not os.path.exists(file+".xyz"):
-				sys.exit("\nFATAL ERROR: XYZ file [ %s ] does not exist" % file)
-		elif ext == '.log':
-			if not os.path.exists(file+".log"):
-				print(("\nFATAL ERROR: log file [ %s ] does not exist" % file))
-		self.FORMAT = ext
-		molfile = open(file+self.FORMAT, "r")
-		outlines = molfile.readlines()
+class XYZParser(DataParser):
+	"""Read XYZ Cartesians from an xyz file or chem files similar to xyz."""
 
-		self.ATOMTYPES, self.CARTESIANS = [], []
-		if self.FORMAT == '.xyz':
-			for i in range(0,len(outlines)):
+	def __init__(self, file, input_format, noH, spec_atom_1, spec_atom_2):
+		super().__init__(input_format, noH, spec_atom_1, spec_atom_2)
+		self.parse_input(DataParser.get_file_lines(file))
+		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
+		self.remove_hydrogens()
+
+	def parse_input(self, file_lines):
+		"""Parses input from either xyz files or com/gif files."""
+		if self.FORMAT == 'xyz':
+			for i in range(0,len(file_lines)):
 				try:
-					coord = outlines[i].split()
+					coord = file_lines[i].split()
 					for i in range(len(coord)):
 						try:
 							coord[i] = float(coord[i])
@@ -163,17 +156,17 @@ class GetXYZData:
 							self.ATOMTYPES.append(atom)
 							self.CARTESIANS.append([x,y,z])
 				except: pass
-		elif self.FORMAT == '.com' or self.FORMAT == '.gjf':
-			for i in range(0,len(outlines)):
-				if outlines[i].find("#") > -1:
-					if len(outlines[i+1].split()) == 0: 
+		elif self.FORMAT == 'com' or self.FORMAT == 'gjf':
+			for i in range(0,len(file_lines)):
+				if file_lines[i].find("#") > -1:
+					if len(file_lines[i+1].split()) == 0:
 						start = i+5
-					if len(outlines[i+2].split()) == 0: 
+					if len(file_lines[i+2].split()) == 0:
 						start = i+6
 					break
-			for i in range(start, len(outlines)):
+			for i in range(start, len(file_lines)):
 				try:
-					coord = outlines[i].split()
+					coord = file_lines[i].split()
 					for i in range(len(coord)):
 						try:
 							coord[i] = float(coord[i])
@@ -184,19 +177,6 @@ class GetXYZData:
 							self.ATOMTYPES.append(atom)
 							self.CARTESIANS.append([x,y,z])
 				except: pass
-		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		self.CARTESIANS = np.array(self.CARTESIANS)
-		#remove hydrogens if requested, update spec_atom numbering if necessary
-		if noH:
-			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
-			self.spec_atoms = [spec_atom_1] + spec_atom_2
-			spec_atoms = [
-				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
-				for spec_atom in self.spec_atoms]
-			self.spec_atom_1 = spec_atoms[0]
-			self.spec_atom_2 = spec_atoms[1:]
-			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
-			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]
 
 			
 class GetData_cclib:
