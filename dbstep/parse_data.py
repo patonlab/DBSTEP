@@ -2,6 +2,7 @@
 import os, sys
 import numpy as np
 import cclib
+from abc import ABC, abstractmethod
 from dbstep.constants import BOHR_TO_ANG, periodic_table
 
 
@@ -25,25 +26,86 @@ def element_id(massno, num=False):
 		return "XX"
 
 
-class GetCubeData:
+class DataParser(ABC):
+	""" Abstract base class made to be inherited by parsers for different molecule formats.
+
+	Attributes:
+		FORMAT (str): format of the input molecule
+		ATOMTYPES (numpy array of char): the atoms in the molecule, starts as a list
+		CARTESIANS (numpy array of tuples): xyz coordinates for each atom in the molecule, starts as a list
+		noH (bool): true if hydrogens should be removed false otherwise.
+		spec_atom_1 (int): specifies atom1
+		spec_atom_2 (list of int): specifies atom2(s)
+	"""
+
+	def __init__(self, input_format, noH=False, spec_atom_1=None, spec_atom_2=None):
+		"""
+		Basic member variable initialization
+
+		Args:
+			input_format (string): input_format of the input molecule
+			noH (bool, optional): boolean which specifies whether
+			spec_atom_1 (int, optional): specifies atom1
+			spec_atom_2 (list of int, optional): contains atom2(s)
+		"""
+		self.FORMAT = input_format
+		self.ATOMTYPES, self.CARTESIANS = [], []
+		self.noH = noH
+		self.spec_atom_1, self.spec_atom_2 = spec_atom_1, spec_atom_2
+
+	@abstractmethod
+	def parse_input(self, _input):
+		"""Parse the input, filling ATOMTYPES with the atoms of the input molecule and CARTESIANS with the atoms xyz coordinates.
+		"""
+		pass
+
+	def remove_hydrogens(self):
+		"""Remove hydrogens if requested, update spec_atom numbering if necessary."""
+		if self.noH:
+			is_atom_type_h = self.ATOMTYPES == 'H'
+			spec_atoms = [self.spec_atom_1] + self.spec_atom_2
+			spec_atoms = [
+				spec_atom - np.count_nonzero(is_atom_type_h[:spec_atom])
+				for spec_atom in spec_atoms]
+			self.spec_atom_1 = spec_atoms[0]
+			self.spec_atom_2 = spec_atoms[1:]
+			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_atom_type_h)]
+			self.CARTESIANS = self.CARTESIANS[np.invert(is_atom_type_h)]
+
+	@staticmethod
+	def get_file_lines(file):
+		""""Reads file and returns the lines using readlines()
+
+		Args:
+		file (string): the path to the file
+
+		Returns:
+			list with lines of the file
+		"""
+		with open(file, 'r') as f:
+			return f.readlines()
+
+
+class CubeParser(DataParser):
 	""" Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data """
-	def __init__(self, file):
+	def __init__(self, file, input_format):
 		if not os.path.exists(file+".cube"): print("\nFATAL ERROR: cube file [ %s ] does not exist"%file)
-		self.FORMAT = 'cube'
-		molfile = open(file+"."+self.FORMAT, "r")
-		mollines = molfile.readlines()
-		self._get_ATOMTYPES(mollines)
+		super().__init__(input_format)
+		self.parse_input(DataParser.get_file_lines(file))
 		self.INCREMENTS = np.asarray([self.x_inc, self.y_inc, self.z_inc])
 		self.DENSITY = np.asarray(self.DENSITY)
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
-		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		self.CARTESIANS = np.array(self.CARTESIANS)
 
-	def _get_ATOMTYPES(self, outlines):
+	def parse_input(self, _input):
+		"""Parses input from a cube file.
+
+		Args:
+			_input (list of strings): each line of the cube file
+		"""
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
-		for i in range(2, len(outlines)):
+		for i in range(2, len(_input)):
 			try:
-				coord = outlines[i].split()
+				coord = _input[i].split()
 				for j in range(len(coord)):
 					try:
 						coord[j] = float(coord[j])
@@ -69,7 +131,7 @@ class GetCubeData:
 				if coord[0] != int(coord[0]):
 					for val in coord:
 						self.DENSITY.append(val)
-					self.DENSITY_LINE.append(outlines[i])
+					self.DENSITY_LINE.append(_input[i])
 			except: pass
 
 
