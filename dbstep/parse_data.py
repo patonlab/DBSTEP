@@ -16,16 +16,6 @@ Currently supporting:
 """
 
 
-def element_id(massno, num=False):
-	"""Return element id number"""
-	try:
-		if num:
-			return periodic_table.index(massno)
-		else: return periodic_table[massno]
-	except IndexError:
-		return "XX"
-
-
 def read_input(molecule, ext, options):
 	"""Chooses a Parser based on input molecule format.
 
