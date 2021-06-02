@@ -41,9 +41,9 @@ def read_input(molecule, ext, options):
 		options.surface = 'density'
 		mol = CubeParser(molecule, "cube")
 	else:
-		if ext in [".xyz", '.com', '.gjf']:
-			mol = XYZParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
-		elif ext == 'rdkit':
+		# if ext in [".xyz", '.com', '.gjf']:
+		# 	mol = XYZParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
+		if ext == 'rdkit':
 			mol = RDKitParser(molecule, options.noH, options.spec_atom_1, options.spec_atom_2)
 		else:
 			mol = cclibParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
@@ -57,47 +57,55 @@ class DataParser(ABC):
 	"""Abstract base class made to be inherited by parsers for different molecule formats.
 
 	Attributes:
+		_input (str or RDKit mol object): the input molecule
 		FORMAT (str): format of the input molecule
 		ATOMTYPES (numpy array of char): the atoms in the molecule, starts as a list
 		CARTESIANS (numpy array of tuples): xyz coordinates for each atom in the molecule, starts as a list
 		noH (bool): true if hydrogens should be removed false otherwise.
 		spec_atom_1 (int): specifies atom1
 		spec_atom_2 (list of int): specifies atom2(s)
+		file_lines (list of str, optional): each line of the file
 	"""
 
-	def __init__(self, input_format, noH=False, spec_atom_1=None, spec_atom_2=None):
-		"""
-		Basic member variable initialization
+	def __init__(self, _input, input_format, noH=False, spec_atom_1=None, spec_atom_2=None, manual_file_lines=False):
+		"""Initializes basic member variables and lays out the ordering of method calls.
 
 		Args:
+			_input (str or RDKit mol object): the input molecule
 			input_format (str): input_format of the input molecule
-			noH (bool, optional): boolean which specifies whether
+			noH (bool, optional): boolean which specifies whether hydrogens should be removed
 			spec_atom_1 (int, optional): specifies atom1
 			spec_atom_2 (list of int, optional): contains atom2(s)
+			manual_file_lines (bool, optional): to parse _input line by line manually using get_file_lines or not
 		"""
-		self.FORMAT = input_format
+		self._input, self.FORMAT = _input, input_format
 		self.ATOMTYPES, self.CARTESIANS = [], []
 		self.noH = noH
 		self.spec_atom_1, self.spec_atom_2 = spec_atom_1, spec_atom_2
+		if manual_file_lines:
+			self.file_lines = DataParser.get_file_lines(_input)
+		self.parse_input()
+		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
+		if self.noH and self.FORMAT != 'cube':
+			self.remove_hydrogens()
 
 	@abstractmethod
-	def parse_input(self, _input):
+	def parse_input(self):
 		"""Parse the input, filling ATOMTYPES with the atoms of the input molecule and CARTESIANS with the atoms xyz coordinates.
 		"""
 		pass
 
 	def remove_hydrogens(self):
-		"""Remove hydrogens if requested, update spec_atom numbering if necessary."""
-		if self.noH:
-			is_atom_type_h = self.ATOMTYPES == 'H'
-			spec_atoms = [self.spec_atom_1] + self.spec_atom_2
-			spec_atoms = [
-				spec_atom - np.count_nonzero(is_atom_type_h[:spec_atom])
-				for spec_atom in spec_atoms]
-			self.spec_atom_1 = spec_atoms[0]
-			self.spec_atom_2 = spec_atoms[1:]
-			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_atom_type_h)]
-			self.CARTESIANS = self.CARTESIANS[np.invert(is_atom_type_h)]
+		"""Remove hydrogens, update spec_atom numbering if necessary."""
+		is_atom_type_h = self.ATOMTYPES == 'H'
+		spec_atoms = [self.spec_atom_1] + self.spec_atom_2
+		spec_atoms = [
+			spec_atom - np.count_nonzero(is_atom_type_h[:spec_atom])
+			for spec_atom in spec_atoms]
+		self.spec_atom_1 = spec_atoms[0]
+		self.spec_atom_2 = spec_atoms[1:]
+		self.ATOMTYPES = self.ATOMTYPES[np.invert(is_atom_type_h)]
+		self.CARTESIANS = self.CARTESIANS[np.invert(is_atom_type_h)]
 
 	@staticmethod
 	def get_file_lines(file):
@@ -117,15 +125,14 @@ class CubeParser(DataParser):
 	"""Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data."""
 
 	def __init__(self, file, input_format):
-		super().__init__(input_format)
-		self.parse_input(file)
+		super().__init__(file, input_format, manual_file_lines=True)
 		self.INCREMENTS = np.asarray([self.x_inc, self.y_inc, self.z_inc])
 		self.DENSITY = np.asarray(self.DENSITY)
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
 
-	def parse_input(self, _input):
+	def parse_input(self):
 		"""Parses input from a cube file."""
-		file_lines = DataParser.get_file_lines(_input)
+		file_lines = self.file_lines
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
 		for i in range(2, len(file_lines)):
 			try:
@@ -163,14 +170,11 @@ class XYZParser(DataParser):
 	"""Read XYZ Cartesians from an xyz file or chem files similar to xyz."""
 
 	def __init__(self, file, input_format, noH, spec_atom_1, spec_atom_2):
-		super().__init__(input_format, noH, spec_atom_1, spec_atom_2)
-		self.parse_input(file)
-		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
-		self.remove_hydrogens()
+		super().__init__(file, input_format, noH, spec_atom_1, spec_atom_2, manual_file_lines=True)
 
-	def parse_input(self, _input):
+	def parse_input(self):
 		"""Parses input from either xyz file or com/gif file."""
-		file_lines = DataParser.get_file_lines(_input)
+		file_lines = self.file_lines
 		if self.FORMAT == 'xyz':
 			for i in range(0,len(file_lines)):
 				try:
@@ -211,14 +215,11 @@ class XYZParser(DataParser):
 class cclibParser(DataParser):
 	"""Use the cclib package to extract data from generic computational chemistry output files."""
 	def __init__(self, file, input_format, noH, spec_atom_1, spec_atom_2):
-		super().__init__(input_format, noH, spec_atom_1, spec_atom_2)
-		self.parse_input(file)
-		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		self.remove_hydrogens()
+		super().__init__(file, input_format, noH, spec_atom_1, spec_atom_2)
 
-	def parse_input(self, _input):
+	def parse_input(self):
 		"""Parses input file uses cclib file parser."""
-		cclib_parsed = cclib.io.ccread(_input)
+		cclib_parsed = cclib.io.ccread(self._input)
 		self.CARTESIANS = np.array(cclib_parsed.atomcoords[-1])
 		for i in cclib_parsed.atomnos:
 			self.ATOMTYPES.append(periodic_table[i])
@@ -232,19 +233,15 @@ class RDKitParser(DataParser):
 		CARTESIANS (numpy array): List of Cartesian (x,y,z) coordinates for each atom
 	"""
 	def __init__(self, mol, noH, spec_atom_1, spec_atom_2):
-		super().__init__('RDKit-', noH, spec_atom_1, spec_atom_2)
-		self.parse_input(mol)
-		self.CARTESIANS = np.array(self.CARTESIANS)
-		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		self.remove_hydrogens()
+		super().__init__(mol, 'RDKit', noH, spec_atom_1, spec_atom_2)
 
-	def parse_input(self, _input):
+	def parse_input(self):
 		"""Store cartesians and symbols from mol object"""
 		try:
 			self.ATOMTYPES, self.CARTESIANS = [], []
-			for i in range(_input.GetNumAtoms()):
-				self.ATOMTYPES.append(_input.GetAtoms()[i].GetSymbol())
-				pos = _input.GetConformer().GetAtomPosition(i)
+			for i in range(self._input.GetNumAtoms()):
+				self.ATOMTYPES.append(self._input.GetAtoms()[i].GetSymbol())
+				pos = self._input.GetConformer().GetAtomPosition(i)
 				self.CARTESIANS.append([pos.x, pos.y, pos.z])
 		except ValueError:
 			self.ATOMTYPES, self.CARTESIANS = [], []
