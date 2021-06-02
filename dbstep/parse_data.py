@@ -91,13 +91,14 @@ class CubeParser(DataParser):
 
 	def __init__(self, file, input_format):
 		super().__init__(input_format)
-		self.parse_input(DataParser.get_file_lines(file))
+		self.parse_input(file)
 		self.INCREMENTS = np.asarray([self.x_inc, self.y_inc, self.z_inc])
 		self.DENSITY = np.asarray(self.DENSITY)
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
 
-	def parse_input(self, file_lines):
+	def parse_input(self, _input):
 		"""Parses input from a cube file."""
+		file_lines = DataParser.get_file_lines(_input)
 		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
 		for i in range(2, len(file_lines)):
 			try:
@@ -136,12 +137,13 @@ class XYZParser(DataParser):
 
 	def __init__(self, file, input_format, noH, spec_atom_1, spec_atom_2):
 		super().__init__(input_format, noH, spec_atom_1, spec_atom_2)
-		self.parse_input(DataParser.get_file_lines(file))
+		self.parse_input(file)
 		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
 		self.remove_hydrogens()
 
-	def parse_input(self, file_lines):
-		"""Parses input from either xyz files or com/gif files."""
+	def parse_input(self, _input):
+		"""Parses input from either xyz file or com/gif file."""
+		file_lines = DataParser.get_file_lines(_input)
 		if self.FORMAT == 'xyz':
 			for i in range(0,len(file_lines)):
 				try:
@@ -179,80 +181,45 @@ class XYZParser(DataParser):
 				except: pass
 
 			
-class GetData_cclib:
-	"""
-	Use the cclib package to extract data from generic computational chemistry output files.
-	
-	Attributes:
-		ATOMTYPES (numpy array): List of elements present in molecular file
-		CARTESIANS (numpy array): List of Cartesian (x,y,z) coordinates for each atom
-		FORMAT (str): file format
-	"""
-	def __init__(self, file, ext, noH, spec_atom_1, spec_atom_2):
-		self.ATOMTYPES, self.CARTESIANS = [], []
-		# parse coordinate from file
-		filename = file+ext
-		parsed = cclib.io.ccread(filename)
-		
-		self.FORMAT = ext 
-		
-		# store cartesians and symbols
-		self.CARTESIANS = np.array(parsed.atomcoords[-1])
-		[self.ATOMTYPES.append(periodic_table[i]) for i in parsed.atomnos]
+class cclibParser(DataParser):
+	"""Use the cclib package to extract data from generic computational chemistry output files."""
+	def __init__(self, file, input_format, noH, spec_atom_1, spec_atom_2):
+		super().__init__(input_format, noH, spec_atom_1, spec_atom_2)
+		self.parse_input(file)
 		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		
-		# remove hydrogens if requested, update spec_atom numbering if necessary
-		if noH:
-			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
-			self.spec_atoms = [spec_atom_1] + spec_atom_2
-			spec_atoms = [
-				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
-				for spec_atom in self.spec_atoms]
-			self.spec_atom_1 = spec_atoms[0]
-			self.spec_atom_2 = spec_atoms[1:]
-			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
-			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]
-	
-	
-class GetData_RDKit:
+		self.remove_hydrogens()
+
+	def parse_input(self, _input):
+		"""Parses input file uses cclib file parser."""
+		cclib_parsed = cclib.io.ccread(_input)
+		self.CARTESIANS = np.array(cclib_parsed.atomcoords[-1])
+		for i in cclib_parsed.atomnos:
+			self.ATOMTYPES.append(periodic_table[i])
+
+
+class RDKitParser(DataParser):
 	"""
 	Extract coordinates and atom types from rdkit mol object
 	
 	Attributes:
 		ATOMTYPES (numpy array): List of elements present in molecular file
 		CARTESIANS (numpy array): List of Cartesian (x,y,z) coordinates for each atom
-		FORMAT (str): file format
 	"""
 	def __init__(self, mol, noH, spec_atom_1, spec_atom_2):
-		self.FORMAT = 'RDKit-'
-		# store cartesians and symbols from mol object
+		super().__init__('RDKit-', noH, spec_atom_1, spec_atom_2)
+		self.parse_input(mol)
+		self.CARTESIANS = np.array(self.CARTESIANS)
+		self.ATOMTYPES = np.array(self.ATOMTYPES)
+		self.remove_hydrogens()
+
+	def parse_input(self, _input):
+		"""Store cartesians and symbols from mol object"""
 		try:
 			self.ATOMTYPES, self.CARTESIANS = [], []
-			for i in range(mol.GetNumAtoms()):
-				self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
-				pos = mol.GetConformer().GetAtomPosition(i)
+			for i in range(_input.GetNumAtoms()):
+				self.ATOMTYPES.append(_input.GetAtoms()[i].GetSymbol())
+				pos = _input.GetConformer().GetAtomPosition(i)
 				self.CARTESIANS.append([pos.x, pos.y, pos.z])
 		except ValueError:
 			self.ATOMTYPES, self.CARTESIANS = [], []
 			print("Mol object does not have 3D coordinates!")
-			# self.ATOMTYPES, self.CARTESIANS = [],[]
-			# AllChem.EmbedMolecule(mol,randomSeed=42) #currently not importing any rdkit so this will fails
-			# for i in range(mol.GetNumAtoms()):
-			# 	self.ATOMTYPES.append(mol.GetAtoms()[i].GetSymbol())
-			# 	pos = mol.GetConformer().GetAtomPosition(i)
-			# 	self.CARTESIANS.append([pos.x, pos.y, pos.z])
-
-		self.CARTESIANS = np.array(self.CARTESIANS)
-		self.ATOMTYPES = np.array(self.ATOMTYPES)
-		
-		# remove hydrogens if requested, update spec_atom numbering if necessary
-		if noH:
-			is_ATOMTYPE_h = self.ATOMTYPES == 'H'
-			self.spec_atoms = [spec_atom_1] + spec_atom_2
-			spec_atoms = [
-				spec_atom - np.count_nonzero(is_ATOMTYPE_h[:spec_atom])
-				for spec_atom in self.spec_atoms]
-			self.spec_atom_1 = spec_atoms[0]
-			self.spec_atom_2 = spec_atoms[1:]
-			self.ATOMTYPES = self.ATOMTYPES[np.invert(is_ATOMTYPE_h)]
-			self.CARTESIANS = self.CARTESIANS[np.invert(is_ATOMTYPE_h)]

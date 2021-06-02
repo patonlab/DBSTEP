@@ -76,15 +76,13 @@ class dbstep:
 		if ext == '.cube':
 			options.surface = 'density'
 			mol = parse_data.CubeParser(file, "cube")
-		elif ext == 'rdkit':
-			mol = parse_data.GetData_RDKit(name, options.noH, options.spec_atom_1, options.spec_atom_2)
-		elif ext in [".xyz",'.com','.gjf']:
-			mol = parse_data.XYZParser(file, ext[1:], options.noH,options.spec_atom_1, options.spec_atom_2)
-			if options.noH:
-				options.spec_atom_1 = mol.spec_atom_1
-				options.spec_atom_2 = mol.spec_atom_2
 		else:
-			mol = parse_data.GetData_cclib(name, ext, options.noH,options.spec_atom_1, options.spec_atom_2)
+			if ext in [".xyz", '.com', '.gjf']:
+				mol = parse_data.XYZParser(file, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
+			elif ext == 'rdkit':
+				mol = parse_data.RDKitParser(file, options.noH, options.spec_atom_1, options.spec_atom_2)
+			else:
+				mol = parse_data.cclibParser(file, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
 			if options.noH:
 				options.spec_atom_1 = mol.spec_atom_1
 				options.spec_atom_2 = mol.spec_atom_2
