@@ -31,9 +31,9 @@ def read_input(molecule, ext, options):
 		options.surface = 'density'
 		mol = CubeParser(molecule, "cube")
 	else:
-		# if ext in [".xyz", '.com', '.gjf']:
-		# 	mol = XYZParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
-		if ext == 'rdkit':
+		if ext in [".xyz", '.com', '.gjf']:
+			mol = XYZParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
+		elif ext == 'rdkit':
 			mol = RDKitParser(molecule, options.noH, options.spec_atom_1, options.spec_atom_2)
 		else:
 			mol = cclibParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
