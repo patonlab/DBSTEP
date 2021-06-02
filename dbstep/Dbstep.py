@@ -73,19 +73,7 @@ class dbstep:
 		self._get_spec_atoms(options)
 
 		# Parse coordinate/volumetric information
-		if ext == '.cube':
-			options.surface = 'density'
-			mol = parse_data.CubeParser(file, "cube")
-		else:
-			if ext in [".xyz", '.com', '.gjf']:
-				mol = parse_data.XYZParser(file, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
-			elif ext == 'rdkit':
-				mol = parse_data.RDKitParser(file, options.noH, options.spec_atom_1, options.spec_atom_2)
-			else:
-				mol = parse_data.cclibParser(file, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
-			if options.noH:
-				options.spec_atom_1 = mol.spec_atom_1
-				options.spec_atom_2 = mol.spec_atom_2
+		mol = parse_data.read_input(file, ext, options)
 		
 		if len(mol.ATOMTYPES) <= 1:
 			if mol.FORMAT == 'RDKit-':
