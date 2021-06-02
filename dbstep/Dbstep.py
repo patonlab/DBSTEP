@@ -76,7 +76,7 @@ class dbstep:
 		mol = parse_data.read_input(file, ext, options)
 		
 		if len(mol.ATOMTYPES) <= 1:
-			if mol.FORMAT == 'RDKit-':
+			if mol.FORMAT == 'RDKit':
 				sys.exit("One or zero atoms found in RDKit mol object - Please try again with a different input molecule or add 3D coordinates")
 			else:
 				sys.exit("One or zero atoms found in "+file+" - Please try again with a different input file.")
