@@ -26,8 +26,35 @@ def element_id(massno, num=False):
 		return "XX"
 
 
+def read_input(molecule, ext, options):
+	"""Chooses a Parser based on input molecule format.
+
+	Args:
+		molecule (str or mol object): path to file if molecule represented as one, or RDKit mol object
+		ext (str): file extension used
+		options (dict): options for DBSTEP program
+
+	Returns:
+		DataParser object with parsed molecule data to be used by the rest of the program
+	"""
+	if ext == '.cube':
+		options.surface = 'density'
+		mol = CubeParser(molecule, "cube")
+	else:
+		if ext in [".xyz", '.com', '.gjf']:
+			mol = XYZParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
+		elif ext == 'rdkit':
+			mol = RDKitParser(molecule, options.noH, options.spec_atom_1, options.spec_atom_2)
+		else:
+			mol = cclibParser(molecule, ext[1:], options.noH, options.spec_atom_1, options.spec_atom_2)
+		if options.noH:
+			options.spec_atom_1 = mol.spec_atom_1
+			options.spec_atom_2 = mol.spec_atom_2
+	return mol
+
+
 class DataParser(ABC):
-	""" Abstract base class made to be inherited by parsers for different molecule formats.
+	"""Abstract base class made to be inherited by parsers for different molecule formats.
 
 	Attributes:
 		FORMAT (str): format of the input molecule
@@ -87,7 +114,7 @@ class DataParser(ABC):
 
 
 class CubeParser(DataParser):
-	""" Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data """
+	"""Read data from cube file, obtian XYZ Cartesians, dimensions, and volumetric data."""
 
 	def __init__(self, file, input_format):
 		super().__init__(input_format)
@@ -198,8 +225,7 @@ class cclibParser(DataParser):
 
 
 class RDKitParser(DataParser):
-	"""
-	Extract coordinates and atom types from rdkit mol object
+	"""Extract coordinates and atom types from rdkit mol object
 	
 	Attributes:
 		ATOMTYPES (numpy array): List of elements present in molecular file
