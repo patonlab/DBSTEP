@@ -121,17 +121,23 @@ class CubeParser(DataParser):
 		self.DATA = np.reshape(self.DENSITY, (self.xdim, self.ydim, self.zdim))
 
 	def parse_input(self):
-		"""Parses input from a cube file."""
+		"""Parses input from a cube file.
+
+		http://paulbourke.net/dataformats/cube/ was used to determine general format of a cube file.
+
+		"""
+		self.num_atoms = None
+		self.ATOMNUM, self.DENSITY, self.DENSITY_LINE = [], [], []
 		file_lines = self.file_lines
-		self.ATOMTYPES, self.ATOMNUM, self.CARTESIANS, self.DENSITY, self.DENSITY_LINE = [], [], [], [], []
+		start_of_atoms = 6
+
+		# first two lines skipped as they do not have useful information for this program
 		for i in range(2, len(file_lines)):
 			try:
-				coord = file_lines[i].split()
-				for j in range(len(coord)):
-					try:
-						coord[j] = float(coord[j])
-					except ValueError: pass
+				curr_line = file_lines[i]
+				coord = [float(c) for c in curr_line.split()]
 				if i == 2:
+					self.num_atoms = coord[0]
 					self.ORIGIN = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG, coord[3]*BOHR_TO_ANG]
 				elif i == 3:
 					self.xdim = int(coord[0])
@@ -143,17 +149,31 @@ class CubeParser(DataParser):
 				elif i == 5:
 					self.zdim = int(coord[0])
 					self.z_inc = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
-				elif len(coord) == 5:
-					if coord[0] == int(coord[0]) and isinstance(coord[2], float) and isinstance(coord[3], float) and isinstance(coord[4], float):
-						[atom, x,y,z] = [periodic_table[int(coord[0])], float(coord[2])*BOHR_TO_ANG, float(coord[3])*BOHR_TO_ANG, float(coord[4])*BOHR_TO_ANG]
-						self.ATOMNUM.append(int(coord[0]))
-						self.ATOMTYPES.append(atom)
-						self.CARTESIANS.append([x,y,z])
-				if coord[0] != int(coord[0]):
-					for val in coord:
-						self.DENSITY.append(val)
-					self.DENSITY_LINE.append(file_lines[i])
-			except: pass
+				elif self.num_atoms and start_of_atoms <= i < start_of_atoms + self.num_atoms:
+					self._parse_atom_line(coord)
+				else:
+					self._parse_density_line(coord, curr_line)
+			except:
+				# TODO: catch exceptions and print error messages which are descriptive
+				#  of where in the file the error occurred. Right now, they are passed so
+				#  poorly formed/corrupted cube files may be read in and cause an error
+				#  later in the program.
+				pass
+
+	def _parse_atom_line(self, split_line):
+		"""Parses a line in the cube file containing atom number and coordinates."""
+		atom_num = int(split_line[0])
+		atom = periodic_table[atom_num]
+		x, y, z = float(split_line[2]) * BOHR_TO_ANG, float(split_line[3]) * BOHR_TO_ANG, float(split_line[4]) * BOHR_TO_ANG
+		self.ATOMNUM.append(atom_num)
+		self.ATOMTYPES.append(atom)
+		self.CARTESIANS.append([x, y, z])
+
+	def _parse_density_line(self, split_line, curr_line):
+		"""Appends density values from a line in the cube file to the DENSITY member array."""
+		for val in split_line:
+			self.DENSITY.append(float(val))
+		self.DENSITY_LINE.append(curr_line)
 
 
 class XYZParser(DataParser):
