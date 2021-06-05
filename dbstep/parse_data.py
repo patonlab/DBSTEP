@@ -153,12 +153,10 @@ class CubeParser(DataParser):
 					self._parse_atom_line(coord)
 				else:
 					self._parse_density_line(coord, curr_line)
-			except:
-				# TODO: catch exceptions and print error messages which are descriptive
-				#  of where in the file the error occurred. Right now, they are passed so
-				#  poorly formed/corrupted cube files may be read in and cause an error
-				#  later in the program.
-				pass
+			except ValueError as e:
+				# TODO: make a custom cube file exception to chain ValueError with this error
+				# TODO: handle potentially invalid atom errors
+				sys.exit(f'  Unable to parse \"{self._input}\", a value on line {i + 1} could not be read in.')
 
 	def _parse_atom_line(self, split_line):
 		"""Parses a line in the cube file containing atom number and coordinates."""
