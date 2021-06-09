@@ -53,7 +53,7 @@ def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False
 		else:
 			for i in range(0,len(coords)):
 				newcoord.append(coords[i])
-			if cube_inc != False:
+			if cube_inc is not False:
 				for i in range(0,len(cube_inc)):
 					new_inc.append(cube_inc[i])
 			ml_vec = lig_point - coords[center_id]
