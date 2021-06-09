@@ -74,12 +74,8 @@ class dbstep:
 
 		# Parse coordinate/volumetric information
 		mol = parse_data.read_input(file, ext, options)
-		
-		if len(mol.ATOMTYPES) <= 1:
-			if mol.FORMAT == 'RDKit':
-				sys.exit("One or zero atoms found in RDKit mol object - Please try again with a different input molecule or add 3D coordinates")
-			else:
-				sys.exit("One or zero atoms found in "+file+" - Please try again with a different input file.")
+
+		self._check_num_atoms(mol, file)
 		
 		#flag volume if buried shell requested
 		if options.vshell: options.volume = True
@@ -375,6 +371,7 @@ class dbstep:
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
 
 	def _get_spec_atoms(self, options):
+		"""Gets the specification atoms from input or sets the defaults."""
 		# if atoms are not specified upon input, grab first and second atom in file
 		# allow for multiple ways to specify atoms (H1 or just 1)
 		if not options.spec_atom_1:
@@ -406,10 +403,26 @@ class dbstep:
 						f'{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n'
 						f'\tAn int, comma separated ints, or a python list of ints')
 
+	def _check_num_atoms(self, mol, file):
+		"""Checks if there are enough atoms in the input molecule for the type of calculation being performed."""
+		if self.options.volume:
+			min_atoms = 1
+			calculation = 'volume'
+		else:
+			min_atoms = 2
+			calculation = 'sterimol'
+		num_atoms = len(mol.ATOMTYPES)
+		if num_atoms < min_atoms:
+			if mol.FORMAT == 'RDKit':
+				sys.exit(f"{num_atoms} atom(s) found in RDKit mol object, should have at least {min_atoms} atom(s) for {calculation} calculation.")
+			else:
+				sys.exit(f"{num_atoms} atom(s) found in {file}, should have at least {min_atoms} atom(s) for {calculation} calculation.")
+
 
 class options_add:
-        pass
-		
+	pass
+
+
 def set_options(kwargs):
 	#set default options and options provided
 	options = options_add()
