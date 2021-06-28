@@ -379,27 +379,23 @@ class dbstep:
 		else:
 			try:
 				options.spec_atom_1 = int(options.spec_atom_1)
-			except ValueError:
-				sys.exit(f'{options.spec_atom_1} is not a valid input for atom1. Please enter an integer index.')
+			except Exception as atom1_exception:
+				raise type(atom1_exception)(f'{options.spec_atom_1} is not a valid input for atom1. Please enter an integer index.')
 		# set default for atom 2
 		if not options.spec_atom_2:
 			options.spec_atom_2 = [2]
 		else:
-			try:
-				# check if int was supplied
-				options.spec_atom_2 = [int(options.spec_atom_2)]
-			except ValueError:
-				# check for multiple atoms supplied
+			if isinstance(options.spec_atom_2, str):
 				if ',' in options.spec_atom_2:
-					# list of ints supplied
-					options.spec_atom_2 = [
-						int(s) if s.isdigit()
-						else sys.exit(f'{s} is not a valid input for atom2. Please enter an integer index.')
-						for s in options.spec_atom_2.split(',')]
-				elif isinstance(options.spec_atom_2, list):
-					pass
+					options.spec_atom_2 = options.spec_atom_2.split(',')
 				else:
-					sys.exit(
+					options.spec_atom_2 = [options.spec_atom_2]
+			elif isinstance(options.spec_atom_2, int):
+				options.spec_atom_2 = [options.spec_atom_2]
+			try:
+				options.spec_atom_2 = [int(atom) for atom in options.spec_atom_2]
+			except Exception as atom2_error:
+				raise type(atom2_error)(
 						f'{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n'
 						f'\tAn int, comma separated ints, or a python list of ints')
 
