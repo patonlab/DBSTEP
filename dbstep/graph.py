@@ -55,7 +55,27 @@ def mcgowanHContribs(molH):
     return ccontribs
 
 
-def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
+def make_mol_obj(line):
+    toks = line.split()
+    if len(toks) > 1: # expects a smiles string, followed by a property value on each line
+        # parse structure from input
+        smi, prop = toks[0:2]
+    elif len(toks) == 1:
+        smi = toks[0]
+    mol = Chem.MolFromSmiles(smi)
+
+    if mol is None:
+        print("Warning - Could not parse SMILES for",smi,"\nEvaluating with looser constrictions.")
+        mol = Chem.MolFromSmiles(smi,sanitize=False)
+        mol.UpdatePropertyCache(strict=False)
+        if mol is None:
+            print("Parsing Failed. Skipping this structure")
+            vec_df.append(pd.Series())
+            return None,None
+
+    return mol,prop
+
+def mol_to_vec(input, shared_fg, voltype, max_path_length, verbose=False):
     """
 	mol_to_vec function
 
@@ -64,9 +84,9 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
     functional group.
 
 	arguments:
-        smifile: a file listing SMILES strings, properties can optionally be provided after each string.
-        shared_fg: a SMILES pattern shared by provided SMILES strings, to be used as a reference.
-        voltype: type of volume contributions to measure, current options are "crippen" or "mcgowan".
+        input: a file listing SMILES strings or a mol object - for SMILES strings properties can optionally be provided after each string.
+        shared_fg: a SMILES/SMARTS pattern shared by provided SMILES strings, or atom index to be used as a reference.
+        voltype: type of volume contributions to measure, current options are "crippen", "mcgowan", or "degree".
         max_path_length: number of layers to include contributions from base functional group.
         verbose: print information to terminal.
         
@@ -77,54 +97,50 @@ def mol_to_vec(smifile, shared_fg, voltype, max_path_length, verbose=False):
     # computes the atomic contributions to volume/sterics at discrete number of bond lengths away from a particular atom/functional group
     mollist, y_val, vec_df, columns = [], [], [], []
     [columns.append(str(col)+'_'+voltype.lower()) for col in range(0,max_path_length)]
-    if shared_fg == False:
+    if shared_fg is False:
         sys.exit("Please specify a common functional group pattern as a SMILES string using the --fg argument. Exiting.")
-    for line in open(smifile):
-        toks = line.split()
-        mol2vec = []
-        base_id = None
-        if len(toks) > 1: # expects a smiles string, followed by a property value on each line
-            # parse structure from input
-            smi, prop = toks[0:2]
+    
+    mol_obj = []
+    if isinstance(input,str):
+        # create list of mol objects from smiles strings
+        for line in open(input):
+            mol,prop = make_mol_obj(line)
+            if mol is None: continue
+            mol_obj.append(mol)
             y_val.append(prop)
-        elif len(toks) == 1:
-            smi = toks[0]
-        mollist.append(smi)
-        
-        mol = Chem.MolFromSmiles(smi)
-        
-        if mol is None:
-            print("Warning - Could not parse SMILES for",smi,"\nEvaluating with looser constrictions.")
-            mol = Chem.MolFromSmiles(smi,sanitize=False)
-            mol.UpdatePropertyCache(strict=False)
-            if mol is None:
-                print("Parsing Failed. Skipping this structure")
-                vec_df.append(pd.Series())
-                continue
-                
+    else:
+        # starting with mol objects, add to list
+        mol_obj.append(input)
+    
+    for mol in mol_obj:   
+        mol2vec = []  
         mat = rdmolops.GetDistanceMatrix(mol)
-
-        # the origin is defined by a particular functional group/atom of interest shared by all structures
-        patt = Chem.MolFromSmarts(shared_fg)
-
-        # if a functional group SMILES pattern is specified, the base atom is expected to be first in the smiles string
-        fg_atoms = mol.GetSubstructMatch(patt)
-        if len(fg_atoms) == 0:
-            print("ERR: Functional group",shared_fg,"not found in molecule:",smi)
-            lower_fg = shared_fg.lower()
-            patt = Chem.MolFromSmarts(lower_fg)
+        # If requested indices for functional group use those instead
+        try:
+            base_id = int(shared_fg)
+            fg_atoms = (shared_fg,)
+        except ValueError:
+            # the origin is defined by a particular functional group/atom of interest shared by all structures
+            patt = Chem.MolFromSmarts(shared_fg)
+            # if a functional group SMILES pattern is specified, the base atom is expected to be first in the smiles string
             fg_atoms = mol.GetSubstructMatch(patt)
             if len(fg_atoms) == 0:
-                print("Parsing functional group from this structure failed. Skipping this structure")
-                vec_df.append(pd.Series())
-                continue
-            else:
-                if verbose:
-                    print("Found by parsing functional group as",lower_fg)
-    
-        base_id = mol.GetSubstructMatch(patt)[0]        
+                print("ERR: Functional group",shared_fg,"not found in molecule:",smi)
+                lower_fg = shared_fg.lower()
+                patt = Chem.MolFromSmarts(lower_fg)
+                fg_atoms = mol.GetSubstructMatch(patt)
+                if len(fg_atoms) == 0:
+                    print("Parsing functional group from this structure failed. Skipping this structure")
+                    vec_df.append(pd.Series())
+                    continue
+                else:
+                    if verbose:
+                        print("Found by parsing functional group as",lower_fg)
+        
+            base_id = mol.GetSubstructMatch(patt)[0]        
         
         dist_from_base = mat[base_id]
+        mollist.append(Chem.MolToSmiles(mol))
 
         # This uses Crippen's atomic contributions to molecular refractivity as volumes
         # Atomic contributions to logP are also available ...

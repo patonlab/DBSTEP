@@ -431,6 +431,9 @@ def set_options(kwargs):
 	'debug':['debug',False],'b':['volume',False],'volume':['volume',False],'vshell':['vshell',False],'t': ['timing',False],
 	'timing': ['timing',False],'commandline':['commandline',False],'quiet':['quiet',False],'qsar':['qsar',False],
 	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
+	'graph':['graph',False], 'fg':['shared_fg',False], 'shared_fg':['shared_fg',False],
+	'maxpath':['max_path_length', 9], 'max_path_length':['max_path_length',9],
+	'voltype':['voltype','crippen']
 	}
 
 	for key in var_dict:
