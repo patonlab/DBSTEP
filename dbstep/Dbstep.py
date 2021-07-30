@@ -141,9 +141,13 @@ class dbstep:
 			# the x and y directions are arbitrary
 			if len(mol.CARTESIANS) > 1 and options.norot == False:
 				if options.surface == 'vdw':
-					mol.CARTESIANS = calculator.rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1, point, options)
+					mol.CARTESIANS = calculator.rotate_mol(
+						mol.CARTESIANS, options.spec_atom_1, point,
+						options.verbose, options.atom3)
 				elif options.surface == 'density':
-					mol.CARTESIANS, mol.INCREMENTS = calculator.rotate_mol(mol.CARTESIANS, mol.ATOMTYPES, options.spec_atom_1,  point, options, cube_origin=mol.ORIGIN, cube_inc=mol.INCREMENTS)
+					mol.CARTESIANS, mol.ORIGIN = calculator.rotate_mol(
+						mol.CARTESIANS, options.spec_atom_1, point,
+						options.verbose, options.atom3, cube_origin=mol.ORIGIN)
 
 		# Remove metals from the steric analysis. This is done by default and can be switched off by --addmetals
 		# This can't be done for densities
