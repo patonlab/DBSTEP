@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import math
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import sys
 from dbstep.constants import metals
 
@@ -10,15 +11,6 @@ calculator
 
 Performs calculations for finding angles, translation and rotation of molecules
 """
-	
-def angle_between(v1, v2):
-	""" Returns the angle in radians between vectors 'v1' and 'v2' """
-	v1_u = unit_vector(v1)
-	v2_u = unit_vector(v2)
-	cosang = np.dot(v1_u,v2_u)
-	sinang = np.linalg.norm(np.cross(v1_u,v2_u))
-	ang = np.arctan2(sinang,cosang)
-	return math.degrees(ang)
 
 
 def unit_vector(vector):
@@ -34,164 +26,109 @@ def point_vec(coords, spec_atom_2):
 		point += coords[atom-1]
 		
 	return point
-	
 
-def rotate_mol(coords, atoms, spec_atom_1, lig_point, options, cube_origin=False, cube_inc=False):
-	"""Rotates molecule around X- and Y-axes to align M-L bond to Z-axis"""
-	center_id = spec_atom_1 - 1
-	atom3 = options.atom3
-	
-	try:
-		ml_vec = lig_point - coords[center_id]
-		
-		zrot_angle = angle_between(unit_vector(ml_vec), [0.0, 0.0, 1.0])
-		newcoord=[]
-		new_inc=[]
-		center = [0.,0.,0.]
-		if np.linalg.norm(zrot_angle) == 0:
-			if options.verbose: print("   No rotation necessary :)")
-		else:
-			for i in range(0,len(coords)):
-				newcoord.append(coords[i])
-			if cube_inc is not False:
-				for i in range(0,len(cube_inc)):
-					new_inc.append(cube_inc[i])
-			ml_vec = lig_point - coords[center_id]
-			# ml_vec = coords[lig_id]- coords[center_id]
-			yz = [ml_vec[1],ml_vec[2]]
-			if yz != [0.0,0.0]:
-				u_yz = unit_vector(yz)
-				rot_angle = angle_between(u_yz, [0.0, 1.0])
-				theta = rot_angle /180. * math.pi
-				quadrant_check = math.atan2(u_yz[1],u_yz[0])
-				if quadrant_check > math.pi / 2.0 and quadrant_check <= math.pi:
-					theta = math.pi - theta
-				elif quadrant_check < -math.pi / 2.0 and quadrant_check >= -(math.pi):
-					theta =  math.pi - theta
-				if options.verbose ==True: print('   Rotating molecule about X-axis {0:.2f} degrees'.format(theta*180/math.pi))
 
-				#rotate ligand point
-				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
-				ox = u[0]
-				oy = u[1]*math.cos(theta) - u[2]*math.sin(theta)
-				oz = u[1]*math.sin(theta) + u[2]*math.cos(theta)
-				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
+def rotate_mol(
+		coords, spec_atom_1, end_point,
+		verbose=False, atom3=False, cube_origin=False):
+	"""Aligns spec_atom_1-end_point bond to the z-axis via rotation about the
+	x and y axes.
 
-				for i,atom in enumerate(atoms):
-					#rotate coords around x axis
-					v = [float(coords[i][0]) - center[0], float(coords[i][1]) - center[1], float(coords[i][2]) - center[2]]
-					px = v[0]
-					py = v[1]*math.cos(theta) - v[2]*math.sin(theta)
-					pz = v[1]*math.sin(theta) + v[2]*math.cos(theta)
-					rot1 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
-					newcoord[i] = rot1
+	Args:
+		coords (np.ndarray): 3D coordinates of the all the molecule's atoms
+		spec_atom_1 (int): non-zero based index of the atom we're looking down
+		end_point (np.ndarray): 3D coordinate of the atom we're looking to
+		verbose (bool): should information about rotation be printed or not
+		atom3 (int, optional): atom to specify rotation around z axis to align atom3 to the positive x direction & y=0
+		cube_origin (np.ndarray, optional): origin a cube file
 
-				if cube_inc is not False:
-					for i in range(len(cube_inc)):
-						center = cube_origin
-						#rotate coords around x axis
-						w = [float(cube_inc[i][0]) - center[0], float(cube_inc[i][1]) - center[1], float(cube_inc[i][2]) - center[2]]
-						qx = w[0]
-						qy = w[1]*math.cos(theta) - w[2]*math.sin(theta)
-						qz = w[1]*math.sin(theta) + w[2]*math.cos(theta)
-						rot1 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
-						new_inc[i] = rot1
+	Returns:
+		Rotated version of coords and cube_origin (if provided).
+	"""
 
-			newcoord = np.asarray(newcoord)
+	atom_1_index = spec_atom_1 - 1
+	intersecting_vector = end_point - coords[atom_1_index]
 
-			ml_vec = lig_point - newcoord[center_id]
-			# ml_vec = newcoord[lig_id] - newcoord[center_id]
-			zx = [ml_vec[2],ml_vec[0]]
-			if zx != [0.0,0.0]:
-				u_zx = unit_vector(zx)
-				rot_angle = angle_between(zx, [1.0, 0.0])
-				phi = rot_angle /180. * math.pi
-				quadrant_check = math.atan2(u_zx[1],u_zx[0])
-				if quadrant_check > 0 and quadrant_check <= math.pi:
-					phi = 2 * math.pi - phi
-				if options.verbose ==True: print('   Rotating molecule about Y-axis {0:.2f} degrees'.format(phi*180/math.pi))
+	new_coords = np.copy(coords)
+	new_cube_origin = np.copy(cube_origin)
 
-				u = [float(lig_point[0]) - center[0], float(lig_point[1]) - center[1], float(lig_point[2]) - center[2]]
-				ox = u[2]*math.sin(phi) + u[0]*math.cos(phi)
-				oy = u[1]
-				oz = u[2]*math.cos(phi) - u[0]*math.sin(phi)
-				lig_point = [round(ox + center[0],8), round(oy + center[1],8), round(oz + center[2],8)]
+	yaw, pitch, roll = 0, 0, 0
 
-				for i,atom in enumerate(atoms):
-					center = [0.,0.,0.]
-					#rotate coords around y axis
-					v = [float(newcoord[i][0]) - center[0], float(newcoord[i][1]) - center[1], float(newcoord[i][2]) - center[2]]
-					px = v[2]*math.sin(phi) + v[0]*math.cos(phi)
-					py = v[1]
-					pz = v[2]*math.cos(phi) - v[0]*math.sin(phi)
-					rot2 = [round(px + center[0],8), round(py + center[1],8), round(pz + center[2],8)]
-					newcoord[i]=rot2
+	yaw = angle_between_axis(intersecting_vector, 1, 2)
+	if yaw != 0:
+		print_rotation_info('x', yaw, verbose)
+		end_point = apply_rotation(end_point, np.array([yaw, 0, 0]))
+		intersecting_vector = end_point - coords[atom_1_index]
 
-				if cube_inc is not False:
-					for i in range(len(cube_inc)):
-						center = cube_origin
-						w = [float(new_inc[i][0]) - center[0], float(new_inc[i][1]) - center[1], float(new_inc[i][2]) - center[2]]
-						qx = w[2]*math.sin(phi) + w[0]*math.cos(phi)
-						qy = w[1]
-						qz = w[2]*math.cos(phi) - w[0]*math.sin(phi)
-						rot2 = [round(qx + center[0],8), round(qy + center[1],8), round(qz + center[2],8)]
-						new_inc[i]=rot2
-			newcoord = np.asarray(newcoord)
-			
-			#if a third atom requested, rotate around z axis to align atom3 to the positive x direction & y=0
-			if atom3 != False:
-				#get atom 2-3 vector
-				for n, atom in enumerate(atoms):
-					if atom+str(n+1) == atom3:
-						atom3_id = n
-				
-				atom23_vec = newcoord[atom3_id] - lig_point
-				xy =[atom23_vec[0],atom23_vec[1]]
-				if xy != [0.0,0.0]:
-					u_xy = unit_vector(xy)
-					rot_angle = angle_between(xy, [1.0, 0.0])
-					phi = rot_angle /180. * math.pi
-					quadrant_check = math.atan2(u_xy[1],u_xy[0])
-					if quadrant_check > 0 and quadrant_check <= math.pi:
-						phi = 2 * math.pi - phi
-					if options.verbose ==True: print('   Rotating molecule about Z-axis {0:.2f} degrees'.format(phi*180/math.pi))
-			
-					for i,atom in enumerate(atoms):
-						center = [0.,0.,0.]
-						#rotate coords around z axis
-						v = [float(newcoord[i][0]) - center[0], float(newcoord[i][1]) - center[1], float(newcoord[i][2]) - center[2]]
-						px = v[0]*math.cos(phi) - v[1]*math.sin(phi)
-						py = v[0]*math.sin(phi) + v[1]*math.cos(phi)
-						pz = v[2]
-						rot2 = [round(px,8), round(py,8), round(pz,8)]
-						newcoord[i]=rot2
-			
-					if cube_inc is not False:
-						for i in range(len(cube_inc)):
-							#center = cube_origin
-							w = [float(new_inc[i][0]) - center[0], float(new_inc[i][1]) - center[1], float(new_inc[i][2]) - center[2]]
-							qx = w[0]*math.cos(phi) - w[1]*math.sin(phi)
-							qy = w[0]*math.sin(phi) + w[1]*math.cos(phi)
-							qz = w[2]
-							rot2 = [round(qx,8), round(qy,8), round(qz,8)]
-							new_inc[i]=rot2
-				newcoord = np.asarray(newcoord)
-		if len(newcoord) !=0:
-			if cube_inc is not False:
-				return newcoord, np.asarray(new_inc)
-			else:
-				return newcoord
-		else:
-			if cube_inc is not False:
-				return coords, cube_inc
-			else:
-				return coords
+	pitch = angle_between_axis(intersecting_vector, 0, 2)
+	if pitch != 0:
+		print_rotation_info('y', pitch, verbose)
+		end_point = apply_rotation(end_point, np.array([0, pitch, 0]))
 
-	except Exception as e:
-		print("\nRotation Error: ",e)
-	return coords
+	if atom3 is not False:
+		atom3_coords = coords[int(atom3) - 1]
+		intersecting_vector = atom3_coords - end_point
+		roll = angle_between_axis(intersecting_vector, 1, 0)
+		if roll != 0:
+			roll = check_rotated_atom3_x_direction(atom3_coords, roll)
+			print_rotation_info('z', roll, verbose)
 
-	
+	if yaw != 0 or pitch != 0 or roll != 0:
+		# rotation of all of coords done here
+		three_rotations = np.array([yaw, pitch, roll])
+		new_coords = apply_rotation(new_coords, three_rotations)
+		if cube_origin is not False:
+			# effectively rotates whole grid that will be generated later
+			new_cube_origin = apply_rotation(cube_origin, three_rotations)
+	else:
+		if verbose:
+			print("   No rotation necessary :)")
+
+	if cube_origin is False:
+		return new_coords
+	else:
+		return new_coords, new_cube_origin
+
+
+def angle_between_axis(vector, axis_from_index, axis_to_index):
+	""" Returns the angle in radians needed to rotate axis_from to be parallel to axis_to. """
+	v1_u = unit_vector(np.array(vector))
+
+	angle = np.arctan2(v1_u[axis_from_index], v1_u[axis_to_index])
+
+	# I've found through testing that these from-to combinations need their
+	# rotations sign to be reversed.
+	reverse_angle_combinations = [(0, 2), (1, 0), (2, 1)]
+	if (axis_from_index, axis_to_index) in reverse_angle_combinations:
+		angle = -angle
+
+	return angle
+
+
+def print_rotation_info(axis, radians, verbose):
+	"""Prints rotation information if verbose and radians is non-zero."""
+	if verbose:
+		print(
+			f'   Rotating molecule about {axis}-axis '
+			f'{np.degrees(radians):.2f} degrees.')
+
+
+def apply_rotation(item_to_rotate, radians):
+	"""Rotates a vector or matrix about x, y and z axes specified by radians array."""
+	rot = R.from_euler('xyz', radians)
+	return np.round(rot.apply(item_to_rotate), 8)
+
+
+def check_rotated_atom3_x_direction(atom3_coords, roll):
+	"""If x is in negative direction, subtract or add pi to roll and return the result."""
+	new_atom3_coords = apply_rotation(atom3_coords, np.array([0, 0, roll]))
+
+	if new_atom3_coords[0] < 0:
+		plus_pi, minus_pi = roll + np.pi, roll - np.pi
+		roll = plus_pi if abs(plus_pi) < abs(minus_pi) else minus_pi
+	return roll
+
+
 def translate_mol(MOL, options, origin):
 	"""# Translates molecule to place center atom at cartesian origin [0,0,0]"""
 	coords, atoms, spec_atom = MOL.CARTESIANS, MOL.ATOMTYPES, options.spec_atom_1
