@@ -433,7 +433,7 @@ def set_options(kwargs):
 	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
 	'graph':['graph',False], 'fg':['shared_fg',False], 'shared_fg':['shared_fg',False],
 	'maxpath':['max_path_length', 9], 'max_path_length':['max_path_length',9],
-	'voltype':['voltype','crippen']
+	'voltype':['voltype','crippen'], 'visv':['visv','circle'], 'viss':['viss',False]
 	}
 
 	for key in var_dict:
