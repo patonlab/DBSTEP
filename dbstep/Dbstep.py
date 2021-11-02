@@ -126,7 +126,7 @@ class dbstep:
 			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface)); exit()
 
 		# Translate molecule to place atom1 at the origin
-		if options.surface == 'vdw' and options.sterimol or options.volume:
+		if options.surface == 'vdw' and (options.sterimol or options.volume):
 			mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
 		elif options.surface == 'density':
 			[mol.CARTESIANS,mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
@@ -276,7 +276,7 @@ class dbstep:
 			# define the grid points containing the molecule
 			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
 			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
-			occ_grid,occ_vol = sterics.occupied_dens(grid, mol.DENSITY, options)
+			occ_grid, occ_vol, point_tree = sterics.occupied_dens(grid, mol.DENSITY, options)
 			
 			#adjust sizing of grid to fit sphere if necessary
 			if options.volume:
