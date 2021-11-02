@@ -70,7 +70,6 @@ def make_mol_obj(line):
         mol.UpdatePropertyCache(strict=False)
         if mol is None:
             print("Parsing Failed. Skipping this structure")
-            vec_df.append(pd.Series())
             return None,None
 
     return mol,prop
@@ -125,7 +124,7 @@ def mol_to_vec(input, shared_fg, voltype, max_path_length, verbose=False):
             # if a functional group SMILES pattern is specified, the base atom is expected to be first in the smiles string
             fg_atoms = mol.GetSubstructMatch(patt)
             if len(fg_atoms) == 0:
-                print("ERR: Functional group",shared_fg,"not found in molecule:",smi)
+                print("ERR: Functional group",shared_fg,"not found in molecule:",input)
                 lower_fg = shared_fg.lower()
                 patt = Chem.MolFromSmarts(lower_fg)
                 fg_atoms = mol.GetSubstructMatch(patt)
