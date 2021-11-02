@@ -124,7 +124,10 @@ def occupied_dens(grid, dens, options):
 		if density > isoval: list.append(n)
 	occ_vol = len(list) * spacing ** 3
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
-	return grid[list],occ_vol
+
+	# quick fix to allow %Vbur calculations on cube files
+	point_tree = spatial.cKDTree(grid, balanced_tree=False, compact_nodes=False)
+	return grid[list], occ_vol, point_tree
 
 
 def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
@@ -310,7 +313,7 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 	#if doing a scan, use scan radius for volume
 	if strip_width != 0.0: R = rad
 	else: R = options.radius
-	
+
 	spacing = options.grid
 	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
 	cube = spacing ** 3 # cube 
