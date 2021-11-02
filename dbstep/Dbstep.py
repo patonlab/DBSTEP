@@ -154,16 +154,6 @@ class dbstep:
 		if options.surface == 'vdw':
 			
 			# Find maximum horizontal and vertical directions (coordinates + vdw) in which the molecule is fully contained
-			# First remove any atoms that have been requested to be removed from the analysis
-			if options.exclude != False:
-				del_atom_list = [int(atom) for atom in options.exclude.split(',')]
-				for del_atom in sorted(del_atom_list, reverse=True):
-					try:
-						mol.ATOMTYPES = np.delete(mol.ATOMTYPES,del_atom-1)
-						mol.CARTESIANS = np.delete(mol.CARTESIANS,del_atom-1, axis=0)
-						mol.RADII = np.delete(mol.RADII,del_atom-1)
-					except:
-						print("   WARNING! Unable to remove the atoms requested")
 			
 			#remove metals
 			for i, atom in enumerate(mol.ATOMTYPES):
