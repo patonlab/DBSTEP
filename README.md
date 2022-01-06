@@ -152,7 +152,7 @@ A visualization of these parameters can be shown in the program PyMOL using the 
  
     When invoking the --volume and --scan parameters simultaneously, vol2vec parameters can be obtained. In this case, a scan is performed using spheres with radii from 2.0A to 4.0A in 0.5A increments. 
  ```
- >>>python -m dbstep examples/CHiPr2.xyz --atom2 2 --volume --scan 2.0:4.0:0.5
+ >>>python -m dbstep examples/CHiPr2.xyz --atom1 1 --volume --scan 2.0:4.0:0.5
 
       R/Å     %V_Bur     %S_Bur
      2.00      89.45      64.59 
