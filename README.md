@@ -119,13 +119,13 @@ A visualization of these parameters can be shown in the program PyMOL using the 
 ```
 >>>python -m dbstep examples/Ph.xyz --sterimol --atom1 1 --atom2 2 --scan 0.0:6.0:1.0
 
-    Ph.xyz / R:  0.00 / Bmin:  1.55 / Bmax:  2.86 
-    Ph.xyz / R:  0.50 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  0.00 / Bmin:  1.65 / Bmax:  3.16 
     Ph.xyz / R:  1.00 / Bmin:  1.65 / Bmax:  3.16 
-    Ph.xyz / R:  1.50 / Bmin:  1.65 / Bmax:  3.16 
-    Ph.xyz / R:  2.00 / Bmin:  1.65 / Bmax:  3.15 
-    Ph.xyz / R:  2.50 / Bmin:  1.65 / Bmax:  2.91 
+    Ph.xyz / R:  2.00 / Bmin:  1.65 / Bmax:  3.16 
     Ph.xyz / R:  3.00 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  4.00 / Bmin:  1.65 / Bmax:  3.16 
+    Ph.xyz / R:  5.00 / Bmin:  1.65 / Bmax:  3.11 
+    Ph.xyz / R:  6.00 / Bmin:  1.15 / Bmax:  1.17 
 
     L parameter is  5.95 Ang
 
@@ -155,11 +155,11 @@ A visualization of these parameters can be shown in the program PyMOL using the 
  >>>python -m dbstep examples/CHiPr2.xyz --atom1 1 --volume --scan 2.0:4.0:0.5
 
       R/Å     %V_Bur     %S_Bur
-     2.00      89.45      64.59 
-     2.50      73.56      53.69
-     3.00      63.83      44.40
-     3.50      53.41      26.75
-     4.00      41.61       9.59
+     2.00      58.27      49.54
+     2.50      53.53      46.14
+     3.00      48.78      38.11
+     3.50      43.37      29.19
+     4.00      36.73      16.81
  ```
  
  5. 2D Additive sterics
