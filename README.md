@@ -92,7 +92,7 @@ Examples for obtaining Sterimol, Sterimol2Vec, Percent Buried Volume and Vol2Vec
 ```
 >>>python -m dbstep examples/Et.xyz  --sterimol --atom1 2 --atom2 5
 
-     Et.xyz / Bmin:  1.70 / Bmax:  3.25 / L:  2.15
+     Et.xyz / Bmin:  1.98 / Bmax:  2.13 / L:  3.20
 ```
     where Et.xyz looks like: 
 ```
