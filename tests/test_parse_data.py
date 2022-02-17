@@ -15,7 +15,7 @@ xyz_dir = 'dbstep/examples/'
 @pytest.mark.parametrize("molecule, ext, expected_len, options", [
 		(xyz_dir + "Et.xyz", ".xyz", 8, get_options()),
 		(cube_dir + "CH2CMe3_100.cube", ".cube", 17, get_options()),
-		(xyz_dir + "Et.xyz", ".xyz", 2, get_options(True)),
+		(xyz_dir + "Et.xyz", ".xyz", 3, get_options(True)),
 		(cube_dir + "CH2CMe3_100.cube", ".cube", 17, get_options(True))
 	])
 def test_read_input_len(molecule, ext, expected_len, options):
