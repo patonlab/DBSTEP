@@ -20,7 +20,7 @@ import numpy as np
 from optparse import OptionParser
 
 from dbstep import sterics, parse_data, calculator, writer
-from dbstep.constants import periodic_table, bondi, metals
+from dbstep.constants import periodic_table, bondi, metals, kB, AU_TO_J
 
 class dbstep:
 	"""
@@ -59,6 +59,11 @@ class dbstep:
 
 		file = self.file
 		options = self.options
+
+		if options.multi:
+			ensemble = self._calc_ensemble(file,options)
+			self._summarize_ensemble(ensemble)
+			return
 
 		start = time.time()
 		spheres, cylinders = [], []
@@ -407,6 +412,83 @@ class dbstep:
 				sys.exit(f"{num_atoms} atom(s) found in RDKit mol object, should have at least {min_atoms} atom(s) for {calculation} calculation.")
 			else:
 				sys.exit(f"{num_atoms} atom(s) found in {file}, should have at least {min_atoms} atom(s) for {calculation} calculation.")
+	
+	def _calc_ensemble(self,file,options):
+		"""Parse data and compute sterics from a CENSO multi-conformer XYZ"""
+		ext = 'multi'
+		structs = parse_data(file, ext, options) #returns list of structs 
+		options.multi = False
+		ensemble = []
+		for mol in structs: #make sure this is looping through structures
+			sterics = dbstep(mol,options=options)
+			ensemble.append(sterics)
+		
+		#get properties
+		properties = {}
+		if options.volume:
+			properties['bur_vol'] = [sterics.bur_vol for sterics in ensemble]
+			properties['bur_shell'] = [sterics.bur_shell for sterics in ensemble]
+		if options.sterimol:
+			properties['L'] =[sterics.L for sterics in ensemble]
+			properties['Bmin'] =[sterics.Bmin for sterics in ensemble]
+			properties['Bmax'] =[sterics.Bmax for sterics in ensemble]
+		#self.properties = properties
+		
+		energy = structs.energy
+		min_e_idx = np.argmin(energy)
+
+		property_summary = {}
+		
+		if options.scan:
+			for key in properties.keys():
+				if key == 'L': continue 
+				property_summary[key+'_boltz'] = [_get_boltz_avg(properties[key][:,i],energy) for i in range(len(properties[key][0]))]
+				property_summary[key+'_min'] = [min(properties[key][:,i]) for i in range(len(properties[key][0]))]
+				property_summary[key+'_max'] = [max(properties[key][:,i]) for i in range(len(properties[key][0]))]
+				property_summary[key+'_low'] = properties[key][min_e_idx]
+			# l is never a list
+			property_summary['L_boltz'] = _get_boltz_avg(properties['L'],energy)
+			property_summary['L_min'] = min(properties['L'])
+			property_summary['L_max'] = max(properties['L'])
+			property_summary['L_low'] = properties['L'][min_e_idx]
+		else:
+			for key in properties.keys():
+				property_summary[key+'_boltz'] = _get_boltz_avg(properties[key],energy)
+				property_summary[key+'_min'] = min(properties[key])
+				property_summary[key+'_max'] = max(properties[key])
+				property_summary[key+'_low'] = properties[key][min_e_idx]
+
+	def _get_boltz_avg(self,prop,energy):
+		T = self.options.temperature
+		min_e = sys.float_info.max
+		for e in energy:
+			if e < min_e:
+				min_e = e
+		energy = energy - min_e
+		boltz_sum = np.sum(np.exp(-e * AU_TO_J  / kB / T))
+		weights = np.exp(-e * AU_TO_J /(kB*T)) / boltz_sum
+		boltz_avg = 0.0
+		for i,p in enumerate(prop):
+			boltz_avg += p * weights[i]
+		return boltz_avg
+
+	def _summarize_ensemble(self,structs,ensemble):
+		#get energy from structs
+		energy = structs.energy
+		for sterics in ensemble:
+			if self.options.sterimol:
+				1.0
+				# avg serimol and scans 
+			if self.options.volume:
+				1.0
+				# avg vols and vol scans
+
+		if self.options.verbose:
+			print('ensemble averages')
+
+		#get sterics from ensemble 
+		
+		
 
 
 class options_add:
@@ -427,7 +509,8 @@ def set_options(kwargs):
 	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
 	'graph':['graph',False], 'fg':['shared_fg',False], 'shared_fg':['shared_fg',False],
 	'maxpath':['max_path_length', 9], 'max_path_length':['max_path_length',9],
-	'voltype':['voltype','crippen'], 'visv':['visv','circle'], 'viss':['viss',False]
+	'voltype':['voltype','crippen'], 'visv':['visv','circle'], 'viss':['viss',False],
+	'multi':['multi',False],'m':['multi',False],
 	}
 
 	for key in var_dict:
@@ -458,6 +541,8 @@ def main():
 	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
 	parser.add_option("--norot",dest='norot',action="store_true",help="Do not rotate the molecules (use if structures have been pre-aligned)",default=False)
 	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.05, type=float, metavar="grid")
+	parser.add_option("-m","--multi", dest="multi", action="store", help="Parse multiple structures from an xyz file", default=False, metavar="multi")
+	parser.add_option("--temp",dest="temperature",action="store", help="Set temperature (K) for Boltzmann ensemble calculations (to be used with --multi option) (default=298.15)", default=298.15)
 	parser.add_option("--2d", dest="graph",action="store_true", help="[2D sterics only] Specify input text file containing SMILES strings to analyze 2D contributions",default=False)
 	parser.add_option("--fg",  dest="shared_fg", action="store", default=False, help="[2D sterics only] SMILES pattern (e.g. 'C(O)=O') of a shared functional group or atom - this is used to define the origin")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics only] Maximum path length (bonds) along which to include steric contributions (Default: 9)")

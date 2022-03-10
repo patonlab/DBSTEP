@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 import os, sys
+from re import L
 import numpy as np
 import cclib
 from abc import ABC, abstractmethod
@@ -35,8 +36,10 @@ def read_input(molecule, ext, options):
 			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
 		elif ext == 'rdkit':
 			mol = RDKitParser(molecule, options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
+		elif ext == 'multi':
+			mol = cclibParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, multi=True)
 		else:
-			mol = cclibParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
+			mol = cclibParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2,multi=False)
 		if options.noH or options.exclude:
 			options.spec_atom_1 = mol.spec_atom_1
 			options.spec_atom_2 = mol.spec_atom_2
@@ -58,7 +61,7 @@ class DataParser(ABC):
 		file_lines (list of str, optional): each line of the file
 	"""
 
-	def __init__(self, _input, input_format, noH=False, exclude=False, spec_atom_1=None, spec_atom_2=None, manual_file_lines=False):
+	def __init__(self, _input, input_format, noH=False, exclude=False, spec_atom_1=None, spec_atom_2=None, manual_file_lines=False, multi=False):
 		"""Initializes basic member variables and lays out the ordering of method calls.
 
 		Args:
@@ -69,6 +72,7 @@ class DataParser(ABC):
 			spec_atom_1 (int, optional): specifies atom1
 			spec_atom_2 (list of int, optional): contains atom2(s)
 			manual_file_lines (bool, optional): to parse _input line by line manually using get_file_lines or not
+			multi (bool, optional): multi-conformer ensemble file, parse coordinate and energy information
 		"""
 		self._input, self.FORMAT = _input, input_format
 		self.ATOMTYPES, self.CARTESIANS = [], []
@@ -77,6 +81,8 @@ class DataParser(ABC):
 		self.spec_atom_1, self.spec_atom_2 = spec_atom_1, spec_atom_2
 		if manual_file_lines:
 			self.file_lines = DataParser.get_file_lines(_input)
+		self.multi=multi
+		if self.multi: self.energy = []
 		self.parse_input()
 		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
 		if (self.noH or self.exclude) and self.FORMAT != 'cube':
@@ -250,13 +256,20 @@ class XYZParser(DataParser):
 			
 class cclibParser(DataParser):
 	"""Use the cclib package to extract data from generic computational chemistry output files."""
-	def __init__(self, file, input_format, noH, exclude,  spec_atom_1, spec_atom_2):
-		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2)
+	def __init__(self, file, input_format, noH, exclude,  spec_atom_1, spec_atom_2, multi):
+		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2, multi)
 
 	def parse_input(self):
 		"""Parses input file uses cclib file parser."""
 		cclib_parsed = cclib.io.ccread(self._input)
-		self.CARTESIANS = np.array(cclib_parsed.atomcoords[-1])
+		# handle multi-conformer xyz files
+		if self.multi:
+			self.CARTESIANS = np.array(cclib_parsed.atomcoords)
+			for line in cclib_parsed.metadata['comments']:
+				self.energy.append(float(line.strip().split()[1]))
+			self.energy = np.array(self.energy)
+		else:
+			self.CARTESIANS = np.array(cclib_parsed.atomcoords[-1])
 		for i in cclib_parsed.atomnos:
 			self.ATOMTYPES.append(periodic_table[i])
 
