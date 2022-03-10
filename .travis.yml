@@ -1,12 +1,17 @@
 language: python
 python:
-  - '3.9'
-  - '3.8'
-  - '3.7'
-  - '3.6'
+- '3.9'
+- '3.8'
+- '3.7'
+- '3.6'
 install:
-  - pip install -r dbstep/requirements.txt
-  - pip install .
-# command to run tests
+- pip install -r dbstep/requirements.txt
+- pip install .
 script:
-  - pytest -v
+- pytest -v
+deploy:
+  provider: pypi
+  passsword:
+    secure: R8eXy20dczo5M3qmbwcMhdHhg839JuVW/Ae17sJqYMcVp/HKrbkdkvV+0v3oSJLSObIa4PqjBUFuByk+6jjJAse0BV8OfrPFKvwzEdt1KjZ249ZR7/ELtZwlI8+2nJRXpU8vTGrRbT2pvjvi+iUVXV5lQMPqEf6IULxXz4DyyB2vp80dtfIMxwrf0JJsIvI9CjLYiSGsN8+AtRTlQwxmdFp0Rk/BF8hyPGv3n1PzwB/heASEU5ZN9ZXwQ7SBomwK2R1ZahHw9KDz8fUdCLSJjbsOx8edMfqORVs4GplSRrvafrgfgOv8ZCXEOwg3/dUYywYTUfAuiN4UaeiNYmBEWKkzl51UnyM01Q8s6fAemoNvIlHmldI8eIR3yxV/imjGwzN9xUdvM5nKLWxQVmT4SJzLRm6AlCCs2jR2nKQ3138Jby54vFunIRe2Eb+VKyrg2a4qNjsELTrI4UGp6GKUCSRH7w5YNxvc+6bXtOO79AY38O+bqGDIKYUnVR+lrEggQdhxiEA9Eelsk+vZ9A39krzHErlmS+8SvQPQ8/K7mPzEQxIXdoLTUSufCA13lqocKIRj3zwVvc67VOL2XpDVNmjAnySb/yHRXmsR0K9w40srSQtyO3Dcsllsg088R/FITDfNRfkqof9eGY/YQRUlf6VSUAt1y1LG1BzRe4c2aEw=
+  on:
+    tags: true
