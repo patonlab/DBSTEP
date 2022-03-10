@@ -19,7 +19,7 @@ bondi = {"Bq": 0.00, "H": 1.09,"He": 1.40,
 	"Cs":3.43,"Ba":2.68,"Pt":1.72,"Au":1.66,"Hg":1.55,"Tl":1.96,"Pb":2.02,"Bi":2.07,"Po":1.97,"At":2.02,"Rn":2.20,
 	"Fr":3.48,"Ra":2.83, "U":1.86 }
 
-periodic_table = ["","H","He","Li","Be","B","C","N","O","F","Ne",
+periodic_table = ["Bq","H","He","Li","Be","B","C","N","O","F","Ne",
 	"Na","Mg","Al","Si","P","S","Cl","Ar",
 	"K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn","Ga","Ge","As","Se","Br","Kr",
 	"Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd","In","Sn","Sb","Te","I","Xe",
@@ -36,3 +36,5 @@ isovals = {"Bq": 0.00, "H": .00475}
 # Values
 
 BOHR_TO_ANG = 0.529177249
+kB = 8.3144621  # J / K / mol
+AU_TO_J = 2625.5 * 1000
