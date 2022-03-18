@@ -44,7 +44,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 
 #### Conda and PyPI (`pip`)
 - Install using conda
-    `conda install -c patonlab dbstep`
+    `conda install -c conda-forge dbstep`
 - Or using pip
     `pip install dbstep`
 
