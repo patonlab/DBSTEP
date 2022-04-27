@@ -51,7 +51,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 ## Citing DBSTEP
 Please reference the DOI of our Zenodo repository with:
 ```
-Luchini, G.; Paton, R. S. DBSTEP: DFT Based Steric Parameters. 2021, DOI: 10.5281/zenodo.4702097
+Luchini, G.; Patterson, T.; Paton, R. S. DBSTEP: DFT Based Steric Parameters. 2022, DOI: 10.5281/zenodo.4702097
 ```
 
 ## Usage 
@@ -191,7 +191,7 @@ CCC(C)C(O)=O
 
  ### Acknowledgements
  
-  This work is developed by Guilian Luchini and Robert Paton and is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
+  This work is developed by Guilian Luchini, Toby Patterson and Robert Paton and is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
   
   <img src="https://www.nsf.gov/images/logos/NSF_4-Color_bitmap_Logo.png" width="50" height="50"> <img src="https://pbs.twimg.com/profile_images/1168617043106521088/SOLQaZ8M_400x400.jpg" width="50" height="50"> 
   
