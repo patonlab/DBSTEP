@@ -4,7 +4,7 @@
 # DBSTEP
 DFT-based Steric Parameters 
 
-[![DOI](https://zenodo.org/badge/198946518.svg)](https://zenodo.org/badge/latestdoi/198946518) [![PyPI version](https://badge.fury.io/py/dbstep.svg)](https://badge.fury.io/py/dbstep) <a href="https://conda.anaconda.org/patonlab"> <img src="https://anaconda.org/patonlab/dbstep/badges/installer/conda.svg" /> </a> 
+[![DOI](https://zenodo.org/badge/198946518.svg)](https://zenodo.org/badge/latestdoi/198946518) [![PyPI version](https://badge.fury.io/py/dbstep.svg)](https://badge.fury.io/py/dbstep) [![Conda Version](https://img.shields.io/conda/vn/conda-forge/dbstep.svg)](https://anaconda.org/conda-forge/dbstep) </a> 
 [![Build Status](https://app.travis-ci.com/patonlab/DBSTEP.svg?branch=master)](https://app.travis-ci.com/github/patonlab/DBSTEP)
 
 Allows a user to compute steric parameters from chemical structures. 
