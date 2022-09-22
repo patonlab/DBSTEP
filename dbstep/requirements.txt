@@ -1,4 +1,3 @@
-setuptools==60.8.2
 numpy
 numba
 scipy
