@@ -5,7 +5,7 @@ python:
 - '3.7'
 - '3.6'
 install:
-- pip install -U setuptools importlib-metadata
+- pip install -U setuptools
 - pip install -r dbstep/requirements.txt
 - pip install .
 script:
