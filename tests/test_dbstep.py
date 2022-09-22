@@ -92,19 +92,19 @@ class TestAgainstVerloop:
 		NOTE: I decided to give each parameter their own tolerance variable so they can
 		be changed in isolation.
 	"""
-	setup = SetupAgainstVerloop()
+	sav = SetupAgainstVerloop()
 
-	@pytest.mark.parametrize("name, verloop_l, dbstep_l", setup.file_names_and_ls)
+	@pytest.mark.parametrize("name, verloop_l, dbstep_l", sav.file_names_and_ls)
 	def test_l_against_verloop(self, name, verloop_l, dbstep_l):
 		tolerance = 0.01
 		self.compare_with_tolerance(verloop_l, dbstep_l, tolerance)
 
-	@pytest.mark.parametrize("name, verloop_b1, dbstep_b1", setup.file_names_and_b1s)
+	@pytest.mark.parametrize("name, verloop_b1, dbstep_b1", sav.file_names_and_b1s)
 	def test_b1_against_verloop(self, name, verloop_b1, dbstep_b1):
 		tolerance = 0.01
 		self.compare_with_tolerance(verloop_b1, dbstep_b1, tolerance)
 
-	@pytest.mark.parametrize("name, verloop_b5, dbstep_b5", setup.file_names_and_b5s)
+	@pytest.mark.parametrize("name, verloop_b5, dbstep_b5", sav.file_names_and_b5s)
 	def test_b5_against_verloop(self, name, verloop_b5, dbstep_b5):
 		tolerance = 0.01
 		self.compare_with_tolerance(verloop_b5, dbstep_b5, tolerance)

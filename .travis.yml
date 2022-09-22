@@ -1,10 +1,11 @@
 language: python
 python:
-- '3.9.7'
+- '3.9'
 - '3.8'
 - '3.7'
 - '3.6'
 install:
+- pip install -U setuptools importlib-metadata
 - pip install -r dbstep/requirements.txt
 - pip install .
 script:
