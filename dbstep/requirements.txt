@@ -1,4 +1,4 @@
-importlib_metadata==4.2.0
+importlib_metadata==4.12
 numpy
 numba
 scipy
