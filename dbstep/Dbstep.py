@@ -374,7 +374,9 @@ class dbstep:
 			try:
 				options.spec_atom_1 = int(options.spec_atom_1)
 			except Exception as atom1_exception:
-				raise type(atom1_exception)(f'{options.spec_atom_1} is not a valid input for atom1. Please enter an integer index.')
+				raise type(atom1_exception)(f'{options.spec_atom_1} is not a valid input for atom1. Please enter a positive integer index.')
+			if options.spec_atom_1 <= 0:
+				sys.exit(f'{options.spec_atom_1} is not a valid input for atom1. DBSTEP uses 1-indexed numbers, please enter a positive integer index.')
 		# set default for atom 2
 		if not options.spec_atom_2:
 			options.spec_atom_2 = [2]
@@ -392,6 +394,9 @@ class dbstep:
 				raise type(atom2_error)(
 						f'{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n'
 						f'\tAn int, comma separated ints, or a python list of ints')
+			for a2 in options.spec_atom_2:
+				if a2 <= 0:
+					sys.exit(f'{a2} is not a valid input for atom2. DBSTEP uses 1-indexed numbers, please enter a positive integer index.')
 
 	def _check_num_atoms(self, mol, file):
 		"""Checks if there are enough atoms in the input molecule for the type of calculation being performed."""
