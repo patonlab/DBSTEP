@@ -1,4 +1,4 @@
-importlib_metadata==4.12
+setuptools==60.8.2
 numpy
 numba
 scipy
