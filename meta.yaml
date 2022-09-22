@@ -15,18 +15,14 @@ build:
 
 requirements:
   host:
-    - cclib
-    - numba 0.52
-    - numpy 1.19
     - pip
     - python
-    - scipy 1.6
   run:
     - cclib
-    - numba 0.52
-    - numpy 1.19
+    - numba
+    - numpy
     - python
-    - scipy 1.6
+    - scipy
 
 test:
   imports:
