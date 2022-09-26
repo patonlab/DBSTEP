@@ -84,7 +84,7 @@ def occupied(grid, coords, radii, origin, options):
 	point_tree = spatial.cKDTree(grid,balanced_tree=False,compact_nodes=False)
 	for n in range(len(coords)):
 		center = coords[n] + origin
-		idx.append(point_tree.query_ball_point(center, radii[n], n_jobs=-1))
+		idx.append(point_tree.query_ball_point(center, radii[n], workers=-1))
 	#construct a list of indices of the grid array that are occupied / unoccupied
 	jdx = [y for x in idx for y in x]
 	if options.qsar: kdx = [i for i in range(len(grid)) if i not in jdx] 
@@ -323,7 +323,7 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 	tot_vol = n_voxel * cube
 	# Find occupied points within the same spherical volume
 	point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
-	n_occ = len(point_tree.query_ball_point(origin, R, n_jobs=-1))
+	n_occ = len(point_tree.query_ball_point(origin, R, workers=-1))
 	occ_vol = n_occ * cube
 	free_vol = tot_vol - occ_vol 
 	percent_buried_vol = occ_vol / tot_vol * 100.0
@@ -342,12 +342,12 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 			R_neg = 0.0
 		else:
 			R_neg = R - 0.5 * strip_width
-		shell_occ = len(point_tree.query_ball_point(origin, R_pos, n_jobs=-1)) - len(point_tree.query_ball_point(origin, R_neg, n_jobs=-1))
+		shell_occ = len(point_tree.query_ball_point(origin, R_pos, workers=-1)) - len(point_tree.query_ball_point(origin, R_neg, workers=-1))
 		if options.debug:
 			# this may take a while
 			import pptk
-			a = point_tree.query_ball_point(origin,R_pos , n_jobs=-1)
-			b = point_tree.query_ball_point(origin,R_neg, n_jobs=-1)
+			a = point_tree.query_ball_point(origin,R_pos , workers=-1)
+			b = point_tree.query_ball_point(origin,R_neg, workers=-1)
 			for pt in b:
 				if pt in a:
 					a.remove(pt)
