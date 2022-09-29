@@ -38,14 +38,17 @@ def max_dim(coords, radii, options):
 	#define grid to fit sphere so we can measure buried volume accurately. 
 	#if we are doing a scan, choose largest possible
 	if not options.scan:
-		#expanded radius, make sure our full sphere fits in our grid
-		ex_radius = options.radius + options.radius * 0.1 
+		if options.vshell:
+			ex_radius = options.radius + options.radius * 0.1 + options.vshell * 0.5
+		else:
+			#expanded radius, make sure our full sphere fits in our grid
+			ex_radius = options.radius + options.radius * 0.1 
 	else:
 		try:
 			[r_min, r_max, strip_width] = [float(scan) for scan in options.scan.split(':')]
-			ex_radius = r_max + r_max * 0.1 
+			ex_radius = r_max + r_max * 0.1 + strip_width * 0.5
 		except:
-			print("   Can't read your scan request. Try something like --scan 3:5:0.25"); exit()
+			print("   Can't read your scan request. Try something like --scan 3:5:0.5"); exit()
 			
 	x_max = ex_radius
 	y_max = ex_radius
@@ -315,45 +318,58 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 	else: R = options.radius
 
 	spacing = options.grid
-	sphere = 4 / 3 * math.pi * R ** 3 #vol of sphere w/ radius R
+	sphere = 4 / 3 * math.pi * R ** 3 # analytical vol of sphere w/ radius R: used for assessing error in sphere measurements
 	cube = spacing ** 3 # cube 
 	
 	# Find total points in the grid within a sphere radius R
 	n_voxel = len(point_tree.query_ball_point(origin, R))
 	tot_vol = n_voxel * cube
+	
 	# Find occupied points within the same spherical volume
-	point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
-	n_occ = len(point_tree.query_ball_point(origin, R, workers=-1))
+	occ_point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
+	n_occ = len(occ_point_tree.query_ball_point(origin, R, workers=-1))
 	occ_vol = n_occ * cube
 	free_vol = tot_vol - occ_vol 
 	percent_buried_vol = occ_vol / tot_vol * 100.0
 	vol_err = abs(tot_vol-sphere)/sphere * 100.0
 	if abs(vol_err) > 5.0 and verbose: 
-		if verbose: print("   Volume error is large ({:3.2f}%). Try adjusting grid spacing with --grid".format(vol_err))
+		print("   Volume error is large ({:3.2f}%). Try adjusting grid spacing with --grid".format(vol_err))
 	
-	# experimental - in addition to occupied spherical volume, this will compute
+	# In addition to occupied spherical volume, this will compute
 	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
 	if strip_width != 0.0:
-		shell_vol = 4 / 3 * math.pi * ((R + 0.5 * strip_width) ** 3 - (R - 0.5 * strip_width) ** 3)
-		point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
 		R_pos = R + 0.5 * strip_width
 		if R < strip_width: 
 			R_neg = 0.0
 		else:
 			R_neg = R - 0.5 * strip_width
-		shell_occ = len(point_tree.query_ball_point(origin, R_pos, workers=-1)) - len(point_tree.query_ball_point(origin, R_neg, workers=-1))
+
+		shell_vol = 4 / 3 * math.pi * (R_pos ** 3 - R_neg ** 3) #analytical value 
+		
+		n_voxel = len(point_tree.query_ball_point(origin, R_pos)) - len(point_tree.query_ball_point(origin, R_neg))
+		tot_shell_vol = n_voxel * cube
+		
+		occ_point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
+		shell_occ = len(occ_point_tree.query_ball_point(origin, R_pos, workers=-1)) - len(occ_point_tree.query_ball_point(origin, R_neg, workers=-1))
+		shell_occ_vol = shell_occ * cube
+
+		shell_vol_err = abs(tot_shell_vol-shell_vol)/shell_vol * 100.0
+		
+		if abs(shell_vol_err) > 5.0 and verbose: 
+			print("   Volume error is large ({:3.2f}%). Try adjusting grid spacing with --grid".format(shell_vol_err))
+
 		if options.debug:
 			# this may take a while
 			import pptk
-			a = point_tree.query_ball_point(origin,R_pos , workers=-1)
-			b = point_tree.query_ball_point(origin,R_neg, workers=-1)
+			a = occ_point_tree.query_ball_point(origin, R_pos, workers=-1)
+			b = occ_point_tree.query_ball_point(origin, R_neg, workers=-1)
 			for pt in b:
 				if pt in a:
 					a.remove(pt)
 			u = pptk.viewer(occ_grid[a])
-		shell_occ_vol = shell_occ * cube
-		percent_shell_vol = shell_occ_vol / shell_vol * 100.0
+
+		percent_shell_vol = shell_occ_vol / tot_shell_vol * 100.0
 	else: percent_shell_vol = 0.0
 	
 	#Fix, sometimes approximations of volume are greater than 100
