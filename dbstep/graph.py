@@ -62,6 +62,7 @@ def make_mol_obj(line):
         smi, prop = toks[0:2]
     elif len(toks) == 1:
         smi = toks[0]
+        prop=None
     mol = Chem.MolFromSmiles(smi)
 
     if mol is None:

@@ -12,7 +12,7 @@ Computes steric data: L, Bmin, Bmax, Buried Volume
 """
 
 
-@jit
+@jit(nopython=True)
 def parallel_grid_scan(xy_grid, angle):
 	"""angular sweep over grid points to find Bmin"""
 	rmax = 0.0
