@@ -11,7 +11,7 @@ Constant objects used throughout the project.
 
 # Bondi Van der Waals radii taken from [J. Phys. Chem. 1964, 68, 441] & [J. Phys. Chem. A. 2009, 103, 5806-5812]
 # All other elements set to 2.0A - common in other chemistry programs
-bondi = {"Bq": 0.00, "H": 1.09,"He": 1.40,
+bondi = {"Bq": 0.00, "H": 1.20,"He": 1.40,
 	"Li":1.81,"Be":1.53,"B":1.92,"C":1.70,"N":1.55,"O":1.52,"F":1.47,"Ne":1.54,
 	"Na":2.27,"Mg":1.73,"Al":1.84,"Si":2.10,"P":1.80,"S":1.80,"Cl":1.75,"Ar":1.88,
 	"K":2.75,"Ca":2.31,"Ni": 1.63,"Cu":1.40,"Zn":1.39,"Ga":1.87,"Ge":2.11,"As":1.85,"Se":1.90,"Br":1.83,"Kr":2.02,
