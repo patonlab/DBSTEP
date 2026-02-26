@@ -213,13 +213,16 @@ class dbstep:
 				z_vals = np.linspace(z_min, z_max, n_z_vals)
 			
 			if options.measure == 'grid':
-				# construct grid encapsulating molecule
-				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
-				# compute which grid points occupy molecule
-				if options.qsar:
-					occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
-				else:
-					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+				# Gaussian volume method skips grid generation when sterimol is not needed
+				need_grid = options.method != 'gaussian' or options.sterimol
+				if need_grid:
+					# construct grid encapsulating molecule
+					grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
+					# compute which grid points occupy molecule
+					if options.qsar:
+						occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					else:
+						occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
 			if options.qsar:
 				if options.verbose: print("\n   Creating interaction energy grid xyz files in 'grid_"+name+"' directory")
@@ -285,13 +288,16 @@ class dbstep:
 
 		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
 		
-		#Measure Sterimol or Volume 
+		#Measure Sterimol or Volume
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels.
 			# If a scan is requested, radius of sphere = rad
 			if options.volume:
 				if rad == 0:
 					bur_vol, bur_shell = 0.0,0.0
+				elif options.method == 'gaussian':
+					bur_vol = sterics.gaussian_buried_vol(mol.CARTESIANS, mol.RADII, origin, rad)
+					bur_shell = 0.0
 				else:
 					if options.vshell: strip_width = options.vshell
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options)
@@ -328,7 +334,7 @@ class dbstep:
 					if not options.quiet: print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
 		#for object reference
-		if options.measure == "grid":
+		if options.measure == "grid" and options.method != 'gaussian':
 			self.occ_vol = occ_vol
 		if options.sterimol: self.L = L
 		if options.scan == False:
@@ -432,7 +438,8 @@ def set_options(kwargs):
 	'gridsize': ['gridsize', False], 'measure':['measure','grid'],'pos':['pos',False],
 	'graph':['graph',False], 'fg':['shared_fg',False], 'shared_fg':['shared_fg',False],
 	'maxpath':['max_path_length', 9], 'max_path_length':['max_path_length',9],
-	'voltype':['voltype','crippen'], 'visv':['visv','circle'], 'viss':['viss',False]
+	'voltype':['voltype','crippen'], 'visv':['visv','circle'], 'viss':['viss',False],
+	'method':['method','grid']
 	}
 
 	for key in var_dict:
@@ -457,6 +464,7 @@ def main():
 	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
 	parser.add_option("--measure", dest="measure", action="store",choices=['grid','classic'], help="Measurement type for Sterimol Calculation (classic or grid=default)", default='grid', metavar="measures")
+	parser.add_option("--method", dest="method", action="store",choices=['grid','gaussian'], help="Method for buried volume calculation (grid=default, gaussian=analytical Gaussian overlap)", default='grid', metavar="method")
 	parser.add_option("--surface", dest="surface", action="store", choices=['vdw','density'],help="The surface can be defined by Bondi VDW radii or a density cube file", default='vdw', metavar="surface")
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atom indices to ignore in steric measurements (no spaces, separated by commas)", default=False, metavar="exclude")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")

@@ -1,8 +1,9 @@
 # -*- coding: UTF-8 -*-
 import sys, math
+from itertools import combinations
 import numpy as np
 from numba import prange,jit
-import scipy.spatial as spatial	
+import scipy.spatial as spatial
 
 
 """
@@ -385,3 +386,178 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
 		print("   WARNING! {:5.2f}% error in estimating the exact spherical volume. The grid spacing is probably too big in relation to the sphere volume".format(vol_err))
 	
 	return percent_buried_vol, percent_shell_vol
+
+
+def gaussian_params(radii, p=2.7):
+	"""Compute Gaussian exponent kappa for each atom so that the volume integral
+	of p * exp(-kappa * r^2) equals the hard-sphere volume (4/3)*pi*R^3.
+
+	From Grant & Pickup (1995): p * (pi/kappa)^(3/2) = (4/3)*pi*R^3
+	Solving: kappa = pi * (3*p / (4*pi*R^3))^(2/3)
+
+	Parameters
+	----------
+	radii : array-like
+		VDW radii in Angstroms.
+	p : float
+		Gaussian prefactor (default 2.7 from Grant & Pickup).
+
+	Returns
+	-------
+	kappas : np.ndarray
+		Gaussian exponents for each atom.
+	"""
+	radii = np.asarray(radii, dtype=float)
+	kappas = math.pi * (3.0 * p / (4.0 * math.pi * radii**3))**(2.0/3.0)
+	return kappas
+
+
+def gaussian_overlap_vol(prefactors, kappas, centers):
+	"""Compute the analytical overlap volume of N Gaussian density functions.
+
+	For N Gaussians g_i(r) = p_i * exp(-k_i * |r - c_i|^2), the overlap
+	integral of their product is:
+
+	V = prod(p_i) * (pi/K)^(3/2) * exp(-delta/K)
+
+	where K = sum(k_i) and delta = sum_{i<j} k_i * k_j * |c_i - c_j|^2.
+
+	Parameters
+	----------
+	prefactors : array-like
+		Prefactors p_i for each Gaussian.
+	kappas : array-like
+		Exponents k_i for each Gaussian.
+	centers : array-like, shape (N, 3)
+		Centers c_i for each Gaussian.
+
+	Returns
+	-------
+	float
+		The overlap volume integral.
+	"""
+	prefactors = np.asarray(prefactors, dtype=float)
+	kappas = np.asarray(kappas, dtype=float)
+	centers = np.asarray(centers, dtype=float)
+
+	K = np.sum(kappas)
+	p_prod = np.prod(prefactors)
+
+	# Compute delta = sum_{i<j} k_i * k_j * |c_i - c_j|^2
+	n = len(kappas)
+	delta = 0.0
+	for i in range(n):
+		for j in range(i + 1, n):
+			d2 = np.sum((centers[i] - centers[j])**2)
+			delta += kappas[i] * kappas[j] * d2
+
+	vol = p_prod * (math.pi / K)**1.5 * math.exp(-delta / K)
+	return vol
+
+
+def gaussian_buried_vol(coords, radii, origin, R, p=2.7, max_order=3):
+	"""Compute percent buried volume using Gaussian overlap with inclusion-exclusion.
+
+	Each atom is represented as a Gaussian whose volume integral equals the
+	hard-sphere volume. The bounding sphere is also represented as a Gaussian.
+	The buried volume is computed as the molecular Gaussian volume inside the
+	sphere Gaussian, using inclusion-exclusion to avoid double-counting overlaps.
+
+	Parameters
+	----------
+	coords : np.ndarray, shape (N, 3)
+		Atomic coordinates (already translated so atom1 is at origin).
+	radii : np.ndarray
+		VDW radii for each atom in Angstroms.
+	origin : np.ndarray
+		Center of the buried volume sphere (typically [0,0,0]).
+	R : float
+		Radius of the buried volume sphere in Angstroms.
+	p : float
+		Gaussian prefactor for atoms (default 2.7).
+	max_order : int
+		Maximum order of inclusion-exclusion (1=single atoms, 2=pairs, 3=triples).
+
+	Returns
+	-------
+	float
+		Percent buried volume.
+	"""
+	coords = np.asarray(coords, dtype=float)
+	radii = np.asarray(radii, dtype=float)
+	origin = np.asarray(origin, dtype=float)
+	n_atoms = len(coords)
+
+	# Compute kappas for each atom
+	atom_kappas = gaussian_params(radii, p)
+
+	# Sphere Gaussian: same prefactor, kappa set so volume integral = (4/3)*pi*R^3
+	sphere_kappa = math.pi * (3.0 * p / (4.0 * math.pi * R**3))**(2.0/3.0)
+
+	sphere_vol = 4.0 / 3.0 * math.pi * R**3
+
+	# Distance-based pruning threshold: skip atoms too far from origin to matter
+	# An atom at distance d from origin with radius r contributes negligibly
+	# if d >> R + r
+	atom_dists = np.sqrt(np.sum((coords - origin)**2, axis=1))
+
+	# Inclusion-exclusion: V_bur = sum over subsets S of atoms, with sign (-1)^(|S|+1),
+	# of the overlap volume of (atoms in S) intersected with sphere.
+	# Every term includes the sphere Gaussian.
+	v_bur = 0.0
+
+	for order in range(1, min(max_order, n_atoms) + 1):
+		sign = (-1.0)**(order + 1)
+
+		for atom_subset in combinations(range(n_atoms), order):
+			# Quick distance check: skip if any atom is very far from the sphere
+			skip = False
+			for idx in atom_subset:
+				if atom_dists[idx] > R + radii[idx] + 3.0:
+					skip = True
+					break
+			if skip:
+				continue
+
+			# For pairs and higher, also skip if atoms in the subset are too far apart
+			if order >= 2:
+				too_far = False
+				for i_sub in range(len(atom_subset)):
+					for j_sub in range(i_sub + 1, len(atom_subset)):
+						ai, aj = atom_subset[i_sub], atom_subset[j_sub]
+						d_ij = np.sqrt(np.sum((coords[ai] - coords[aj])**2))
+						if d_ij > radii[ai] + radii[aj] + 2.0:
+							too_far = True
+							break
+					if too_far:
+						break
+				if too_far:
+					continue
+
+			# Build arrays for this overlap: atoms in subset + sphere
+			n_gaussians = order + 1  # atoms + sphere
+			pf = np.empty(n_gaussians)
+			kp = np.empty(n_gaussians)
+			ct = np.empty((n_gaussians, 3))
+
+			for i_g, idx in enumerate(atom_subset):
+				pf[i_g] = p
+				kp[i_g] = atom_kappas[idx]
+				ct[i_g] = coords[idx]
+
+			# Sphere is always the last Gaussian
+			pf[-1] = p
+			kp[-1] = sphere_kappa
+			ct[-1] = origin
+
+			vol = gaussian_overlap_vol(pf, kp, ct)
+			v_bur += sign * vol
+
+	# Clamp to physical bounds
+	if v_bur < 0.0:
+		v_bur = 0.0
+	if v_bur > sphere_vol:
+		v_bur = sphere_vol
+
+	percent_buried_vol = v_bur / sphere_vol * 100.0
+	return percent_buried_vol
