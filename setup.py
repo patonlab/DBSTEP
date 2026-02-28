@@ -21,7 +21,7 @@ setup(
   keywords=['compchem', 'steric', 'sterimol', 'informatics'],
   license="MIT",
   classifiers=['License :: OSI Approved :: MIT License',],
-  install_requires=["numpy",'numba','scipy','cclib'],
+  install_requires=["numpy",'scipy','cclib'],
   python_requires='>=3.6',
   include_package_data=True,
   package_data={'': ['*.csv']},

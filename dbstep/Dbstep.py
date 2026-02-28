@@ -28,13 +28,15 @@ class dbstep:
 
 	Objects that can currently be referenced are:
 			grid, onehot_grid, unocc_grud
-			L, Bmax, Bmin, 
+			L, Bmax, Bmin,
 			occ_vol, bur_vol, bur_shell
 			setup_time, calc_time
 
 	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
 	"""
+	_verbose_header_printed = False
+
 	def __init__(self, *args, **kwargs):
 		self.file = args[0]
 		#QSAR specifications
@@ -92,14 +94,16 @@ class dbstep:
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a .cube file
 		# This is the default when a density cube is supplied although it can be over-ridden at the command prompt
-		if options.verbose ==True: print("\n   {} will be analyzed using the {} surface".format(file, options.surface))
+		if options.verbose and not dbstep._verbose_header_printed:
+			print("\n   Analyzing using the {} surface".format(options.surface))
 
 		#surfaces can either be formed from Van der Waals (bondi) radii (=vdw) or cube densities (=density)
 		if options.surface == 'vdw':
 			# generate Bondi radii from atom types
 			try:
 				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
-				if options.verbose: print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
+				if options.verbose and not dbstep._verbose_header_printed:
+					print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
 			except:
 				mol.RADII = []
 				for atom in mol.ATOMTYPES:
@@ -182,6 +186,7 @@ class dbstep:
 		# Iterate over the grid points to see whether this is within VDW radius of any atom(s)
 		# Grid point occupancy is either yes/no (1/0)
 		# To save time this is currently done using a cuboid rather than cubic shaped-grid
+		grid_axes = None
 		if options.surface == 'vdw':
 			# user can choose to increase grid size / use in QSAR studies
 			if options.gridsize != False:
@@ -213,13 +218,20 @@ class dbstep:
 				z_vals = np.linspace(z_min, z_max, n_z_vals)
 			
 			if options.measure == 'grid':
-				# construct grid encapsulating molecule
-				grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
-				# compute which grid points occupy molecule
-				if options.qsar:
-					occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+				if options.volume and not options.sterimol and not options.qsar:
+					# Fast path: skip full grid construction for volume-only calculations
+					occ_grid, occ_vol = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options)
+					point_tree = None
+					grid_axes = (x_vals, y_vals, z_vals)
 				else:
-					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					# Standard path: full grid needed for sterimol/qsar
+					grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1,3)
+					# compute which grid points occupy molecule
+					if options.qsar:
+						occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					else:
+						occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					grid_axes = None
 
 			if options.qsar:
 				if options.verbose: print("\n   Creating interaction energy grid xyz files in 'grid_"+name+"' directory")
@@ -275,7 +287,10 @@ class dbstep:
 		# Set up done so note the time
 		setup_time = time.time() - start
 		# message user
-		if options.verbose: print("\n   Steric parameters will be generated in {} mode for {}\n".format(options.measure, file))
+		if options.verbose and not dbstep._verbose_header_printed:
+			print("\n   Steric parameters will be generated in {} mode".format(options.measure))
+			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom\n".format(options.grid))
+			dbstep._verbose_header_printed = True
 		
 		if not options.quiet:
 			if options.volume and options.sterimol:
@@ -284,8 +299,15 @@ class dbstep:
 				print("   {:>6} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur"))
 
 		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
-		
-		#Measure Sterimol or Volume 
+
+		# Precompute squared distances from origin for occupied grid points
+		# This replaces the occ_point_tree KDTree entirely — just threshold-count per radius
+		if options.volume:
+			occ_dist2 = np.sum((occ_grid - origin) ** 2, axis=1)
+		else:
+			occ_dist2 = None
+
+		#Measure Sterimol or Volume
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			# The buried volume is defined in terms of occupied voxels.
 			# If a scan is requested, radius of sphere = rad
@@ -294,7 +316,7 @@ class dbstep:
 					bur_vol, bur_shell = 0.0,0.0
 				else:
 					if options.vshell: strip_width = options.vshell
-					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options)
+					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist2=occ_dist2, grid_axes=grid_axes)
 				bur_vol_list.append(bur_vol)
 				bur_shell_list.append(bur_shell)
 			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)

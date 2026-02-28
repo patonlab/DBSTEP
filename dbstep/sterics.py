@@ -1,8 +1,7 @@
 # -*- coding: UTF-8 -*-
 import sys, math
 import numpy as np
-from numba import prange,jit
-import scipy.spatial as spatial	
+import scipy.spatial as spatial
 
 
 """
@@ -12,15 +11,65 @@ Computes steric data: L, Bmin, Bmax, Buried Volume
 """
 
 
-@jit(nopython=True)
-def parallel_grid_scan(xy_grid, angle):
-	"""angular sweep over grid points to find Bmin"""
-	rmax = 0.0
-	for i in prange(len(xy_grid)):
-		r = xy_grid[i][0]*math.cos(angle)+xy_grid[i][1]*math.sin(angle)
-		if r > rmax:
-				rmax = r
-	return rmax
+def count_grid_points_in_sphere(x_vals, y_vals, z_vals, origin, R):
+	"""Count lattice points within sphere without constructing full grid.
+	O(n_x * n_y) worst case — much faster than building a KDTree over the full grid."""
+	R2 = R * R
+	dx2 = (x_vals - origin[0]) ** 2
+	dy2 = (y_vals - origin[1]) ** 2
+	dz2 = (z_vals - origin[2]) ** 2
+	count = 0
+	for xi2 in dx2[dx2 <= R2]:
+		yz_remain = R2 - xi2
+		for yj2 in dy2[dy2 <= yz_remain]:
+			count += int(np.count_nonzero(dz2 <= yz_remain - yj2))
+	return count
+
+
+def occupied_direct(coords, radii, origin, x_vals, y_vals, z_vals, options):
+	"""Generate occupied grid points without allocating the full meshgrid.
+	Per-atom work is vectorized within the atom's bounding box via broadcasting.
+	The boolean mask provides automatic deduplication where atom spheres overlap."""
+	spacing = options.grid
+
+	occ_mask = np.zeros((len(x_vals), len(y_vals), len(z_vals)), dtype=bool)
+
+	for n in range(len(coords)):
+		center = coords[n] + origin
+		r = radii[n]
+		r2 = r * r
+
+		# Narrow to bounding box of this atom's VDW sphere
+		xi = np.where((x_vals - center[0]) ** 2 <= r2)[0]
+		yi = np.where((y_vals - center[1]) ** 2 <= r2)[0]
+		zi = np.where((z_vals - center[2]) ** 2 <= r2)[0]
+		if len(xi) == 0 or len(yi) == 0 or len(zi) == 0:
+			continue
+
+		# Vectorized 3D distance check within bounding box
+		dx2 = (x_vals[xi] - center[0]) ** 2
+		dy2 = (y_vals[yi] - center[1]) ** 2
+		dz2 = (z_vals[zi] - center[2]) ** 2
+		dist2 = dx2[:, None, None] + dy2[None, :, None] + dz2[None, None, :]
+		occ_mask[np.ix_(xi, yi, zi)] |= (dist2 <= r2)
+
+	# Convert boolean mask to coordinate array
+	occ_ijk = np.argwhere(occ_mask)
+	n_occ = len(occ_ijk)
+	if options.verbose: print("   There are {} occupied grid points.".format(n_occ))
+
+	if n_occ > 0:
+		occ_grid = np.column_stack([
+			x_vals[occ_ijk[:, 0]],
+			y_vals[occ_ijk[:, 1]],
+			z_vals[occ_ijk[:, 2]]
+		])
+	else:
+		occ_grid = np.empty((0, 3))
+
+	occ_vol = n_occ * spacing ** 3
+	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
+	return occ_grid, occ_vol
 
 
 def grid_round(x, spacing):
@@ -80,8 +129,7 @@ def max_dim(coords, radii, options):
 def occupied(grid, coords, radii, origin, options):
 	"""Uses atomic coordinates and VDW radii to establish which grid voxels are occupied"""
 	spacing = options.grid
-	if options.verbose ==True: print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom.".format(spacing))
-	if options.verbose ==True: print("   There are {} grid points.".format(len(grid)))
+	if options.verbose: print("   There are {} grid points.".format(len(grid)))
 	
 	idx =  [] 
 	point_tree = spatial.cKDTree(grid,balanced_tree=False,compact_nodes=False)
@@ -94,11 +142,10 @@ def occupied(grid, coords, radii, origin, options):
 	
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	if options.qsar: 
+	if options.qsar:
 		kdx = list(set(kdx))
 		onehot = np.zeros(len(grid))
-		for i in jdx:
-			onehot[i] = 1.
+		onehot[jdx] = 1.
 	
 	if options.verbose: print("   There are {} occupied grid points.".format(len(jdx)))
 	occ_vol = len(jdx) * spacing ** 3
@@ -120,17 +167,14 @@ def occupied(grid, coords, radii, origin, options):
 def occupied_dens(grid, dens, options):
 	"""Uses density cube to establish which grid voxels are occupied (i.e. density is above some isoval, by default 0.002)"""
 	spacing, isoval = options.grid, options.isoval
-	cube, list = (spacing / 0.529177249) ** 3, []
-	if options.verbose: print("\n   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(spacing))
 
-	for n, density in enumerate(dens):
-		if density > isoval: list.append(n)
-	occ_vol = len(list) * spacing ** 3
+	mask = dens > isoval
+	occ_vol = np.count_nonzero(mask) * spacing ** 3
 	if options.verbose: print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
 
 	# quick fix to allow %Vbur calculations on cube files
 	point_tree = spatial.cKDTree(grid, balanced_tree=False, compact_nodes=False)
-	return grid[list], occ_vol, point_tree
+	return grid[mask], occ_vol, point_tree
 
 
 def resize_grid(x_max,y_max,z_max,x_min,y_min,z_min,options,mol):
@@ -259,40 +303,43 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 	L, Bmax, Bmin, xmax, ymax, zmax, xmin, ymin, cyl = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, []
 
 	# this is a layer of the occupancy grid between Z-limits
-	if strip_width != 0: 
-		xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if z <= R + strip_width and z > R - strip_width])
-	else: 
+	if strip_width != 0:
+		mask = (occ_grid[:,2] <= R + strip_width) & (occ_grid[:,2] > R - strip_width)
+		xy_grid = occ_grid[mask]
+	else:
 		xy_grid = occ_grid
-	
+
 	if measure_pos:
-		xy_grid = np.array([(x,y,z) for x,y,z in occ_grid if z >= 0])
+		xy_grid = occ_grid[occ_grid[:,2] >= 0]
 
 	if len(xy_grid) > 0:
-		#radii = map(lambda x: math.sqrt(x[0]**2+x[1]**2), xy_grid)
-		radii = [math.sqrt(x**2+y**2) for x,y,z in xy_grid]
-		Bmax, imax = max(radii), np.argmax(radii)
+		radii = np.sqrt(xy_grid[:,0]**2 + xy_grid[:,1]**2)
+		imax = np.argmax(radii)
+		Bmax = radii[imax]
 		xmax, ymax, zmax = xy_grid[imax]
-		#print(Bmax, math.sqrt(xmax**2+ymax**2))
-		L = max(map(lambda x: x[2], xy_grid))
+		L = xy_grid[:,2].max()
 
 		# Go around in angle increments and record the farthest out point in each slice
-		increments = 361
-		angles = np.linspace(-math.pi, -math.pi+2*math.pi, increments) # sweep full circle
+		angles = np.linspace(-math.pi, -math.pi+2*math.pi, 361) # sweep full circle
 
-		Bmin = sys.float_info.max
-		xmin,ymin = 0,0
-		max_r, max_phi = [], []
+		# Vectorized angular sweep: project all grid points onto each angle direction
+		cos_a = np.cos(angles)
+		sin_a = np.sin(angles)
+		projections = np.outer(cos_a, xy_grid[:,0]) + np.outer(sin_a, xy_grid[:,1])
+		max_r = projections.max(axis=1)  # max projection per angle
 
-		for angle in angles:
-			rmax = parallel_grid_scan(xy_grid,angle)
-
-			if rmax != 0.0: # by definition can't have zero radius
-				max_r.append(rmax)
-				max_phi.append(angle)
-
-		if len(max_r) > 0:
-			Bmin = min(max_r)
-			xmin, ymin = Bmin * math.cos(max_phi[np.argmin(max_r)]), Bmin * math.sin(max_phi[np.argmin(max_r)])
+		# Filter out zero-radius angles
+		nonzero = max_r > 0.0
+		if nonzero.any():
+			valid_r = max_r[nonzero]
+			valid_angles = angles[nonzero]
+			imin = np.argmin(valid_r)
+			Bmin = valid_r[imin]
+			xmin = Bmin * math.cos(valid_angles[imin])
+			ymin = Bmin * math.sin(valid_angles[imin])
+		else:
+			Bmin = sys.float_info.max
+			xmin, ymin = 0, 0
 
 	elif len(xy_grid) == 0:
 		Bmin, xmin, ymin, Bmax, xmax, ymax, L = 0,0,0,0,0,0,0
@@ -309,49 +356,56 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 	return L, Bmax, Bmin, cyl
 
 
-def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options):
+def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist2=None, grid_axes=None):
 	""" Read which grid points occupy sphere"""
 	verbose = options.verbose
-	
+
 	#if doing a scan, use scan radius for volume
 	if strip_width != 0.0: R = rad
 	else: R = options.radius
 
 	spacing = options.grid
 	sphere = 4 / 3 * math.pi * R ** 3 # analytical vol of sphere w/ radius R: used for assessing error in sphere measurements
-	cube = spacing ** 3 # cube 
-	
+	cube = spacing ** 3 # cube
+
 	# Find total points in the grid within a sphere radius R
-	n_voxel = len(point_tree.query_ball_point(origin, R))
+	if point_tree is not None:
+		n_voxel = len(point_tree.query_ball_point(origin, R))
+	else:
+		n_voxel = count_grid_points_in_sphere(*grid_axes, origin, R)
 	tot_vol = n_voxel * cube
-	
+
 	# Find occupied points within the same spherical volume
-	occ_point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
-	n_occ = len(occ_point_tree.query_ball_point(origin, R, workers=-1))
+	R2 = R * R
+	if occ_dist2 is None:
+		occ_dist2 = np.sum((occ_grid - origin) ** 2, axis=1)
+	n_occ = int(np.count_nonzero(occ_dist2 <= R2))
 	occ_vol = n_occ * cube
-	free_vol = tot_vol - occ_vol 
+	free_vol = tot_vol - occ_vol
 	percent_buried_vol = occ_vol / tot_vol * 100.0
 	vol_err = abs(tot_vol-sphere)/sphere * 100.0
-	if abs(vol_err) > 5.0 and verbose: 
+	if abs(vol_err) > 5.0 and verbose:
 		print("   Volume error is large ({:3.2f}%). Try adjusting grid spacing with --grid".format(vol_err))
-	
+
 	# In addition to occupied spherical volume, this will compute
 	# the percentage occupancy of a radial shell between two limits if a scan
 	# along the L-axis is being performed
 	if strip_width != 0.0:
 		R_pos = R + 0.5 * strip_width
-		if R < strip_width: 
+		if R < strip_width:
 			R_neg = 0.0
 		else:
 			R_neg = R - 0.5 * strip_width
 
-		shell_vol = 4 / 3 * math.pi * (R_pos ** 3 - R_neg ** 3) #analytical value 
-		
-		n_voxel = len(point_tree.query_ball_point(origin, R_pos)) - len(point_tree.query_ball_point(origin, R_neg))
+		shell_vol = 4 / 3 * math.pi * (R_pos ** 3 - R_neg ** 3) #analytical value
+
+		if point_tree is not None:
+			n_voxel = len(point_tree.query_ball_point(origin, R_pos)) - len(point_tree.query_ball_point(origin, R_neg))
+		else:
+			n_voxel = count_grid_points_in_sphere(*grid_axes, origin, R_pos) - count_grid_points_in_sphere(*grid_axes, origin, R_neg)
 		tot_shell_vol = n_voxel * cube
-		
-		occ_point_tree = spatial.cKDTree(occ_grid,balanced_tree=False,compact_nodes=False)
-		shell_occ = len(occ_point_tree.query_ball_point(origin, R_pos, workers=-1)) - len(occ_point_tree.query_ball_point(origin, R_neg, workers=-1))
+
+		shell_occ = int(np.count_nonzero(occ_dist2 <= R_pos ** 2)) - int(np.count_nonzero(occ_dist2 <= R_neg ** 2))
 		shell_occ_vol = shell_occ * cube
 
 		shell_vol_err = abs(tot_shell_vol-shell_vol)/shell_vol * 100.0
