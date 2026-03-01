@@ -83,7 +83,7 @@ class SetupAgainstVerloop:
 		"""Reads and calculates dbstep parameters for all of the files in self.file_names"""
 		dbstep_ls, dbstep_b1s, dbstep_b5s = [], [], []
 		for file in self.file_names:
-			db_obj = Dbstep.dbstep("dbstep/data/" + file, sterimol=True, measure="classic", commandline=True)
+			db_obj = Dbstep.dbstep("dbstep/data/" + file, sterimol=True, measure="classic")
 			dbstep_ls.append(np.round(db_obj.L + 0.4, 2))
 			dbstep_b1s.append(np.round(db_obj.Bmin, 2))
 			dbstep_b5s.append(np.round(db_obj.Bmax, 2))
@@ -166,7 +166,7 @@ class TestVburAgainstSambvca:
 		],
 	)
 	def test_vbur_against_sambvca(self, file, sambvca_vbur):
-		db_obj = Dbstep.dbstep("dbstep/data/" + file, volume=True, commandline=True, quiet=True)
+		db_obj = Dbstep.dbstep("dbstep/data/" + file, volume=True, quiet=True)
 		tolerance = 0.2
 		assert abs(db_obj.bur_vol - sambvca_vbur) <= tolerance, (
 			f"{file}: DBSTEP {db_obj.bur_vol:.1f} vs SambVca {sambvca_vbur} (diff {abs(db_obj.bur_vol - sambvca_vbur):.1f})"

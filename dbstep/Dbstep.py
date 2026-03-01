@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 
 # Python Libraries
-import os, sys, time, shutil
+import os, sys, shutil
 from glob import glob
 import numpy as np
 from optparse import OptionParser
@@ -15,16 +15,18 @@ class dbstep:
 	dbstep object that contains coordinates, steric data
 
 	Objects that can currently be referenced are:
-			grid, onehot_grid, unocc_grud
+			grid, onehot_grid, unocc_grid
 			L, Bmax, Bmin,
 			occ_vol, bur_vol, bur_shell
-			setup_time, calc_time
 
 	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
 	"""
 
 	_verbose_header_printed = False
+	_column_header_printed = False
+	_column_width = 0
+	_file_col_width = 20
 
 	def __init__(self, *args, **kwargs):
 		self.file = args[0]
@@ -36,13 +38,14 @@ class dbstep:
 		self.L, self.Bmin, self.Bmax = False, False, False
 		# Volume Parameters
 		self.occ_vol, self.bur_vol, self.bur_shell = False, False, False
-		# Time Information
-		self.setup_time, self.calc_time = False, False
-
 		if "options" in kwargs:
 			self.options = kwargs["options"]
 		else:
 			self.options = set_options(kwargs)
+		# SambVca mode: scale VDW radii by 1.17 and exclude H atoms
+		if hasattr(self.options, 'sambvca') and self.options.sambvca:
+			self.options.SCALE_VDW = 1.17
+			self.options.noH = True
 		if "QSAR" in kwargs:
 			QSAR = kwargs["QSAR"]
 		else:
@@ -51,7 +54,6 @@ class dbstep:
 		file = self.file
 		options = self.options
 
-		start = time.time()
 		spheres, cylinders = [], []
 		if isinstance(file, str):
 			name, ext = os.path.splitext(file)
@@ -85,16 +87,27 @@ class dbstep:
 		# This is necessary when a density cube is not supplied
 		# if surface = Density the molecular volume is defined by an isodensity surface from a .cube file
 		# This is the default when a density cube is supplied although it can be over-ridden at the command prompt
-		if options.verbose and not dbstep._verbose_header_printed:
-			print("\n   Analyzing using the {} surface".format(options.surface))
-
+		
 		# surfaces can either be formed from Van der Waals (bondi) radii (=vdw) or cube densities (=density)
 		if options.surface == "vdw":
 			# generate Bondi radii from atom types
 			try:
 				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
-				if options.verbose and not dbstep._verbose_header_printed:
-					print("   Defining the molecule with Bondi atomic radii scaled by {}".format(options.SCALE_VDW))
+				if not options.quiet and not dbstep._verbose_header_printed:
+					print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
+					print("   \u2588\u2588\u258a \u2588\u2588 \u2590\u2588 \u2580\u2588\u258a\u2590\u2588 \u2580.\u2022\u2588\u2588  \u2580\u2584.\u2580\u00b7\u2590\u2588 \u2584\u2588")
+					print("   \u2590\u2588\u00b7 \u2590\u2588\u258c\u2590\u2588\u2580\u2580\u2588\u2584\u2584\u2580\u2580\u2580\u2588\u2584\u2590\u2588.\u258a\u2590\u2580\u2580\u258a\u2584 \u2588\u2588\u2580\u00b7")
+					print("   \u2588\u2588. \u2588\u2588 \u2588\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u258c\u00b7\u2590\u2588\u2584\u2584\u258c\u2590\u2588\u258a\u00b7\u2022")
+					print("   \u2580\u2580\u2580\u2580\u2580\u2022 \u00b7\u2580\u2580\u2580\u2580  \u2580\u2580\u2580\u2580 \u2580\u2580\u2580  \u2580\u2580\u2580 .\u2580   ")
+					print("")
+					if options.volume:
+						print("   Buried volume (Vbur) will be computed")
+					if options.sterimol:
+						print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
+					print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
+					print("   Bondi atomic radii will be scaled by {}".format(options.SCALE_VDW))
+					print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
+					dbstep._verbose_header_printed = True
 			except KeyError:
 				mol.RADII = []
 				for atom in mol.ATOMTYPES:
@@ -144,14 +157,14 @@ class dbstep:
 				elif options.surface == "density":
 					mol.CARTESIANS, mol.ORIGIN = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3, cube_origin=mol.ORIGIN)
 
-		# Remove metals from the steric analysis. This is done by default and can be switched off by --addmetals
+		# Remove metals from the steric analysis when --nometals is specified
 		# This can't be done for densities
 		if options.surface == "vdw":
 			# Find maximum horizontal and vertical directions (coordinates + vdw) in which the molecule is fully contained
 
 			# remove metals
 			for i, atom in enumerate(mol.ATOMTYPES):
-				if atom in metals and not options.add_metals:
+				if atom in metals and options.no_metals:
 					mol.ATOMTYPES = np.delete(mol.ATOMTYPES, i)
 					mol.CARTESIANS = np.delete(mol.CARTESIANS, i, axis=0)
 					mol.RADII = np.delete(mol.RADII, i)
@@ -277,19 +290,19 @@ class dbstep:
 			if options.volume:
 				grid = sterics.resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol)
 
-		# Set up done so note the time
-		setup_time = time.time() - start
-		# message user
-		if options.verbose and not dbstep._verbose_header_printed:
-			print("\n   Steric parameters will be generated in {} mode".format(options.measure))
-			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom\n".format(options.grid))
-			dbstep._verbose_header_printed = True
-
-		if not options.quiet:
+		if not options.quiet and not dbstep._column_header_printed:
+			fw = dbstep._file_col_width
 			if options.volume and options.sterimol:
-				print("   {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L"))
+				header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
 			elif options.volume:
-				print("   {:>6} {:>10} {:>10}".format("R/Å", "%V_Bur", "%S_Bur"))
+				header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10}".format("File", "Atom", "R/Å", "%V_Bur", "%S_Bur", fw=fw)
+			else:
+				header = None
+			if header:
+				dbstep._column_width = len(header)
+				print(header)
+				print("   " + "-" * (dbstep._column_width - 3))
+			dbstep._column_header_printed = True
 
 		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
 
@@ -313,7 +326,7 @@ class dbstep:
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist2=occ_dist2, grid_axes=grid_axes)
 				bur_vol_list.append(bur_vol)
 				bur_shell_list.append(bur_shell)
-			# Sterimol parameters can be obtained from VDW radii (classic) or from occupied voxels (new=default)
+			# Sterimol parameters: classic (VDW radii, default) or grid (occupied voxels, used when volume is also requested)
 			if options.sterimol:
 				if options.measure == "grid":
 					L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width, options.pos)
@@ -331,15 +344,17 @@ class dbstep:
 					cylinders.append(c)
 
 			# Tabulate result
+			fname = os.path.basename(file)
+			fw = dbstep._file_col_width
 			if options.volume and options.sterimol:
 				# for pymol visualization
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell, Bmin, Bmax, L))
+					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
 			elif options.volume:
 				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:6.2f} {:10.2f} {:10.2f}".format(rad, bur_vol, bur_shell))
+					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, bur_vol, bur_shell, fw=fw))
 			elif options.sterimol:
 				if not options.scan:
 					if not options.quiet:
@@ -377,14 +392,7 @@ class dbstep:
 		if options.sterimol:
 			cylinders.append("   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,".format(L))
 
-		# Stop timing the loop
-		calc_time = time.time() - start - setup_time
-		# Report timing for the whole program and write a PyMol script
-		if options.timing and not options.quiet:
-			print("   Timing: Setup {:5.1f} / Calculate {:5.1f} (secs)".format(setup_time, calc_time))
-		self.setup_time = setup_time
-		self.calc_time = calc_time
-		if not options.commandline and ext != "rdkit":
+		if options.pymol and ext != "rdkit":
 			writer.xyz_export(file, mol)
 			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
 
@@ -450,7 +458,7 @@ def set_options(kwargs):
 		"grid": ["grid", 0.1],
 		"scalevdw": ["SCALE_VDW", 1.0],
 		"noH": ["noH", False],
-		"addmetals": ["add_metals", False],
+		"nometals": ["no_metals", False],
 		"norot": ["norot", False],
 		"r": ["radius", 3.5],
 		"scan": ["scan", False],
@@ -466,13 +474,12 @@ def set_options(kwargs):
 		"b": ["volume", False],
 		"volume": ["volume", False],
 		"vshell": ["vshell", False],
-		"t": ["timing", False],
-		"timing": ["timing", False],
-		"commandline": ["commandline", False],
+		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
+		"sambvca": ["sambvca", False],
 		"qsar": ["qsar", False],
 		"gridsize": ["gridsize", False],
-		"measure": ["measure", "grid"],
+		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"graph": ["graph", False],
 		"fg": ["shared_fg", False],
@@ -499,55 +506,45 @@ def main():
 	files = []
 	# get command line inputs. Use -h to list all possible arguments and default values
 	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
-	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom number", default=False, metavar="spec_atom_1")
-	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s) number(s) (ex: 3 or 3,4)", default=False, metavar="spec_atom_2")
-	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False, metavar="sterimol")
-	parser.add_option("-b", "--volume", dest="volume", action="store_true", help="Calculate buried volume of input molecule", default=False)
-	parser.add_option("-r", dest="radius", action="store", help="Radius from point of attachment (default = 3.5)", default=3.5, type=float, metavar="radius")
-	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii 'rmin:rmax:interval'", default=False, metavar="scan")
-	parser.add_option(
-		"--measure", dest="measure", action="store", choices=["grid", "classic"], help="Measurement type for Sterimol Calculation (classic or grid=default)", default="grid", metavar="measures"
-	)
-	parser.add_option(
-		"--surface", dest="surface", action="store", choices=["vdw", "density"], help="The surface can be defined by Bondi VDW radii or a density cube file", default="vdw", metavar="surface"
-	)
-	parser.add_option("--exclude", dest="exclude", action="store", help="Atom indices to ignore in steric measurements (no spaces, separated by commas)", default=False, metavar="exclude")
-	parser.add_option("--noH", dest="noH", action="store_true", help="Neglect hydrogen atoms (by default these are included)", default=False, metavar="noH")
-	parser.add_option("--addmetals", dest="add_metals", action="store_true", help="By default, the VDW radii of metals are not considered. This will include them", default=False, metavar="add_metals")
-	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecules (use if structures have been pre-aligned)", default=False)
-	parser.add_option("--grid", dest="grid", action="store", help="Specify how grid point spacing used to compute spatial occupancy", default=0.1, type=float, metavar="grid")
-	parser.add_option("--2d", dest="graph", action="store_true", help="[2D sterics only] Specify input text file containing SMILES strings to analyze 2D contributions", default=False)
-	parser.add_option(
-		"--fg", dest="shared_fg", action="store", default=False, help="[2D sterics only] SMILES pattern (e.g. 'C(O)=O') of a shared functional group or atom - this is used to define the origin"
-	)
-	parser.add_option(
-		"--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics only] Maximum path length (bonds) along which to include steric contributions (Default: 9)"
-	)
-	parser.add_option(
-		"--2d-type",
-		dest="voltype",
-		action="store",
-		default="crippen",
-		choices=["crippen", "mcgowan", "degree"],
-		help="[2D sterics only] Method for determining atomic contribution to total volume. Options include 'crippen'=default,'mcgowan', or 'degree'",
-	)
-	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in postive direction (from atom1 toward atom2). ", default=False, metavar="pos")
-	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default = 0.002)", type="float", default=0.002, metavar="isoval")
-	parser.add_option(
-		"--vshell", dest="vshell", action="store", help="Calculate buried volume of hollow sphere. Input: shell width, use '-r' option to adjust radius'", default=False, type=float, metavar="radius"
-	)
-	parser.add_option("--qsar", dest="qsar", action="store_true", help="Construct a grid with probe atom at each point for QSAR study (this generates a lot of files!)", default=False, metavar="qsar")
-	parser.add_option("--gridsize", dest="gridsize", action="store", help="Set size of grid to analyze molecule centered at origin 'xmin,xmax:ymin,ymax:zmin,zmax'", default=False)
-	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default = 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
-	parser.add_option("-t", "--timing", dest="timing", action="store_true", help="Request timing information", default=False)
-	parser.add_option("--atom3", dest="atom3", action="store", help="align a third atom to the positive x direction", default=False)
-	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Request verbose print output", default=False, metavar="verbose")
-	parser.add_option("--commandline", dest="commandline", action="store_true", help="Requests no new files be created", default=False)
-	parser.add_option("--visv", dest="visv", action="store", choices=["circle", "sphere"], help="Visualize volume as a sphere or a circle outline in PyMOL.", default="circle")
-	parser.add_option("--viss", dest="viss", action="store_true", help="Visualize sterimol parameters Bmin and Bmax in PyMOL as circle outlines.", default=False)
-	parser.add_option("--quiet", dest="quiet", action="store_true", help="Requests no print statements to command line", default=False)
-	parser.add_option("--debug", dest="debug", action="store_true", help="Mode for debugging, graph grid points, print extra stuff", default=False, metavar="debug")
+	parser.add_option("--2d", dest="graph", action="store_true", help="[2D sterics] Analyze 2D steric contributions from SMILES input", default=False)
+	parser.add_option("--2d-type", dest="voltype", action="store", default="crippen", choices=["crippen", "mcgowan", "degree"], help="[2D sterics] Atomic volume method: crippen, mcgowan, or degree (default: crippen)")
+	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom number (default: 1)", default=False, metavar="spec_atom_1")
+	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s) number(s), e.g. 3 or 3,4 (default: 2)", default=False, metavar="spec_atom_2")
+	parser.add_option("--atom3", dest="atom3", action="store", help="Align a third atom to the positive x direction", default=False)
+	parser.add_option("--pymol", dest="pymol", action="store_true", help="Write PyMOL visualization and xyz output files", default=False)
+	parser.add_option("--debug", dest="debug", action="store_true", help="Debug mode: graph grid points, print extra information", default=False)
+	parser.add_option("--exclude", dest="exclude", action="store", help="Atom indices to ignore, comma-separated with no spaces", default=False, metavar="exclude")
+	parser.add_option("--fg", dest="shared_fg", action="store", default=False, help="[2D sterics] SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
+	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.1)", default=0.1, type=float, metavar="grid")
+	parser.add_option("--gridsize", dest="gridsize", action="store", help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax", default=False)
+	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.002)", type="float", default=0.002, metavar="isoval")
+	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
+	parser.add_option("--noH", dest="noH", action="store_true", help="Exclude hydrogen atoms from steric measurements", default=False)
+	parser.add_option("--nometals", dest="no_metals", action="store_true", help="Exclude metal atoms from steric measurements", default=False)
+	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecule (use if structures have been pre-aligned)", default=False)
+	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)", default=False)
+	parser.add_option("--qsar", dest="qsar", action="store_true", help="Generate probe atom grid files for QSAR study", default=False)
+	parser.add_option("--quiet", dest="quiet", action="store_true", help="Suppress all print output", default=False)
+	parser.add_option("-r", dest="radius", action="store", help="Radius of sphere in Angstrom (default: 3.5)", default=3.5, type=float, metavar="radius")
+	parser.add_option("--sambvca", dest="sambvca", action="store_true", help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms", default=False)
+	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default: 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
+	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii, format: rmin:rmax:interval", default=False, metavar="scan")
+	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False)
+	parser.add_option("--surface", dest="surface", action="store", choices=["vdw", "density"], help="Surface type: Bondi VDW radii or density cube file (default: vdw)", default="vdw", metavar="surface")
+	parser.add_option("-b", "--vbur", dest="volume", action="store_true", help="Calculate buried volume of input molecule", default=False)
+	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Print verbose output", default=False)
+	parser.add_option("--viss", dest="viss", action="store_true", help="Visualize Sterimol Bmin and Bmax in PyMOL as circle outlines", default=False)
+	parser.add_option("--visv", dest="visv", action="store", choices=["circle", "sphere"], help="Visualize volume in PyMOL as circle or sphere (default: circle)", default="circle")
+	parser.add_option("--vshell", dest="vshell", action="store", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius", default=False, type=float, metavar="width")
 	(options, args) = parser.parse_args()
+
+	# Sterimol defaults to classic; volume forces grid mode internally
+	options.measure = "classic"
+
+	# SambVca mode: scale VDW radii by 1.17 and exclude H atoms
+	if options.sambvca:
+		options.SCALE_VDW = 1.17
+		options.noH = True
 
 	# make sure upper/lower case doesn't matter
 	options.surface = options.surface.lower()
@@ -594,6 +591,9 @@ def main():
 		if options.verbose:
 			print("   Grid size for QSAR mode is: " + options.gridsize)
 
+	# Set file column width based on longest filename
+	dbstep._file_col_width = max(len(os.path.basename(f)) for f in files) + 2
+
 	# loop over all specified output files
 	for file in files:
 		if options.graph:
@@ -606,6 +606,9 @@ def main():
 			vec_df.to_csv(file.split(".")[0] + "_2d_output.csv", index=False)
 		else:
 			dbstep(file, options=options)
+
+	if dbstep._column_width and not options.quiet:
+		print("   " + "-" * (dbstep._column_width - 3))
 
 
 if __name__ == "__main__":

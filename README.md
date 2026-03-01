@@ -26,7 +26,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * The `--surface density` command (default vdw) with a .cube input file will measure sterics from density values read in from the file.
     * Density values read from the cube file greater than a default cutoff of 0.002 determine if a molecule is occupying that point in space, this can be changed with `--isoval [number]`
 * `--noH` - exclude hydrogen atoms from steric measurements
-* `--addmetals` - add metals to steric measurements (traditionally metal centers are removed from steric measurements)
+* `--nometals` - exclude metal atoms from steric measurements
 
 ### 2-D Graph contribution features (Requires RDKit and Pandas packages to be installed):
 * Compute graph-based steric contributions in layers spanning outward from a reference functional group with the following input options: 
@@ -66,7 +66,7 @@ To execute the program:
     import dbstep.Dbstep as db
     
     #Create DBSTEP object
-    mol = db.dbstep(file,atom1=atom1,atom2=atom2,commandline=True,verbose=True,sterimol=True,measure='classic')  
+    mol = db.dbstep(file,atom1=atom1,atom2=atom2,verbose=True,sterimol=True,measure='classic')
     
     #Grab Sterimol Parameters
     L = mol.L
