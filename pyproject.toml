@@ -51,7 +51,7 @@ packages = ["dbstep"]
 version = { attr = "dbstep.__version__" }
 
 [tool.setuptools.package-data]
-dbstep = ["*.csv", "examples/*.xyz"]
+dbstep = ["data/*.xyz"]
 
 # ── Ruff ─────────────────────────────────────────────────────────────
 [tool.ruff]

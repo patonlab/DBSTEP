@@ -1,0 +1,36 @@
+0                 ! How many atoms to delete
+1                 ! How many atoms define the sphere center
+1                 ! Id of atoms defining the sphere center
+1                 ! How many atoms define the z-axis
+2                 ! Id of atoms for z-axis
+1                 ! How many atoms define the xz-plane
+3                 ! Id of atoms for xz-plane
+3.5               ! Sphere radius
+0.00              ! Displacement
+0.10              ! Mesh size
+0                 ! 0=keep H, 1=remove H
+0                 ! 0=negative Z, 1=positive Z
+1                 ! 0/1 write surface files
+2	          ! number of radii. All radii labels UPPERCASE.
+C       1.70
+H       1.09
+18
+1nap
+H                 0.00        0.00        0.00
+C                -1.06        0.00        0.00
+C                -1.75        0.85        0.85
+H                -1.22        1.49        1.49
+C                -3.13        0.84        0.84
+H                -3.66        1.49        1.49
+C                -3.82        0.00        0.00
+H                -4.88        0.00        0.00
+C                -3.13       -0.85       -0.85
+C                -1.75       -0.85       -0.85
+C                -1.06       -1.69       -1.69
+H                 0.00       -1.69       -1.69
+C                -1.75       -2.54       -2.54
+H                -1.22       -3.18       -3.18
+C                -3.13       -2.54       -2.54
+H                -3.66       -3.18       -3.18
+C                -3.82       -1.69       -1.69
+H                -4.88       -1.69       -1.69

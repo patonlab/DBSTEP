@@ -17,7 +17,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `writer.py` — Output formatting and file writing
   - `__init__.py` — Package init, `__version__`, `__all__`
   - `__main__.py` — Module entry point for `python -m dbstep`
-  - `examples/` — Example molecular structure files (xyz format)
+  - `data/` — Benchmark molecular structure files (xyz format)
 - `tests/` — Pytest test suite
   - `test_dbstep.py` — Sterimol parameter validation against Verloop's reference values
   - `test_calculator.py` — Unit tests for rotation/geometry math

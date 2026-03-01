@@ -14,23 +14,21 @@ Performs calculations for finding angles, translation and rotation of molecules
 
 
 def unit_vector(vector):
-	""" Returns the unit vector of the vector """
+	"""Returns the unit vector of the vector"""
 	return vector / np.linalg.norm(vector)
-	
+
 
 def point_vec(coords, spec_atom_2):
-	"""returns coordinate vector between any number of atoms """
-	point = np.array([0.0,0.0,0.0])
-	
+	"""returns coordinate vector between any number of atoms"""
+	point = np.array([0.0, 0.0, 0.0])
+
 	for atom in spec_atom_2:
-		point += coords[atom-1]
-		
+		point += coords[atom - 1]
+
 	return point
 
 
-def rotate_mol(
-		coords, spec_atom_1, end_point,
-		verbose=False, atom3=False, cube_origin=False):
+def rotate_mol(coords, spec_atom_1, end_point, verbose=False, atom3=False, cube_origin=False):
 	"""Aligns spec_atom_1-end_point bond to the z-axis via rotation about the
 	x and y axes.
 
@@ -56,13 +54,13 @@ def rotate_mol(
 
 	yaw = angle_between_axis(intersecting_vector, 1, 2)
 	if yaw != 0:
-		print_rotation_info('x', yaw, verbose)
+		print_rotation_info("x", yaw, verbose)
 		end_point = apply_rotation(end_point, np.array([yaw, 0, 0]))
 		intersecting_vector = end_point - coords[atom_1_index]
 
 	pitch = angle_between_axis(intersecting_vector, 0, 2)
 	if pitch != 0:
-		print_rotation_info('y', pitch, verbose)
+		print_rotation_info("y", pitch, verbose)
 		end_point = apply_rotation(end_point, np.array([0, pitch, 0]))
 
 	if atom3 is not False:
@@ -71,7 +69,7 @@ def rotate_mol(
 		roll = angle_between_axis(intersecting_vector, 1, 0)
 		if roll != 0:
 			roll = check_rotated_atom3_x_direction(atom3_coords, roll)
-			print_rotation_info('z', roll, verbose)
+			print_rotation_info("z", roll, verbose)
 
 	if yaw != 0 or pitch != 0 or roll != 0:
 		# rotation of all of coords done here
@@ -91,7 +89,7 @@ def rotate_mol(
 
 
 def angle_between_axis(vector, axis_from_index, axis_to_index):
-	""" Returns the angle in radians needed to rotate axis_from to be parallel to axis_to. """
+	"""Returns the angle in radians needed to rotate axis_from to be parallel to axis_to."""
 	v1_u = unit_vector(np.array(vector))
 
 	angle = np.arctan2(v1_u[axis_from_index], v1_u[axis_to_index])
@@ -108,14 +106,12 @@ def angle_between_axis(vector, axis_from_index, axis_to_index):
 def print_rotation_info(axis, radians, verbose):
 	"""Prints rotation information if verbose and radians is non-zero."""
 	if verbose:
-		print(
-			f'   Rotating molecule about {axis}-axis '
-			f'{np.degrees(radians):.2f} degrees.')
+		print(f"   Rotating molecule about {axis}-axis {np.degrees(radians):.2f} degrees.")
 
 
 def apply_rotation(item_to_rotate, radians):
 	"""Rotates a vector or matrix about x, y and z axes specified by radians array."""
-	rot = R.from_euler('xyz', radians)
+	rot = R.from_euler("xyz", radians)
 	return np.round(rot.apply(item_to_rotate), 8)
 
 
@@ -137,33 +133,37 @@ def translate_mol(MOL, options, origin):
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
-			if options.verbose: print("\n   Molecule is defined with {}{} at the origin".format(base_atom,(base_id+1)))
+			if options.verbose:
+				print("\n   Molecule is defined with {}{} at the origin".format(base_atom, (base_id + 1)))
 		else:
-			if options.verbose == True: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
+			if options.verbose:
+				print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id + 1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
-	except:
-		   sys.exit("   WARNING! Unable to find an atom to set at the origin")
+	except Exception:
+		sys.exit("   WARNING! Unable to find an atom to set at the origin")
 	return coords
 
 
 def translate_dens(mol, options, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, origin):
-	""" Translates molecule so that a specified atom (spec_atom) is at the origin. Defaults to a metal if no atom is specified."""
-	coords, atoms, cube_origin = mol.CARTESIANS, mol.ATOMTYPES,mol.ORIGIN
+	"""Translates molecule so that a specified atom (spec_atom) is at the origin. Defaults to a metal if no atom is specified."""
+	coords, atoms, cube_origin = mol.CARTESIANS, mol.ATOMTYPES, mol.ORIGIN
 	spec_atom = options.spec_atom_1
 	for n, atom in enumerate(atoms):
 		if not spec_atom:
 			if atom in metals:
 				base_id, base_atom = n, atom
 		else:
-			if n+1 == spec_atom:
+			if n + 1 == spec_atom:
 				base_id, base_atom = n, atom
 	try:
 		displacement = coords[base_id] - origin
 		if np.linalg.norm(displacement) == 0:
-			if options.verbose: print("\n   Molecule is already defined with {}{} at the origin".format(base_atom,(base_id+1)))
+			if options.verbose:
+				print("\n   Molecule is already defined with {}{} at the origin".format(base_atom, (base_id + 1)))
 		else:
-			if options.verbose: print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id+1)))
+			if options.verbose:
+				print("\n   Translating molecule by {} to set {}{} at the origin".format(-displacement, base_atom, (base_id + 1)))
 		for n, coord in enumerate(coords):
 			coords[n] = coords[n] - displacement
 		cube_origin = cube_origin + displacement
@@ -174,6 +174,6 @@ def translate_dens(mol, options, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, or
 		zmin -= displacement[2]
 		zmax -= displacement[2]
 		xyz_max = max(xmax, ymax, zmax, abs(xmin), abs(ymin), abs(zmin))
-	except:
-		   sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
+	except Exception:
+		sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
 	return [coords, cube_origin, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max]

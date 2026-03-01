@@ -27,13 +27,13 @@ def read_input(molecule, ext, options):
 	Returns:
 		DataParser object with parsed molecule data to be used by the rest of the program
 	"""
-	if ext == '.cube':
-		options.surface = 'density'
+	if ext == ".cube":
+		options.surface = "density"
 		mol = CubeParser(molecule, "cube")
 	else:
-		if ext in [".xyz", '.com', '.gjf']:
+		if ext in [".xyz", ".com", ".gjf"]:
 			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
-		elif ext == 'rdkit':
+		elif ext == "rdkit":
 			mol = RDKitParser(molecule, options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
 		else:
 			mol = cclibParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
@@ -79,55 +79,39 @@ class DataParser(ABC):
 			self.file_lines = DataParser.get_file_lines(_input)
 		self.parse_input()
 		self.ATOMTYPES, self.CARTESIANS = np.array(self.ATOMTYPES), np.array(self.CARTESIANS)
-		if (self.noH or self.exclude) and self.FORMAT != 'cube':
+		if (self.noH or self.exclude) and self.FORMAT != "cube":
 			self.exclude_atoms()
 
 	@abstractmethod
 	def parse_input(self):
-		"""Parse the input, filling ATOMTYPES with the atoms of the input molecule and CARTESIANS with the atoms xyz coordinates.
-		"""
+		"""Parse the input, filling ATOMTYPES with the atoms of the input molecule and CARTESIANS with the atoms xyz coordinates."""
 		pass
 
 	def exclude_atoms(self):
 		"""Remove requested atoms - hydrogens or manually specified atoms"""
-		atoms_to_remove =  [False for i in range(len(self.ATOMTYPES))]
+		atoms_to_remove = [False for i in range(len(self.ATOMTYPES))]
 		if self.noH:
-			atoms_to_remove = [
-				True if self.ATOMTYPES[i] == 'H' 
-				else atoms_to_remove[i] 
-				for i in range(len(atoms_to_remove))]
+			atoms_to_remove = [True if self.ATOMTYPES[i] == "H" else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
 		if self.exclude:
-			del_atom_list = [int(atom)-1 for atom in self.exclude.split(',')]
-			atoms_to_remove = [
-				True if i in del_atom_list 
-				else atoms_to_remove[i] 
-				for i in range(len(atoms_to_remove))]
-		
-		spec_atoms = [self.spec_atom_1-1]
-		[spec_atoms.append(atom-1) for atom in self.spec_atom_2]
+			del_atom_list = [int(atom) - 1 for atom in self.exclude.split(",")]
+			atoms_to_remove = [True if i in del_atom_list else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
 
-		#if removed atom is one of the spec atoms, replace its atom type with Bq (radii=0)
-		self.ATOMTYPES = np.array([
-			'Bq' if i in spec_atoms and atoms_to_remove[i] 
-			else self.ATOMTYPES[i] 
-			for i in range(len(atoms_to_remove))])
-		atoms_to_remove = [
-			False if i in spec_atoms and atoms_to_remove[i] 
-			else atoms_to_remove[i] 
-			for i in range(len(atoms_to_remove))]
+		spec_atoms = [self.spec_atom_1 - 1]
+		[spec_atoms.append(atom - 1) for atom in self.spec_atom_2]
 
-		spec_atoms = [
-			spec_atom - np.count_nonzero(atoms_to_remove[:spec_atom])
-			for spec_atom in spec_atoms]
+		# if removed atom is one of the spec atoms, replace its atom type with Bq (radii=0)
+		self.ATOMTYPES = np.array(["Bq" if i in spec_atoms and atoms_to_remove[i] else self.ATOMTYPES[i] for i in range(len(atoms_to_remove))])
+		atoms_to_remove = [False if i in spec_atoms and atoms_to_remove[i] else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
+
+		spec_atoms = [spec_atom - np.count_nonzero(atoms_to_remove[:spec_atom]) for spec_atom in spec_atoms]
 		self.spec_atom_1 = spec_atoms[0] + 1
-		self.spec_atom_2 = [atom+1 for atom in spec_atoms[1:]]
+		self.spec_atom_2 = [atom + 1 for atom in spec_atoms[1:]]
 		self.ATOMTYPES = self.ATOMTYPES[np.invert(atoms_to_remove)]
 		self.CARTESIANS = self.CARTESIANS[np.invert(atoms_to_remove)]
 
-
 	@staticmethod
 	def get_file_lines(file):
-		""""Reads file and returns the lines using readlines()
+		""" "Reads file and returns the lines using readlines()
 
 		Args:
 		file (str): the path to the file
@@ -135,7 +119,7 @@ class DataParser(ABC):
 		Returns:
 			list with lines of the file
 		"""
-		with open(file, 'r') as f:
+		with open(file, "r") as f:
 			return f.readlines()
 
 
@@ -166,17 +150,17 @@ class CubeParser(DataParser):
 				coord = [float(c) for c in curr_line.split()]
 				if i == 2:
 					self.num_atoms = coord[0]
-					self.ORIGIN = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG, coord[3]*BOHR_TO_ANG]
+					self.ORIGIN = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif i == 3:
 					self.xdim = int(coord[0])
-					self.SPACING = coord[1]*BOHR_TO_ANG
-					self.x_inc = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG, coord[3]*BOHR_TO_ANG]
+					self.SPACING = coord[1] * BOHR_TO_ANG
+					self.x_inc = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif i == 4:
 					self.ydim = int(coord[0])
-					self.y_inc = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG, coord[3]*BOHR_TO_ANG]
+					self.y_inc = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif i == 5:
 					self.zdim = int(coord[0])
-					self.z_inc = [coord[1]*BOHR_TO_ANG, coord[2]*BOHR_TO_ANG,coord[3]*BOHR_TO_ANG]
+					self.z_inc = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif self.num_atoms and start_of_atoms <= i < start_of_atoms + self.num_atoms:
 					self._parse_atom_line(coord)
 				else:
@@ -184,7 +168,7 @@ class CubeParser(DataParser):
 			except ValueError as e:
 				# TODO: make a custom cube file exception to chain ValueError with this error
 				# TODO: handle potentially invalid atom errors
-				sys.exit(f'  Unable to parse \"{self._input}\", a value on line {i + 1} could not be read in.')
+				sys.exit(f'  Unable to parse "{self._input}", a value on line {i + 1} could not be read in.')
 
 	def _parse_atom_line(self, split_line):
 		"""Parses a line in the cube file containing atom number and coordinates."""
@@ -211,27 +195,29 @@ class XYZParser(DataParser):
 	def parse_input(self):
 		"""Parses input from either xyz file or com/gif file."""
 		file_lines = self.file_lines
-		if self.FORMAT == 'xyz':
-			for i in range(0,len(file_lines)):
+		if self.FORMAT == "xyz":
+			for i in range(0, len(file_lines)):
 				try:
 					coord = file_lines[i].split()
 					for i in range(len(coord)):
 						try:
 							coord[i] = float(coord[i])
-						except ValueError: pass
+						except ValueError:
+							pass
 					if len(coord) == 4:
 						if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3], float):
-							[atom, x,y,z] = [coord[0], coord[1], coord[2], coord[3]]
+							[atom, x, y, z] = [coord[0], coord[1], coord[2], coord[3]]
 							self.ATOMTYPES.append(atom)
-							self.CARTESIANS.append([x,y,z])
-				except: pass
-		elif self.FORMAT == 'com' or self.FORMAT == 'gjf':
-			for i in range(0,len(file_lines)):
+							self.CARTESIANS.append([x, y, z])
+				except Exception:
+					pass
+		elif self.FORMAT == "com" or self.FORMAT == "gjf":
+			for i in range(0, len(file_lines)):
 				if file_lines[i].find("#") > -1:
-					if len(file_lines[i+1].split()) == 0:
-						start = i+5
-					if len(file_lines[i+2].split()) == 0:
-						start = i+6
+					if len(file_lines[i + 1].split()) == 0:
+						start = i + 5
+					if len(file_lines[i + 2].split()) == 0:
+						start = i + 6
 					break
 			for i in range(start, len(file_lines)):
 				try:
@@ -239,18 +225,21 @@ class XYZParser(DataParser):
 					for i in range(len(coord)):
 						try:
 							coord[i] = float(coord[i])
-						except ValueError: pass
+						except ValueError:
+							pass
 					if len(coord) == 4:
-						if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3],float):
-							[atom, x,y,z] = [coord[0], coord[1], coord[2], coord[3]]
+						if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3], float):
+							[atom, x, y, z] = [coord[0], coord[1], coord[2], coord[3]]
 							self.ATOMTYPES.append(atom)
-							self.CARTESIANS.append([x,y,z])
-				except: pass
+							self.CARTESIANS.append([x, y, z])
+				except Exception:
+					pass
 
-			
+
 class cclibParser(DataParser):
 	"""Use the cclib package to extract data from generic computational chemistry output files."""
-	def __init__(self, file, input_format, noH, exclude,  spec_atom_1, spec_atom_2):
+
+	def __init__(self, file, input_format, noH, exclude, spec_atom_1, spec_atom_2):
 		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2)
 
 	def parse_input(self):
@@ -263,13 +252,14 @@ class cclibParser(DataParser):
 
 class RDKitParser(DataParser):
 	"""Extract coordinates and atom types from rdkit mol object
-	
+
 	Attributes:
 		ATOMTYPES (numpy array): List of elements present in molecular file
 		CARTESIANS (numpy array): List of Cartesian (x,y,z) coordinates for each atom
 	"""
+
 	def __init__(self, mol, noH, exclude, spec_atom_1, spec_atom_2):
-		super().__init__(mol, 'RDKit', noH, exclude, spec_atom_1, spec_atom_2)
+		super().__init__(mol, "RDKit", noH, exclude, spec_atom_1, spec_atom_2)
 
 	def parse_input(self):
 		"""Store cartesians and symbols from mol object"""

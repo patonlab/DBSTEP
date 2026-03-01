@@ -1,0 +1,130 @@
+
+ ---------------------------------------------------
+ |                                                 |
+ |              S A M B V C A  2.1                 |
+ |                                                 |
+ |              Release 29-06-2019                 |
+ |                                                 |
+ |       Molecular Buried Volume Calculator        |
+ |                                                 |
+ |  http://www.molnac.unisa.it/OM-tools/SambVca    |
+ |                                                 |
+ |  L. Cavallo & Z. Cao  Email: lcavallo@unisa.it  |
+ |                                                 |
+ ---------------------------------------------------
+
+Checking: No. of atoms to be removed :                     0
+Checking: No. of atoms defining the sphere center :        1
+Checking: Atoms defining the sphere center :
+    1
+Checking : No. of atoms defining the Z-axis :              1
+    2
+Checking : No. of atoms defining the XZ-plane :            1
+    3
+ Checking: Vbur sphere radius :            3.500
+ Checking: Displacement from origin :      0.000
+ Checking: Bin width :                     0.100
+ Checking: Keeping H atoms
+ Checking: Outputting steric map
+ Checking: No. of atom types in your database :           2
+ Checking: Atom labels and radius in the database :
+C    1.700
+H    1.090
+
+Checking: No. of atoms of input frame :                   26
+
+Checking: Coordinates of input frame :
+H      -2.15577  -1.52322  -0.00000
+C      -1.25762  -0.88813  -0.00000
+C      -1.25762  -0.00479   1.25865
+H      -2.15577   0.64185   1.25865
+H      -1.25354  -0.63410   2.15668
+C      -0.00021   0.88433   1.25865
+H      -0.00021   1.52519   2.14961
+C      -0.00021  -1.78303  -0.00000
+H       0.00387  -2.41234   0.89803
+H       0.00387  -2.41234  -0.89803
+C       1.25719  -0.89390   0.00000
+C       1.25719   0.00676   1.25865
+H       1.25719  -0.63410   2.14961
+H       2.15534   0.64185   1.25865
+H       2.15534  -1.52322   0.00000
+C       1.25719   0.00676  -1.25865
+H       2.15534   0.64185  -1.25865
+H       1.25719  -0.63410  -2.14961
+C      -0.00021   0.88433  -1.25865
+C      -0.00021   1.78500   0.00000
+H       0.89793   2.42008   0.00000
+H      -0.89836   2.41431   0.00000
+H      -0.00021   1.52519  -2.14961
+C      -1.25762  -0.00479  -1.25865
+H      -2.15577   0.64185  -1.25865
+H      -1.25354  -0.63410  -2.15668
+
+Results: Coordinates of rotated frame :
+          26
+Ad.log                                 
+H       0.00000   0.00000   0.00000
+C      -0.00000   0.00000  -1.10001
+C       1.45065  -0.00000  -1.61000
+H       1.97097   0.90801  -1.25001
+H       1.97318  -0.89435  -1.25000
+C       1.45065  -0.00000  -3.15001
+H       2.48384   0.01103  -3.52001
+C      -0.72423  -1.26385  -1.61000
+H      -0.20169  -2.15821  -1.25000
+H      -1.76004  -1.26523  -1.25000
+C      -0.72422  -1.26385  -3.15001
+C       0.73346  -1.25158  -3.67000
+H       1.24634  -2.14855  -3.30000
+H       0.73346  -1.25158  -4.77001
+H      -1.23751  -2.15959  -3.52000
+C      -1.45066  -0.00001  -3.67000
+H      -1.45066  -0.00001  -4.77001
+H      -2.48385  -0.01104  -3.30000
+C      -0.73347   1.25156  -3.15001
+C       0.72422   1.26384  -3.67001
+H       0.72422   1.26384  -4.77000
+H       1.23750   2.15957  -3.30001
+H      -1.24635   2.14854  -3.52001
+C      -0.73347   1.25157  -1.61000
+H      -0.21315   2.15958  -1.25001
+H      -1.76928   1.25019  -1.25000
+
+Results : Volumes in Angs^3
+
+       N of voxels examined :          179579
+       Volume of voxel      :       0.0010000
+
+
+   V Free    V Buried   V Total   V Exact
+     111.3      68.1     179.4     179.6
+
+    Buried volume =      68.14 Angs^3
+
+   %V Free   %V Buried  % V Tot/V Ex
+      62.0      38.0      99.9
+
+    The %V Bur of the molecule is:     38.0
+
+                 Quadrants analysis
+ Quadrant     V f     V b     V t    %V f    %V b
+ SW          27.0    17.8    44.9    60.3    39.7
+ NW          27.0    17.9    44.9    60.2    39.8
+ NE          28.6    16.2    44.9    63.8    36.2
+ SE          28.6    16.2    44.9    63.8    36.2
+
+                   Octants analysis
+ Octant       V f      V b    V t    %V f    %V b
+ SW-z         5.4    17.1    22.4    23.9    76.1
+ NW-z         5.3    17.1    22.4    23.7    76.3
+ NE-z         7.0    15.5    22.4    31.0    69.0
+ SE-z         6.9    15.5    22.4    31.0    69.0
+ SW+z        21.7     0.8    22.4    96.6     3.4
+ NW+z        21.7     0.8    22.4    96.6     3.4
+ NE+z        21.7     0.7    22.4    96.7     3.3
+ SE+z        21.7     0.7    22.4    96.7     3.3
+
+  No. of frames analyzed :            1
+
+ Normal termination

@@ -1,4 +1,4 @@
-![DBSTEP](DBSTEP_banner.png)
+![DBSTEP](images/DBSTEP_banner.png)
 ===
 
 # DBSTEP
@@ -37,7 +37,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 
 ## Requirements & Dependencies
 * Python 3.9 or greater
-* Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [numba](https://numba.pydata.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
+* Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
 
 ## Install
 
@@ -111,7 +111,7 @@ H	0.76	2.03	-1.25
 
 A visualization of these parameters can be shown in the program PyMOL using the two output files created by DBSTEP, showing the L parameter in blue, Bmin parameter in green and Bmax parameter in red. 
 
-![Example1](Example1.png)
+![Example1](images/Example1.png)
 
 2. Sterimol2Vec Parameters for Ph
 
@@ -133,7 +133,7 @@ A visualization of these parameters can be shown in the program PyMOL using the 
 ```
  
  Displayed in PyMOL, each new Bmin and Bmax axis is added along the L axis. 
- ![Example2](Example2.png)
+ ![Example2](images/Example2.png)
  
  
 3. Percent Buried Volume 
@@ -147,7 +147,7 @@ A visualization of these parameters can be shown in the program PyMOL using the 
  ```
  
  For percent buried volume, the PyMOL script will overlay an appropriate sized sphere where measurement took place.
-  ![Example3](Example3.png)
+  ![Example3](images/Example3.png)
  
 4. Vol2Vec Parameters
  

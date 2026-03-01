@@ -1,0 +1,35 @@
+0                 ! How many atoms to delete
+1                 ! How many atoms define the sphere center
+1                 ! Id of atoms defining the sphere center
+1                 ! How many atoms define the z-axis
+2                 ! Id of atoms for z-axis
+1                 ! How many atoms define the xz-plane
+3                 ! Id of atoms for xz-plane
+3.5               ! Sphere radius
+0.00              ! Displacement
+0.10              ! Mesh size
+0                 ! 0=keep H, 1=remove H
+0                 ! 0=negative Z, 1=positive Z
+1                 ! 0/1 write surface files
+2	          ! number of radii. All radii labels UPPERCASE.
+C       1.70
+H       1.09
+17
+CH2tBu.log	Energy: -124103.2226183
+H             -1.90619     1.03912     0.00000
+C             -1.54111     0.00147     0.00000
+H             -1.90524    -0.51888     0.89803
+H             -1.90524    -0.51888    -0.89803
+C              0.00223     0.00381    -0.00000
+C              0.51333     0.72428     1.25865
+H              1.60999     0.71788     1.25865
+H              0.14826     1.76193     1.25865
+H              0.14920     0.20393     2.15668
+C              0.51333    -1.44890     0.00000
+H              1.60999    -1.45530    -0.00000
+H              0.14253    -1.97159     0.90510
+H              0.14253    -1.97159    -0.90510
+C              0.51333     0.72428    -1.25865
+H              1.60999     0.71788    -1.25865
+H              0.14920     0.20393    -2.15668
+H              0.14826     1.76193    -1.25865

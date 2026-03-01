@@ -3,8 +3,10 @@ import pytest
 from dbstep import Dbstep
 import numpy as np
 
+
 class DbstepShell:
 	"""A reference to the dbstep class so its helper methods can be accessed without running its __init__"""
+
 	def __init__(self):
 		self.__class__ = Dbstep.dbstep
 
@@ -12,26 +14,25 @@ class DbstepShell:
 class TestGetSpecAtoms:
 	"""Tests _get_spec_atoms"""
 
-	@pytest.mark.parametrize("input_atom_1, input_atom_2, expected_atom_1, expected_atom_2", [
-		(None, None, 1, [2]),
-		(1, "4,6,1,4", 1, [4, 6, 1, 4]),
-		(3, [3, 4, "5"], 3, [3, 4, 5])
-	])
+	@pytest.mark.parametrize("input_atom_1, input_atom_2, expected_atom_1, expected_atom_2", [(None, None, 1, [2]), (1, "4,6,1,4", 1, [4, 6, 1, 4]), (3, [3, 4, "5"], 3, [3, 4, 5])])
 	def test_get_spec_atoms(self, input_atom_1, input_atom_2, expected_atom_1, expected_atom_2):
-		options = Dbstep.set_options({'atom1': input_atom_1, 'atom2': input_atom_2})
+		options = Dbstep.set_options({"atom1": input_atom_1, "atom2": input_atom_2})
 		db = DbstepShell()
 		db._get_spec_atoms(options)
 		assert options.spec_atom_1 == expected_atom_1
 		assert options.spec_atom_2 == expected_atom_2
 
-	@pytest.mark.parametrize("input_atom_1, input_atom_2, expected_exception", [
-		(1, "aa", ValueError),
-		("aa", [1], ValueError),
-		(3, [1, 3, "4a"], ValueError),
-		(3, [3, 4, [1, 2, 3]], TypeError),
-	])
+	@pytest.mark.parametrize(
+		"input_atom_1, input_atom_2, expected_exception",
+		[
+			(1, "aa", ValueError),
+			("aa", [1], ValueError),
+			(3, [1, 3, "4a"], ValueError),
+			(3, [3, 4, [1, 2, 3]], TypeError),
+		],
+	)
 	def test_get_spec_atoms_exception(self, input_atom_1, input_atom_2, expected_exception):
-		options = Dbstep.set_options({'atom1': input_atom_1, 'atom2': input_atom_2})
+		options = Dbstep.set_options({"atom1": input_atom_1, "atom2": input_atom_2})
 		db = DbstepShell()
 		with pytest.raises(expected_exception):
 			db._get_spec_atoms(options)
@@ -41,19 +42,33 @@ class SetupAgainstVerloop:
 	"""Gets data ready to be put into parametrized methods in TestAgainstVerloop."""
 
 	file_names = [
-		'H.xyz', 'Me.xyz', 'Et.xyz', 'iPr.xyz', 'nBu.xyz', 'CH2iPr.xyz', 'cHex.xyz', 'nPr.xyz', 'Ad.xyz',
-		'tBu.xyz', 'CH2tBu.xyz', 'CHEt2.xyz', 'CHiPr2.xyz', 'CHPr2.xyz', 'CEt3.xyz', 'Ph.xyz', 'Bn.xyz',
-		'4ClPh.xyz', '4MePh.xyz', '4MeOPh.xyz', '35diMePh.xyz', '1Nap.xyz']
+		"H.xyz",
+		"Me.xyz",
+		"Et.xyz",
+		"iPr.xyz",
+		"nBu.xyz",
+		"CH2iPr.xyz",
+		"cHex.xyz",
+		"nPr.xyz",
+		"Ad.xyz",
+		"tBu.xyz",
+		"CH2tBu.xyz",
+		"CHEt2.xyz",
+		"CHiPr2.xyz",
+		"CHPr2.xyz",
+		"CEt3.xyz",
+		"Ph.xyz",
+		"Bn.xyz",
+		"4ClPh.xyz",
+		"4MePh.xyz",
+		"4MeOPh.xyz",
+		"35diMePh.xyz",
+		"1Nap.xyz",
+	]
 
-	verloop_ls = [
-		2.15, 3.2, 4.2, 4.2, 6.26, 5.25, 6.26, 5.25, 6.26, 4.2, 5.25, 5.25, 5.25, 6.26, 5.25, 6.37, 4.62,
-		7.69, 7.42, 8.29, 6.37, 6.37]
-	verloop_b1s = [
-		1.09, 1.7, 1.7, 1.99, 1.7, 1.7, 2., 1.7, 3.25, 2.86, 1.7, 1.99, 2.14, 1.99, 2.86, 1.71, 1.7,
-		1.75, 1.71, 1.81, 1.71, 1.71]
-	verloop_b5s = [
-		1.09, 2.13, 3.26, 3.26, 4.63, 4.54, 3.58, 3.58, 3.58, 3.26, 4.54, 4.54, 4.54, 5.76, 4.54, 3.2, 6.11,
-		3.2, 3.2, 3.2, 4.38, 5.59]
+	verloop_ls = [2.15, 3.2, 4.2, 4.2, 6.26, 5.25, 6.26, 5.25, 6.26, 4.2, 5.25, 5.25, 5.25, 6.26, 5.25, 6.37, 4.62, 7.69, 7.42, 8.29, 6.37, 6.37]
+	verloop_b1s = [1.09, 1.7, 1.7, 1.99, 1.7, 1.7, 2.0, 1.7, 3.25, 2.86, 1.7, 1.99, 2.14, 1.99, 2.86, 1.71, 1.7, 1.75, 1.71, 1.81, 1.71, 1.71]
+	verloop_b5s = [1.09, 2.13, 3.26, 3.26, 4.63, 4.54, 3.58, 3.58, 3.58, 3.26, 4.54, 4.54, 4.54, 5.76, 4.54, 3.2, 6.11, 3.2, 3.2, 3.2, 4.38, 5.59]
 
 	def __init__(self):
 		self.dbstep_ls, self.dbstep_b1s, self.dbstep_b5s = self._dbstep_outputs()
@@ -68,7 +83,7 @@ class SetupAgainstVerloop:
 		"""Reads and calculates dbstep parameters for all of the files in self.file_names"""
 		dbstep_ls, dbstep_b1s, dbstep_b5s = [], [], []
 		for file in self.file_names:
-			db_obj = Dbstep.dbstep('dbstep/examples/' + file, sterimol=True, measure='classic',  commandline=True)
+			db_obj = Dbstep.dbstep("dbstep/data/" + file, sterimol=True, measure="classic", commandline=True)
 			dbstep_ls.append(np.round(db_obj.L + 0.4, 2))
 			dbstep_b1s.append(np.round(db_obj.Bmin, 2))
 			dbstep_b5s.append(np.round(db_obj.Bmax, 2))
@@ -76,10 +91,7 @@ class SetupAgainstVerloop:
 
 	def _fill_parameter_lists(self):
 		"""Fills the file name and Sterimol parameters lists so they can be passed into pytest.mark.parametrize."""
-		values = zip(
-			self.file_names,
-			self.verloop_ls, self.verloop_b1s, self.verloop_b5s,
-			self.dbstep_ls, self.dbstep_b1s, self.dbstep_b5s)
+		values = zip(self.file_names, self.verloop_ls, self.verloop_b1s, self.verloop_b5s, self.dbstep_ls, self.dbstep_b1s, self.dbstep_b5s)
 		for file_name, verloop_l, verloop_b1, verloop_b5, dbstep_l, dbstep_b1, dbstep_b5 in values:
 			self.file_names_and_ls.append((file_name, verloop_l, dbstep_l))
 			self.file_names_and_b1s.append((file_name, verloop_b1, dbstep_b1))
@@ -89,9 +101,10 @@ class SetupAgainstVerloop:
 class TestAgainstVerloop:
 	"""Compares dbstep sterimol parameters to parameters calculated by Verloop's fortran code.
 
-		NOTE: I decided to give each parameter their own tolerance variable so they can
-		be changed in isolation.
+	NOTE: I decided to give each parameter their own tolerance variable so they can
+	be changed in isolation.
 	"""
+
 	sav = SetupAgainstVerloop()
 
 	@pytest.mark.parametrize("name, verloop_l, dbstep_l", sav.file_names_and_ls)
@@ -113,7 +126,48 @@ class TestAgainstVerloop:
 	def compare_with_tolerance(value1, value2, tolerance):
 		"""Compares to values and asserts whether they are +/- tolerance away from each other.
 
-			NOTE: I didn't use np/math.isclose because I like it to print how far
-			values are from each other on failure.
+		NOTE: I didn't use np/math.isclose because I like it to print how far
+		values are from each other on failure.
 		"""
 		assert np.round(abs(value1 - value2), 2) <= tolerance
+
+
+class TestVburAgainstSambvca:
+	"""Cross-validates dbstep %Vbur against SambVca 2.1 (compiled from reference/Sambvca21/sambvca21.f).
+
+	SambVca reference values generated with: DBSTEP Bondi radii (unscaled), H atoms kept,
+	3.5 Å sphere, 0.10 Å grid spacing. Input files in reference/Sambvca21/examples/.
+	"""
+
+	@pytest.mark.parametrize(
+		"file, sambvca_vbur",
+		[
+			("Me.xyz", 14.1),
+			("Et.xyz", 21.5),
+			("iPr.xyz", 28.8),
+			("nPr.xyz", 22.6),
+			("nBu.xyz", 22.5),
+			("tBu.xyz", 36.0),
+			("cHex.xyz", 30.5),
+			("Ad.xyz", 38.0),
+			("CH2iPr.xyz", 27.2),
+			("CH2tBu.xyz", 31.7),
+			("CHEt2.xyz", 34.2),
+			("CHPr2.xyz", 34.3),
+			("CHiPr2.xyz", 43.4),
+			("CEt3.xyz", 45.8),
+			("Ph.xyz", 26.7),
+			("Bn.xyz", 25.8),
+			("4ClPh.xyz", 26.7),
+			("4MePh.xyz", 26.7),
+			("4MeOPh.xyz", 26.7),
+			("35diMePh.xyz", 26.7),
+			("1Nap.xyz", 31.0),
+		],
+	)
+	def test_vbur_against_sambvca(self, file, sambvca_vbur):
+		db_obj = Dbstep.dbstep("dbstep/data/" + file, volume=True, commandline=True, quiet=True)
+		tolerance = 0.2
+		assert abs(db_obj.bur_vol - sambvca_vbur) <= tolerance, (
+			f"{file}: DBSTEP {db_obj.bur_vol:.1f} vs SambVca {sambvca_vbur} (diff {abs(db_obj.bur_vol - sambvca_vbur):.1f})"
+		)
