@@ -1,8 +1,30 @@
-*.pyc
-.cache/
-.DS_Store
-dbstep.egg-info/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
 dist/
 build/
+*.whl
+
+# Virtual environments
+.venv/
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+
+# Testing
 .pytest_cache/
+.coverage
+htmlcov/
+
+# Tools
+.mypy_cache/
+.ruff_cache/

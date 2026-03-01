@@ -5,7 +5,7 @@
 DFT-based Steric Parameters 
 
 [![DOI](https://zenodo.org/badge/198946518.svg)](https://zenodo.org/badge/latestdoi/198946518) [![PyPI version](https://badge.fury.io/py/dbstep.svg)](https://badge.fury.io/py/dbstep) [![Conda Version](https://img.shields.io/conda/vn/conda-forge/dbstep.svg)](https://anaconda.org/conda-forge/dbstep) </a> 
-[![Build Status](https://app.travis-ci.com/patonlab/DBSTEP.svg?branch=master)](https://app.travis-ci.com/github/patonlab/DBSTEP)
+[![CI](https://github.com/patonlab/DBSTEP/actions/workflows/ci.yml/badge.svg)](https://github.com/patonlab/DBSTEP/actions/workflows/ci.yml)
 
 Allows a user to compute steric parameters from chemical structures. 
 
@@ -36,17 +36,18 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * `--2d-type` - The type of steric contributions to use. Options include Crippen molar refractivities or McGowan volume
 
 ## Requirements & Dependencies
-* Python 3.6 or greater
+* Python 3.9 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [numba](https://numba.pydata.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
 
-## Install 
-- To run as a module (python -m dbstep), download this repository and install with ```python setup.py install```
+## Install
 
 #### Conda and PyPI (`pip`)
 - Install using conda
     `conda install -c conda-forge dbstep`
 - Or using pip
     `pip install dbstep`
+
+After installation, the `dbstep` command is available directly on the command line, or run as a module with `python -m dbstep`.
 
 ## Citing DBSTEP
 Please reference the DOI of our Zenodo repository with:

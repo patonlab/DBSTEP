@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbstep"
+dynamic = ["version"]
+description = "DFT-Based Steric Parameters"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Guilian Luchini" },
+    { name = "Toby Patterson" },
+    { name = "Robert Paton", email = "patonlab@colostate.edu" },
+]
+keywords = ["compchem", "steric", "sterimol", "informatics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "cclib",
+]
+
+[project.optional-dependencies]
+graph2d = ["rdkit", "pandas"]
+dev = ["pytest", "ruff", "pre-commit"]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/patonlab/DBSTEP"
+Repository = "https://github.com/patonlab/DBSTEP"
+Issues = "https://github.com/patonlab/DBSTEP/issues"
+
+[project.scripts]
+dbstep = "dbstep.Dbstep:main"
+
+[tool.setuptools]
+packages = ["dbstep"]
+
+[tool.setuptools.dynamic]
+version = { attr = "dbstep.__version__" }
+
+[tool.setuptools.package-data]
+dbstep = ["*.csv", "examples/*.xyz"]
+
+# ── Ruff ─────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 200
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "UP", "B"]
+ignore = [
+    "W191", "W2", "W3",                        # tabs, trailing whitespace, blank lines
+    "E101", "E111", "E114", "E117",            # indentation
+    "E501",                                    # line length
+    "E2",                                      # all whitespace rules
+    "E3",                                      # blank line rules
+    "E401",                                    # multiple imports on one line
+    "E402",                                    # module-level import order
+    "E7",                                      # statement rules
+    "B006", "B007",                            # mutable default, unused loop var
+    "UP010",                                   # unnecessary __future__ imports
+    "UP031", "UP032",                          # %-format and .format() → f-string
+]
+
+[tool.ruff.lint.per-file-ignores]
+# TODO: remove these per-file-ignores as code gets cleaned up
+"dbstep/*.py" = ["F401", "F841", "UP015", "UP030", "B904"]
+"examples/**" = ["F401", "F841"]
+"tests/**" = ["F841"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dbstep"]
+
+[tool.ruff.format]
+indent-style = "tab"
+
+# ── Pytest ───────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
