@@ -28,7 +28,6 @@ def read_input(molecule, ext, options):
 		DataParser object with parsed molecule data to be used by the rest of the program
 	"""
 	if ext == ".cube":
-		options.surface = "density"
 		mol = CubeParser(molecule, "cube")
 	else:
 		if ext in [".xyz", ".com", ".gjf"]:

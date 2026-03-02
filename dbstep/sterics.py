@@ -143,17 +143,11 @@ def occupied(grid, coords, radii, origin, options):
 	for n in range(len(coords)):
 		center = coords[n] + origin
 		idx.append(point_tree.query_ball_point(center, radii[n], workers=-1))
-	# construct a list of indices of the grid array that are occupied / unoccupied
+	# construct a list of indices of the grid array that are occupied
 	jdx = [y for x in idx for y in x]
-	if options.qsar:
-		kdx = [i for i in range(len(grid)) if i not in jdx]
 
 	# removes duplicates since a voxel can only be occupied once
 	jdx = list(set(jdx))
-	if options.qsar:
-		kdx = list(set(kdx))
-		onehot = np.zeros(len(grid))
-		onehot[jdx] = 1.0
 
 	if options.verbose:
 		print("   There are {} occupied grid points.".format(len(jdx)))
@@ -167,13 +161,8 @@ def occupied(grid, coords, radii, origin, options):
 
 		u = pptk.viewer(grid)
 		v = pptk.viewer(grid[jdx])
-		if options.qsar:
-			w = pptk.viewer(grid[kdx])
 
-	if options.qsar:
-		return grid[jdx], grid[kdx], onehot, point_tree
-	else:
-		return grid[jdx], point_tree, occ_vol
+	return grid[jdx], point_tree, occ_vol
 
 
 def occupied_dens(grid, dens, options):
@@ -239,8 +228,9 @@ def resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol):
 	y_vals = np.linspace(y_min, y_max, mol.ydim)
 	z_vals = np.linspace(z_min, z_max, mol.zdim)
 	grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1, 3)
+	point_tree = spatial.cKDTree(grid, balanced_tree=False, compact_nodes=False)
 
-	return grid
+	return grid, point_tree
 
 
 def get_classic_sterimol(coords, radii, atoms):

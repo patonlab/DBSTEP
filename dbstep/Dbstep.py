@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 
 # Python Libraries
-import os, sys, shutil
+import os, sys
 from glob import glob
 import numpy as np
 from optparse import OptionParser
@@ -9,13 +9,11 @@ from optparse import OptionParser
 from dbstep import sterics, parse_data, calculator, writer
 from dbstep.constants import periodic_table, bondi, metals
 
-
 class dbstep:
 	"""
 	dbstep object that contains coordinates, steric data
 
 	Objects that can currently be referenced are:
-			grid, onehot_grid, unocc_grid
 			L, Bmax, Bmin,
 			occ_vol, bur_vol, bur_shell
 
@@ -30,14 +28,11 @@ class dbstep:
 
 	def __init__(self, *args, **kwargs):
 		self.file = args[0]
-		# QSAR specifications
-		self.dimensions, self.qsar_dir, self.interaction_energy = False, False, []
-		# Grid Information
-		self.grid, self.unocc_grid, self.onehot_grid = False, False, False
 		# Sterimol Parameters
 		self.L, self.Bmin, self.Bmax = False, False, False
 		# Volume Parameters
 		self.occ_vol, self.bur_vol, self.bur_shell = False, False, False
+
 		if "options" in kwargs:
 			self.options = kwargs["options"]
 		else:
@@ -46,29 +41,19 @@ class dbstep:
 		if hasattr(self.options, 'sambvca') and self.options.sambvca:
 			self.options.SCALE_VDW = 1.17
 			self.options.noH = True
-		if "QSAR" in kwargs:
-			QSAR = kwargs["QSAR"]
-		else:
-			QSAR = False
 
 		file = self.file
 		options = self.options
 
-		spheres, cylinders = [], []
 		if isinstance(file, str):
 			name, ext = os.path.splitext(file)
 		else:
 			name = file
 			ext = "rdkit"
 
-		r_intervals, origin = 1, np.array([0, 0, 0])
-
-		self._get_spec_atoms(options)
-
-		# Parse coordinate/volumetric information
-		mol = parse_data.read_input(file, ext, options)
-
-		self._check_num_atoms(mol, file)
+		# Auto-detect density surface from cube file input
+		if ext == ".cube":
+			options.surface = "density"
 
 		# flag volume if buried shell requested
 		if options.vshell:
@@ -77,246 +62,198 @@ class dbstep:
 		if options.volume:
 			options.measure = "grid"
 
-		if options.qsar:
-			if options.grid < 0.5:
-				options.grid = 0.5
-				if options.verbose:
-					print("   Adjusting grid spacing to 0.5A for QSAR analysis")
+		origin = np.array([0, 0, 0])
+		self._get_spec_atoms(options)
+		mol = parse_data.read_input(file, ext, options)
+		self._check_num_atoms(mol, file)
 
-		# if surface = VDW the molecular volume is defined by tabulated radii
-		# This is necessary when a density cube is not supplied
-		# if surface = Density the molecular volume is defined by an isodensity surface from a .cube file
-		# This is the default when a density cube is supplied although it can be over-ridden at the command prompt
-		
-		# surfaces can either be formed from Van der Waals (bondi) radii (=vdw) or cube densities (=density)
+		# Assign radii / parse density and set up grid bounds
+		x_min, x_max, y_min, y_max, z_min, z_max = self._assign_surface(mol, file, options, origin)
+
+		# Rotate molecule to align atom1-atom2 bond along Z-axis
+		self._orient_molecule(mol, options)
+
+		# Parse scan range
+		r_min, r_max, r_intervals, strip_width = self._parse_scan(options)
+
+		# Build occupancy grid
+		occ_grid, occ_vol, point_tree, grid_axes = self._build_grid(
+			mol, name, options, origin, x_min, x_max, y_min, y_max, z_min, z_max)
+
+		# Print column headers (once across multi-file runs)
+		self._print_column_header(options)
+
+		# Compute steric parameters over radius range
+		spheres, cylinders = self._compute(
+			mol, file, options, origin, occ_grid, occ_vol, point_tree, grid_axes,
+			r_min, r_max, r_intervals, strip_width)
+
+		# Recompute L if a scan has been performed to get an overall L
+		if options.measure == "grid" and r_intervals > 1 and options.sterimol:
+			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, r_max, options.grid, 0.0)
+			self.L = L
+			if not options.quiet:
+				print("\n   L parameter is {:5.2f} Ang".format(L))
+
+		# Write PyMOL visualization files
+		if options.pymol and ext != "rdkit":
+			if options.sterimol:
+				cylinders.append("   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,".format(self.L))
+			writer.xyz_export(file, mol)
+			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
+
+	def _assign_surface(self, mol, file, options, origin):
+		"""Assign VDW radii or parse density cube, translate molecule, and remove metals.
+		Returns grid bounds (x_min, x_max, y_min, y_max, z_min, z_max)."""
+		x_min = x_max = y_min = y_max = z_min = z_max = 0.0
+
 		if options.surface == "vdw":
-			# generate Bondi radii from atom types
-			try:
-				mol.RADII = [bondi[atom] for atom in mol.ATOMTYPES]
-				if not options.quiet and not dbstep._verbose_header_printed:
-					print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
-					print("   \u2588\u2588\u258a \u2588\u2588 \u2590\u2588 \u2580\u2588\u258a\u2590\u2588 \u2580.\u2022\u2588\u2588  \u2580\u2584.\u2580\u00b7\u2590\u2588 \u2584\u2588")
-					print("   \u2590\u2588\u00b7 \u2590\u2588\u258c\u2590\u2588\u2580\u2580\u2588\u2584\u2584\u2580\u2580\u2580\u2588\u2584\u2590\u2588.\u258a\u2590\u2580\u2580\u258a\u2584 \u2588\u2588\u2580\u00b7")
-					print("   \u2588\u2588. \u2588\u2588 \u2588\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u258c\u00b7\u2590\u2588\u2584\u2584\u258c\u2590\u2588\u258a\u00b7\u2022")
-					print("   \u2580\u2580\u2580\u2580\u2580\u2022 \u00b7\u2580\u2580\u2580\u2580  \u2580\u2580\u2580\u2580 \u2580\u2580\u2580  \u2580\u2580\u2580 .\u2580   ")
-					print("")
-					if options.volume:
-						print("   Buried volume (Vbur) will be computed")
-					if options.sterimol:
-						print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
-					print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
-					print("   Bondi atomic radii will be scaled by {}".format(options.SCALE_VDW))
-					print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
-					dbstep._verbose_header_printed = True
-			except KeyError:
-				mol.RADII = []
-				for atom in mol.ATOMTYPES:
-					if atom not in periodic_table:
-						print("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: ", atom)
-						exit()
-					elif atom not in bondi:
-						mol.RADII.append(2.0)
-					else:
-						mol.RADII.append(bondi[atom])
-			# scale radii by a factor
+			# generate Bondi radii from atom types (default 2.0 for elements not in the Bondi table)
+			for atom in mol.ATOMTYPES:
+				if atom not in periodic_table and atom not in bondi:
+					print("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: ", atom)
+					exit()
+			mol.RADII = [bondi.get(atom, 2.0) for atom in mol.ATOMTYPES]
 			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
+
+			# Translate molecule to place atom1 at the origin
+			if options.sterimol or options.volume:
+				mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
+
+			# Remove metals when --nometals is specified (iterate in reverse to avoid index shifting)
+			if options.no_metals:
+				for i in range(len(mol.ATOMTYPES) - 1, -1, -1):
+					if mol.ATOMTYPES[i] in metals:
+						mol.ATOMTYPES = np.delete(mol.ATOMTYPES, i)
+						mol.CARTESIANS = np.delete(mol.CARTESIANS, i, axis=0)
+						mol.RADII = np.delete(mol.RADII, i)
+
+			# Determine grid bounds from molecule extent
+			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
+			if options.gridsize and options.verbose:
+				print("   Grid sizing requested: " + str(options.gridsize))
+
 		elif options.surface == "density":
-			if hasattr(mol, "DENSITY"):
-				mol.DENSITY = np.array(mol.DENSITY)
-				if options.verbose:
-					print("\n   Read cube file {} containing {} points".format(file, mol.xdim * mol.ydim * mol.zdim))
-				[x_min, y_min, z_min] = np.array(mol.ORIGIN)
-				[x_max, y_max, z_max] = np.array(mol.ORIGIN) + np.array([(mol.xdim - 1) * mol.SPACING, (mol.ydim - 1) * mol.SPACING, (mol.zdim - 1) * mol.SPACING])
-				xyz_max = max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min))
-				# overrides grid settings
-				options.grid = mol.SPACING
-			else:
+			if not hasattr(mol, "DENSITY"):
 				print("   UNABLE TO READ DENSITY CUBE")
 				exit()
+			mol.DENSITY = np.array(mol.DENSITY)
+			if options.verbose:
+				print("\n   Read cube file {} containing {} points".format(file, mol.xdim * mol.ydim * mol.zdim))
+			[x_min, y_min, z_min] = np.array(mol.ORIGIN)
+			[x_max, y_max, z_max] = np.array(mol.ORIGIN) + np.array([(mol.xdim - 1) * mol.SPACING, (mol.ydim - 1) * mol.SPACING, (mol.zdim - 1) * mol.SPACING])
+			options.grid = mol.SPACING
+
+			# Translate density cube
+			[mol.CARTESIANS, mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(
+				mol, options, x_min, x_max, y_min, y_max, z_min, z_max,
+				max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min)), origin)
+
 		else:
 			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface))
 			exit()
 
-		# Translate molecule to place atom1 at the origin
-		if options.surface == "vdw" and (options.sterimol or options.volume):
-			mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
-		elif options.surface == "density":
-			[mol.CARTESIANS, mol.ORIGIN, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = calculator.translate_dens(mol, options, x_min, x_max, y_min, y_max, z_min, z_max, xyz_max, origin)
+		return x_min, x_max, y_min, y_max, z_min, z_max
 
-		# if computing sterimol parameters: rotate molecule and compute
-		if options.sterimol:
-			# Check if we want to calculate parameters for mono- bi- or tridentate ligand
-			spec_atom_2 = ""
-			point = calculator.point_vec(mol.CARTESIANS, options.spec_atom_2)
-
-			# Rotate the molecule about the origin to align the metal-ligand bond along the (positive) Z-axis
-			# the x and y directions are arbitrary
-			if len(mol.CARTESIANS) > 1 and not options.norot:
-				if options.surface == "vdw":
-					mol.CARTESIANS = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3)
-				elif options.surface == "density":
-					mol.CARTESIANS, mol.ORIGIN = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3, cube_origin=mol.ORIGIN)
-
-		# Remove metals from the steric analysis when --nometals is specified
-		# This can't be done for densities
-		if options.surface == "vdw":
-			# Find maximum horizontal and vertical directions (coordinates + vdw) in which the molecule is fully contained
-
-			# remove metals
-			for i, atom in enumerate(mol.ATOMTYPES):
-				if atom in metals and options.no_metals:
-					mol.ATOMTYPES = np.delete(mol.ATOMTYPES, i)
-					mol.CARTESIANS = np.delete(mol.CARTESIANS, i, axis=0)
-					mol.RADII = np.delete(mol.RADII, i)
-
-			# determine grid size based on molecule vdw radii and radius selected for buried vol
-			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
-			if options.gridsize:
-				if options.verbose:
-					print("   Grid sizing requested: " + str(options.gridsize))
-		if QSAR:
-			self.dimensions = [x_min, x_max, y_min, y_max, z_min, z_max]
+	def _orient_molecule(self, mol, options):
+		"""Rotate molecule to align atom1-atom2 bond along the Z-axis."""
+		if not options.sterimol:
 			return
-		# Read the requested radius or range
-		if not options.scan:
-			r_min, r_max, strip_width = options.radius, options.radius, 0.0
-		else:
-			try:
-				[r_min, r_max, strip_width] = [float(scan) for scan in options.scan.split(":")]
-				r_intervals += int((r_max - r_min) / strip_width)
-			except (ValueError, AttributeError):
-				print("   Can't read your scan request. Try something like --scan 3:5:0.25")
-				exit()
+		point = calculator.point_vec(mol.CARTESIANS, options.spec_atom_2)
+		if len(mol.CARTESIANS) > 1 and not options.norot:
+			if options.surface == "vdw":
+				mol.CARTESIANS = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3)
+			elif options.surface == "density":
+				mol.CARTESIANS, mol.ORIGIN = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3, cube_origin=mol.ORIGIN)
 
-		# Iterate over the grid points to see whether this is within VDW radius of any atom(s)
-		# Grid point occupancy is either yes/no (1/0)
-		# To save time this is currently done using a cuboid rather than cubic shaped-grid
+	def _parse_scan(self, options):
+		"""Parse radius or scan range. Returns (r_min, r_max, r_intervals, strip_width)."""
+		r_intervals = 1
+		if not options.scan:
+			return options.radius, options.radius, 1, 0.0
+		try:
+			[r_min, r_max, strip_width] = [float(s) for s in options.scan.split(":")]
+			r_intervals += int((r_max - r_min) / strip_width)
+			return r_min, r_max, r_intervals, strip_width
+		except (ValueError, AttributeError):
+			print("   Can't read your scan request. Try something like --scan 3:5:0.25")
+			exit()
+
+	def _build_grid(self, mol, name, options, origin, x_min, x_max, y_min, y_max, z_min, z_max):
+		"""Construct occupancy grid. Returns (occ_grid, occ_vol, point_tree, grid_axes)."""
 		grid_axes = None
+		occ_grid = occ_vol = point_tree = None
+
 		if options.surface == "vdw":
-			# user can choose to increase grid size / use in QSAR studies
+			# User can override grid dimensions
 			if options.gridsize:
-				[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = [float(val) for val in options.gridsize.replace(":", ",").split(",")]
-				sizeflag = True
-				if x_plus < x_max or x_minus > x_min:
-					sizeflag = False
-				elif y_plus < y_max or y_minus > y_min:
-					sizeflag = False
-				elif z_plus < z_max or z_minus > z_min:
-					sizeflag = False
-				if sizeflag:
-					n_x_vals = int(1 + round((x_plus - x_minus) / options.grid))
-					n_y_vals = int(1 + round((y_plus - y_minus) / options.grid))
-					n_z_vals = int(1 + round((z_plus - z_minus) / options.grid))
-					x_vals = np.linspace(x_minus, x_plus, n_x_vals)
-					y_vals = np.linspace(y_minus, y_plus, n_y_vals)
-					z_vals = np.linspace(z_minus, z_plus, n_z_vals)
-				else:
-					# sys exit
+				gs = [float(val) for val in options.gridsize.replace(":", ",").split(",")]
+				if gs[1] < x_max or gs[0] > x_min or gs[3] < y_max or gs[2] > y_min or gs[5] < z_max or gs[4] > z_min:
 					sys.exit("ERROR: Your molecule is larger than the gridsize you selected,\n       please try again with a larger gridsize")
-			else:
-				n_x_vals = int(1 + round((x_max - x_min) / options.grid))
-				n_y_vals = int(1 + round((y_max - y_min) / options.grid))
-				n_z_vals = int(1 + round((z_max - z_min) / options.grid))
-				x_vals = np.linspace(x_min, x_max, n_x_vals)
-				y_vals = np.linspace(y_min, y_max, n_y_vals)
-				z_vals = np.linspace(z_min, z_max, n_z_vals)
+				x_min, x_max, y_min, y_max, z_min, z_max = gs
+
+			x_vals = np.linspace(x_min, x_max, int(1 + round((x_max - x_min) / options.grid)))
+			y_vals = np.linspace(y_min, y_max, int(1 + round((y_max - y_min) / options.grid)))
+			z_vals = np.linspace(z_min, z_max, int(1 + round((z_max - z_min) / options.grid)))
 
 			if options.measure == "grid":
-				if options.volume and not options.sterimol and not options.qsar:
+				if options.volume and not options.sterimol:
 					# Fast path: skip full grid construction for volume-only calculations
 					occ_grid, occ_vol = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options)
 					point_tree = None
 					grid_axes = (x_vals, y_vals, z_vals)
 				else:
-					# Standard path: full grid needed for sterimol/qsar
+					# Standard path: full grid needed for sterimol
 					grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1, 3)
-					# compute which grid points occupy molecule
-					if options.qsar:
-						occ_grid, unocc_grid, onehot_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
-					else:
-						occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
-					grid_axes = None
-
-			if options.qsar:
-				if options.verbose:
-					print("\n   Creating interaction energy grid xyz files in 'grid_" + name + "' directory")
-				probe = "Ar"
-				path = os.getcwd() + "/grid_" + name + "/"
-				self.qsar_dir = path
-				if os.path.exists(path):
-					if options.verbose:
-						print("   Overwriting: " + path)
-					shutil.rmtree(path)
-				os.mkdir(path)
-
-				self.grid = grid
-				self.unocc_grid = unocc_grid
-				self.onehot_grid = onehot_grid
-
-				for n, gridpoint in enumerate(unocc_grid):
-					self.interaction_energy.append(0.0)
-					xyzfile = open(path + "GRIDPOINT_" + probe + "_" + str(n) + ".xyz", "w")
-					xyzfile.write(str(len(mol.ATOMTYPES) + 1) + "\n")
-					xyzfile.write(path + "GRIDPOINT_" + probe + "_" + str(n) + "\n")
-
-					for i, atom in enumerate(mol.ATOMTYPES):
-						[x, y, z] = mol.CARTESIANS[i]
-						[gx, gy, gz] = gridpoint
-						xyzfile.write("{} {:10.5f} {:10.5f} {:10.5f}\n".format(mol.ATOMTYPES[i], x, y, z))
-					xyzfile.write("{} {:10.5f} {:10.5f} {:10.5f}\n".format(probe, gx, gy, gz))
-
-				xyzfile = open(path + "REF_" + probe + ".xyz", "w")
-				xyzfile.write(str(len(mol.ATOMTYPES) + 1) + "\n")
-				xyzfile.write("REF_" + probe + "\n")
-				for i, atom in enumerate(mol.ATOMTYPES):
-					[x, y, z] = mol.CARTESIANS[i]
-					[gx, gy, gz] = gridpoint
-
-					xyzfile.write("{} {:10.5f} {:10.5f} {:10.5f}\n".format(mol.ATOMTYPES[i], x, y, z))
-				xyzfile.write("{} {:10.5f} {:10.5f} {:10.5f}\n".format(probe, gx + 100, gy + 100, gz + 100))
+					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
 		elif options.surface == "density":
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
 			y_vals = np.linspace(y_min, y_max, mol.ydim)
 			z_vals = np.linspace(z_min, z_max, mol.zdim)
-			# writes a new grid to cube file
-			writer.WriteCubeData(name, mol)
-			# define the grid points containing the molecule
-			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1, 3)
-			# compute occupancy based on isodensity value applied to cube and remove points where there is no molecule
+			if options.pymol:
+				writer.WriteCubeData(name, mol)
+			# Use 'ij' indexing so grid order matches cube file density order (x-slow, y-mid, z-fast)
+			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals, indexing='ij')).reshape(3, -1).T
 			occ_grid, occ_vol, point_tree = sterics.occupied_dens(grid, mol.DENSITY, options)
-
-			# adjust sizing of grid to fit sphere if necessary
 			if options.volume:
-				grid = sterics.resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol)
+				grid, point_tree = sterics.resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol)
 
-		if not options.quiet and not dbstep._column_header_printed:
-			fw = dbstep._file_col_width
-			if options.volume and options.sterimol:
-				header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
-			elif options.volume:
-				header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10}".format("File", "Atom", "R/Å", "%V_Bur", "%S_Bur", fw=fw)
-			else:
-				header = None
-			if header:
-				dbstep._column_width = len(header)
-				print(header)
-				print("   " + "-" * (dbstep._column_width - 3))
-			dbstep._column_header_printed = True
+		return occ_grid, occ_vol, point_tree, grid_axes
 
+	def _print_column_header(self, options):
+		"""Print column headers once across multi-file runs."""
+		if options.quiet or dbstep._column_header_printed:
+			return
+		fw = dbstep._file_col_width
+		if options.volume and options.sterimol:
+			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
+		elif options.volume:
+			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", fw=fw)
+		else:
+			header = None
+		if header:
+			dbstep._column_width = len(header)
+			print(header)
+			print("   " + "-" * (dbstep._column_width - 3))
+		dbstep._column_header_printed = True
+
+	def _compute(self, mol, file, options, origin, occ_grid, occ_vol, point_tree, grid_axes,
+				 r_min, r_max, r_intervals, strip_width):
+		"""Run volume and/or sterimol calculations. Returns (spheres, cylinders) for PyMOL."""
+		spheres, cylinders = [], []
 		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
 
 		# Precompute squared distances from origin for occupied grid points
-		# This replaces the occ_point_tree KDTree entirely — just threshold-count per radius
 		if options.volume:
 			occ_dist2 = np.sum((occ_grid - origin) ** 2, axis=1)
 		else:
 			occ_dist2 = None
 
-		# Measure Sterimol or Volume
+		fname = os.path.basename(file)
+		fw = dbstep._file_col_width
+
 		for rad in np.linspace(r_min, r_max, r_intervals):
-			# The buried volume is defined in terms of occupied voxels.
-			# If a scan is requested, radius of sphere = rad
 			if options.volume:
 				if rad == 0:
 					bur_vol, bur_shell = 0.0, 0.0
@@ -326,7 +263,7 @@ class dbstep:
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist2=occ_dist2, grid_axes=grid_axes)
 				bur_vol_list.append(bur_vol)
 				bur_shell_list.append(bur_shell)
-			# Sterimol parameters: classic (VDW radii, default) or grid (occupied voxels, used when volume is also requested)
+
 			if options.sterimol:
 				if options.measure == "grid":
 					L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width, options.pos)
@@ -338,23 +275,20 @@ class dbstep:
 						exit()
 				Bmin_list.append(Bmin)
 				Bmax_list.append(Bmax)
-
-				# for pymol visualization
-				for c in cyl:
-					cylinders.append(c)
+				if options.pymol:
+					cylinders.extend(cyl)
 
 			# Tabulate result
-			fname = os.path.basename(file)
-			fw = dbstep._file_col_width
 			if options.volume and options.sterimol:
-				# for pymol visualization
-				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
+				if options.pymol:
+					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
+					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
 			elif options.volume:
-				spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
+				if options.pymol:
+					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, bur_vol, bur_shell, fw=fw))
+					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell, fw=fw))
 			elif options.sterimol:
 				if not options.scan:
 					if not options.quiet:
@@ -363,7 +297,7 @@ class dbstep:
 					if not options.quiet:
 						print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
 
-		# for object reference
+		# Store results on self
 		if options.measure == "grid":
 			self.occ_vol = occ_vol
 		if options.sterimol:
@@ -383,18 +317,7 @@ class dbstep:
 				self.bur_vol = bur_vol_list
 				self.bur_shell = bur_shell_list
 
-		# recompute L if a scan has been performed to get an overall L
-		if options.measure == "grid" and r_intervals > 1 and options.sterimol:
-			L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, 0.0)
-			if not options.quiet:
-				print("\n   L parameter is {:5.2f} Ang".format(L))
-
-		if options.sterimol:
-			cylinders.append("   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,".format(L))
-
-		if options.pymol and ext != "rdkit":
-			writer.xyz_export(file, mol)
-			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
+		return spheres, cylinders
 
 	def _get_spec_atoms(self, options):
 		"""Gets the specification atoms from input or sets the defaults."""
@@ -466,7 +389,7 @@ def set_options(kwargs):
 		"atom2": ["spec_atom_2", False],
 		"atom3": ["atom3", False],
 		"exclude": ["exclude", False],
-		"isoval": ["isoval", 0.002],
+		"isoval": ["isoval", 0.0016],
 		"s": ["sterimol", False],
 		"sterimol": ["sterimol", False],
 		"surface": ["surface", "vdw"],
@@ -477,7 +400,6 @@ def set_options(kwargs):
 		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
 		"sambvca": ["sambvca", False],
-		"qsar": ["qsar", False],
 		"gridsize": ["gridsize", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
@@ -515,15 +437,14 @@ def main():
 	parser.add_option("--debug", dest="debug", action="store_true", help="Debug mode: graph grid points, print extra information", default=False)
 	parser.add_option("--exclude", dest="exclude", action="store", help="Atom indices to ignore, comma-separated with no spaces", default=False, metavar="exclude")
 	parser.add_option("--fg", dest="shared_fg", action="store", default=False, help="[2D sterics] SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
-	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.1)", default=0.1, type=float, metavar="grid")
+	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.05)", default=0.05, type=float, metavar="grid")
 	parser.add_option("--gridsize", dest="gridsize", action="store", help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax", default=False)
-	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.002)", type="float", default=0.002, metavar="isoval")
+	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Exclude hydrogen atoms from steric measurements", default=False)
 	parser.add_option("--nometals", dest="no_metals", action="store_true", help="Exclude metal atoms from steric measurements", default=False)
 	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecule (use if structures have been pre-aligned)", default=False)
 	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)", default=False)
-	parser.add_option("--qsar", dest="qsar", action="store_true", help="Generate probe atom grid files for QSAR study", default=False)
 	parser.add_option("--quiet", dest="quiet", action="store_true", help="Suppress all print output", default=False)
 	parser.add_option("-r", dest="radius", action="store", help="Radius of sphere in Angstrom (default: 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--sambvca", dest="sambvca", action="store_true", help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms", default=False)
@@ -560,39 +481,33 @@ def main():
 
 	if len(files) == 0:
 		sys.exit("    Please specify a valid input file and try again.")
-	# in qsar mode, loop through and get dimensions of molecules to create uniform grid sizing
-	# (3A larger than greatest magnitudes in xyz directions)
-	if options.qsar:
-		mols = []
-		for file in files:
-			mols.append(dbstep(file, options=options, QSAR=True))
-		xmin, xmax, ymin, ymax, zmin, zmax = 0, 0, 0, 0, 0, 0
-		for mol in mols:
-			[x_minus, x_plus, y_minus, y_plus, z_minus, z_plus] = mol.dimensions
-			if x_plus >= xmax:
-				xmax = x_plus
-			if y_plus >= ymax:
-				ymax = y_plus
-			if z_plus >= zmax:
-				zmax = z_plus
-			if x_minus <= xmin:
-				xmin = x_minus
-			if y_minus <= ymin:
-				ymin = y_minus
-			if z_minus <= zmin:
-				zmin = z_minus
-		dim = [xmin, xmax, ymin, ymax, zmin, zmax]
-		for i in range(len(dim)):
-			if i % 2:
-				dim[i] += 3
-			else:
-				dim[i] -= 3
-		options.gridsize = str(dim[0]) + "," + str(dim[1]) + ":" + str(dim[2]) + "," + str(dim[3]) + ":" + str(dim[4]) + "," + str(dim[5])
-		if options.verbose:
-			print("   Grid size for QSAR mode is: " + options.gridsize)
+
+	# Auto-detect density surface from cube file input
+	if any(f.endswith(".cube") for f in files):
+		options.surface = "density"
 
 	# Set file column width based on longest filename
 	dbstep._file_col_width = max(len(os.path.basename(f)) for f in files) + 2
+
+	if not options.quiet:
+		print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
+		print("   \u2588\u2588\u258a \u2588\u2588 \u2590\u2588 \u2580\u2588\u258a\u2590\u2588 \u2580.\u2022\u2588\u2588  \u2580\u2584.\u2580\u00b7\u2590\u2588 \u2584\u2588")
+		print("   \u2590\u2588\u00b7 \u2590\u2588\u258c\u2590\u2588\u2580\u2580\u2588\u2584\u2584\u2580\u2580\u2580\u2588\u2584\u2590\u2588.\u258a\u2590\u2580\u2580\u258a\u2584 \u2588\u2588\u2580\u00b7")
+		print("   \u2588\u2588. \u2588\u2588 \u2588\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u2584\u258a\u2590\u2588\u2590\u2588\u258c\u00b7\u2590\u2588\u2584\u2584\u258c\u2590\u2588\u258a\u00b7\u2022")
+		print("   \u2580\u2580\u2580\u2580\u2580\u2022 \u00b7\u2580\u2580\u2580\u2580  \u2580\u2580\u2580\u2580 \u2580\u2580\u2580  \u2580\u2580\u2580 .\u2580   ")
+		print("")
+
+		if options.volume:
+			print("   Buried volume (Vbur) will be computed")
+		if options.sterimol:
+			print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
+		if options.surface == "vdw":
+			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))	
+			print("   Bondi atomic radii will be scaled by {}".format(options.SCALE_VDW))
+			print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
+		else:
+			print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
+			print("   Cartesian grid-spacing will be determined by cube file(s)\n")
 
 	# loop over all specified output files
 	for file in files:
