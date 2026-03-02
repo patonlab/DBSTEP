@@ -514,18 +514,22 @@ def main():
 		print("   \u2580\u2580\u2580\u2580\u2580\u2022 \u00b7\u2580\u2580\u2580\u2580  \u2580\u2580\u2580\u2580 \u2580\u2580\u2580  \u2580\u2580\u2580 .\u2580   ")
 		print("")
 
-		if options.volume:
-			print("   Buried volume (Vbur) will be computed")
-		if options.sterimol:
-			print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
-		if options.surface == "vdw":
-			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
-			radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
-			print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
-			print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
+		if options.graph:
+			voltype_label = "McGowan volumes" if options.voltype.lower() == "mcgowan" else "Crippen molar refractivities"
+			print("   2D graph mode: using connectivity and {} for atomic contributions\n".format(voltype_label))
 		else:
-			print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
-			print("   Cartesian grid-spacing will be determined by cube file(s)\n")
+			if options.volume:
+				print("   Buried volume (Vbur) will be computed")
+			if options.sterimol:
+				print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
+			if options.surface == "vdw":
+				print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
+				radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
+				print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
+				print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
+			else:
+				print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
+				print("   Cartesian grid-spacing will be determined by cube file(s)\n")
 
 	# loop over all specified output files
 	for file in files:
@@ -536,6 +540,8 @@ def main():
 				print(e, "\nPlease install necessary modules and try again.")
 				sys.exit()
 			vec_df = graph.mol_to_vec(file, options.shared_fg, options.voltype, options.max_path_length, options.verbose)
+			numeric_cols = vec_df.select_dtypes(include='number').columns
+			vec_df[numeric_cols] = vec_df[numeric_cols].round(2)
 			vec_df.to_csv(file.split(".")[0] + "_2d_output.csv", index=False)
 		else:
 			dbstep(file, options=options)

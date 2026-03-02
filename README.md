@@ -180,7 +180,7 @@ For percent buried volume, the PyMOL script will overlay an appropriate sized sp
     To calculate 2d graph-based additive sterics, the arguments --2d --fg --maxpath and --2d-type can be used. An input file listing SMILES strings of desired molecule measurements is necessary for calculation. The --fg argument specifies a SMILES string that is common in all provided SMILES inputs to use as a reference point for layer 0. A connectivity matrix will then be used to find atoms 1, 2, 3... N bonds away where N is the max path length specified with the --maxpath argument. One of two types of measurements will be summed at each layer, either Crippen molar refractivities or McGowan volumes, computed for each atom. This can be changed with the --2d-type argument.
 
 ```
->>>python -m dbstep examples/smiles.txt --2d --fg "C(O)=O" --maxpath 5 --2d-type mcgowan
+>>>python -m dbstep dbstep/data/smiles.txt --2d --fg "C(O)=O" --maxpath 5 --2d-type mcgowan
 ```
 where smiles.txt looks like:
 ```
@@ -195,20 +195,15 @@ The output will then be written to the file "smiles_2d_output.csv" in the format
 
 |0_mcgowan|1_mcgowan|2_mcgowan|3_mcgowan|4_mcgowan|Structure|
 | ------- | ------- | ------- | ------- | ------- | ------- |
-|4.55|11.68|0|0|0|CC(O)=O|
-|4.55|8.21|11.68|0|0|CCC(O)=O|
-|4.55|8.21|8.21|11.68|0|CCCC(O)=O|
-|4.55|8.21|8.21|8.21|11.68|CCCCC(O)=O|
-|4.55|4.74|23.36|0|0|CC(C)C(O)=O|
-|4.55|4.74|19.89|11.68|0|CCC(C)C(O)=O|
+|6.51|19.52|0|0|0|CC(=O)O|
+|6.51|14.09|19.52|0|0|CCC(=O)O|
+|6.51|14.09|14.09|19.52|0|CCCC(=O)O|
+|6.51|14.09|14.09|14.09|19.52|CCCCC(=O)O|
+|6.51|8.66|39.04|0|0|CC(C)C(=O)O|
+|6.51|8.66|33.61|19.52|0|CCC(C)C(=O)O|
 
 ### Acknowledgements
 
 This work is developed by Guilian Luchini, Toby Patterson and Robert Paton and is supported by the [NSF Center for Computer-Assisted Synthesis](https://ccas.nd.edu/), grant number [CHE-1925607](https://www.nsf.gov/awardsearch/showAward?AWD_ID=1925607&HistoricalAwards=false)
 
-<img src="https://www.nsf.gov/images/logos/NSF_4-Color_bitmap_Logo.png" width="50" height="50"> <img src="https://pbs.twimg.com/profile_images/1168617043106521088/SOLQaZ8M_400x400.jpg" width="50" height="50">
 
-### References
-
-1. Verloop, A., Drug Design. Ariens, E. J., Ed. Academic Press: New York, **1976**; Vol. III
-2. Hillier, A. C.;  Sommer, W. J.;  Yong, B. S.;  Petersen, J. L.;  Cavallo, L.; Nolan, S. P. *Organometallics* **2003**, *22*, 4322-4326.
