@@ -90,3 +90,8 @@ indent-style = "tab"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.9.4",
+]

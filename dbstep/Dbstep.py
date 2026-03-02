@@ -7,7 +7,7 @@ import numpy as np
 from optparse import OptionParser
 
 from dbstep import sterics, parse_data, calculator, writer
-from dbstep.constants import periodic_table, bondi, metals
+from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
 
 class dbstep:
 	"""
@@ -37,8 +37,9 @@ class dbstep:
 			self.options = kwargs["options"]
 		else:
 			self.options = set_options(kwargs)
-		# SambVca mode: scale VDW radii by 1.17 and exclude H atoms
+		# SambVca mode: Bondi radii scaled by 1.17, exclude H atoms
 		if hasattr(self.options, 'sambvca') and self.options.sambvca:
+			self.options.radii = "bondi"
 			self.options.SCALE_VDW = 1.17
 			self.options.noH = True
 
@@ -58,9 +59,6 @@ class dbstep:
 		# flag volume if buried shell requested
 		if options.vshell:
 			options.volume = True
-		# if measuring volume, need to measure from grid
-		if options.volume:
-			options.measure = "grid"
 
 		origin = np.array([0, 0, 0])
 		self._get_spec_atoms(options)
@@ -72,6 +70,10 @@ class dbstep:
 
 		# Rotate molecule to align atom1-atom2 bond along Z-axis
 		self._orient_molecule(mol, options)
+
+		# Recompute grid bounds after rotation so the grid covers the full rotated molecule
+		if options.sterimol and options.surface == "vdw":
+			[x_min, x_max, y_min, y_max, z_min, z_max, _] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
 
 		# Parse scan range
 		r_min, r_max, r_intervals, strip_width = self._parse_scan(options)
@@ -108,12 +110,13 @@ class dbstep:
 		x_min = x_max = y_min = y_max = z_min = z_max = 0.0
 
 		if options.surface == "vdw":
-			# generate Bondi radii from atom types (default 2.0 for elements not in the Bondi table)
+			# Select radii set based on options
+			radii_dict = charry_tkatchenko if options.radii == "charry-tkatchenko" else bondi
 			for atom in mol.ATOMTYPES:
-				if atom not in periodic_table and atom not in bondi:
+				if atom not in periodic_table and atom not in radii_dict:
 					print("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: ", atom)
 					exit()
-			mol.RADII = [bondi.get(atom, 2.0) for atom in mol.ATOMTYPES]
+			mol.RADII = [radii_dict.get(atom, 2.0) for atom in mol.ATOMTYPES]
 			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
 
 			# Translate molecule to place atom1 at the origin
@@ -156,11 +159,15 @@ class dbstep:
 		return x_min, x_max, y_min, y_max, z_min, z_max
 
 	def _orient_molecule(self, mol, options):
-		"""Rotate molecule to align atom1-atom2 bond along the Z-axis."""
+		"""Rotate molecule to align atom1-atom2 bond along the Z-axis.
+		Stores rotation angles in options.rotation for later use."""
+		options.rotation = None
 		if not options.sterimol:
 			return
 		point = calculator.point_vec(mol.CARTESIANS, options.spec_atom_2)
 		if len(mol.CARTESIANS) > 1 and not options.norot:
+			# Compute rotation angles
+			options.rotation = calculator.get_rotation_angles(mol.CARTESIANS, options.spec_atom_1, point, options.atom3)
 			if options.surface == "vdw":
 				mol.CARTESIANS = calculator.rotate_mol(mol.CARTESIANS, options.spec_atom_1, point, options.verbose, options.atom3)
 			elif options.surface == "density":
@@ -196,14 +203,14 @@ class dbstep:
 			y_vals = np.linspace(y_min, y_max, int(1 + round((y_max - y_min) / options.grid)))
 			z_vals = np.linspace(z_min, z_max, int(1 + round((z_max - z_min) / options.grid)))
 
-			if options.measure == "grid":
-				if options.volume and not options.sterimol:
-					# Fast path: skip full grid construction for volume-only calculations
+			if options.volume or options.measure == "grid":
+				if options.volume and not (options.sterimol and options.measure == "grid"):
+					# Fast path: skip full grid construction when grid sterimol not needed
 					occ_grid, occ_vol = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options)
 					point_tree = None
 					grid_axes = (x_vals, y_vals, z_vals)
 				else:
-					# Standard path: full grid needed for sterimol
+					# Standard path: full grid needed for grid-based sterimol
 					grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1, 3)
 					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
 
@@ -216,6 +223,9 @@ class dbstep:
 			# Use 'ij' indexing so grid order matches cube file density order (x-slow, y-mid, z-fast)
 			grid = np.array(np.meshgrid(x_vals, y_vals, z_vals, indexing='ij')).reshape(3, -1).T
 			occ_grid, occ_vol, point_tree = sterics.occupied_dens(grid, mol.DENSITY, options)
+			# Rotate occupied grid to match the molecular orientation (bond along Z)
+			if options.rotation is not None:
+				occ_grid = calculator.apply_rotation(occ_grid, options.rotation)
 			if options.volume:
 				grid, point_tree = sterics.resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol)
 
@@ -227,7 +237,9 @@ class dbstep:
 			return
 		fw = dbstep._file_col_width
 		if options.volume and options.sterimol:
-			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
+			header = "   {:>{fw}} {:>6} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom1", "Atom2", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
+		elif options.sterimol:
+			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom1", "Atom2", "Bmin", "Bmax", "L", fw=fw)
 		elif options.volume:
 			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", fw=fw)
 		else:
@@ -267,12 +279,11 @@ class dbstep:
 			if options.sterimol:
 				if options.measure == "grid":
 					L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, rad, options.grid, strip_width, options.pos)
-				elif options.measure == "classic":
-					if options.surface == "vdw":
-						L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII, mol.ATOMTYPES)
-					elif options.surface == "density":
-						print("   Can't use classic Sterimol with the isodensity surface. Either use VDW radii (--surface vdw) or use grid Sterimol (--sterimol grid)")
-						exit()
+				elif options.surface == "vdw":
+					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII, mol.ATOMTYPES)
+				else:
+					print("   Can't use classic Sterimol with the isodensity surface. Use --measure grid or --surface vdw")
+					exit()
 				Bmin_list.append(Bmin)
 				Bmax_list.append(Bmax)
 				if options.pymol:
@@ -283,19 +294,17 @@ class dbstep:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
+					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
+					print("   {:>{fw}} {:>6} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
 			elif options.volume:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
 					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell, fw=fw))
 			elif options.sterimol:
-				if not options.scan:
-					if not options.quiet:
-						print("   {} / Bmin: {:5.2f} / Bmax: {:5.2f} / L: {:5.2f}".format(file, Bmin, Bmax, L))
-				else:
-					if not options.quiet:
-						print("   {} / R: {:5.2f} / Bmin: {:5.2f} / Bmax: {:5.2f} ".format(file, rad, Bmin, Bmax))
+				if not options.quiet:
+					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
+					print("   {:>{fw}} {:>6} {:>6} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, atom2_str, Bmin, Bmax, L, fw=fw))
 
 		# Store results on self
 		if options.measure == "grid":
@@ -399,6 +408,7 @@ def set_options(kwargs):
 		"vshell": ["vshell", False],
 		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
+		"radii": ["radii", "bondi"],
 		"sambvca": ["sambvca", False],
 		"gridsize": ["gridsize", False],
 		"measure": ["measure", "classic"],
@@ -446,11 +456,13 @@ def main():
 	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecule (use if structures have been pre-aligned)", default=False)
 	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)", default=False)
 	parser.add_option("--quiet", dest="quiet", action="store_true", help="Suppress all print output", default=False)
+	parser.add_option("--radii", dest="radii", action="store", choices=["bondi", "charry-tkatchenko"], help="VDW radii set: bondi or charry-tkatchenko (default: bondi)", default="bondi")
 	parser.add_option("-r", dest="radius", action="store", help="Radius of sphere in Angstrom (default: 3.5)", default=3.5, type=float, metavar="radius")
 	parser.add_option("--sambvca", dest="sambvca", action="store_true", help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms", default=False)
 	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default: 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
 	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii, format: rmin:rmax:interval", default=False, metavar="scan")
 	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False)
+	parser.add_option("--measure", dest="measure", action="store", choices=["classic", "grid"], help="Sterimol method: classic (Verloop, default) or grid-based", default="classic", metavar="measure")
 	parser.add_option("--surface", dest="surface", action="store", choices=["vdw", "density"], help="Surface type: Bondi VDW radii or density cube file (default: vdw)", default="vdw", metavar="surface")
 	parser.add_option("-b", "--vbur", dest="volume", action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Print verbose output", default=False)
@@ -459,11 +471,9 @@ def main():
 	parser.add_option("--vshell", dest="vshell", action="store", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius", default=False, type=float, metavar="width")
 	(options, args) = parser.parse_args()
 
-	# Sterimol defaults to classic; volume forces grid mode internally
-	options.measure = "classic"
-
-	# SambVca mode: scale VDW radii by 1.17 and exclude H atoms
+	# SambVca mode: Bondi radii scaled by 1.17, exclude H atoms
 	if options.sambvca:
+		options.radii = "bondi"
 		options.SCALE_VDW = 1.17
 		options.noH = True
 
@@ -502,8 +512,9 @@ def main():
 		if options.sterimol:
 			print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
 		if options.surface == "vdw":
-			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))	
-			print("   Bondi atomic radii will be scaled by {}".format(options.SCALE_VDW))
+			print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
+			radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
+			print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
 			print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
 		else:
 			print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))

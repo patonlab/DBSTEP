@@ -28,6 +28,38 @@ def point_vec(coords, spec_atom_2):
 	return point
 
 
+def get_rotation_angles(coords, spec_atom_1, end_point, atom3=False):
+	"""Compute the [yaw, pitch, roll] rotation angles that align the
+	spec_atom_1-end_point bond to the z-axis.
+
+	Returns:
+		np.ndarray or None: rotation angles [yaw, pitch, roll], or None if no rotation needed.
+	"""
+	atom_1_index = spec_atom_1 - 1
+	intersecting_vector = end_point - coords[atom_1_index]
+
+	yaw = angle_between_axis(intersecting_vector, 1, 2)
+	if yaw != 0:
+		end_point = apply_rotation(end_point, np.array([yaw, 0, 0]))
+		intersecting_vector = end_point - coords[atom_1_index]
+
+	pitch = angle_between_axis(intersecting_vector, 0, 2)
+	if pitch != 0:
+		end_point = apply_rotation(end_point, np.array([0, pitch, 0]))
+
+	roll = 0
+	if atom3 is not False:
+		atom3_coords = coords[int(atom3) - 1]
+		intersecting_vector = atom3_coords - end_point
+		roll = angle_between_axis(intersecting_vector, 1, 0)
+		if roll != 0:
+			roll = check_rotated_atom3_x_direction(atom3_coords, roll)
+
+	if yaw != 0 or pitch != 0 or roll != 0:
+		return np.array([yaw, pitch, roll])
+	return None
+
+
 def rotate_mol(coords, spec_atom_1, end_point, verbose=False, atom3=False, cube_origin=False):
 	"""Aligns spec_atom_1-end_point bond to the z-axis via rotation about the
 	x and y axes.
@@ -43,40 +75,21 @@ def rotate_mol(coords, spec_atom_1, end_point, verbose=False, atom3=False, cube_
 	Returns:
 		Rotated version of coords and cube_origin (if provided).
 	"""
-
-	atom_1_index = spec_atom_1 - 1
-	intersecting_vector = end_point - coords[atom_1_index]
+	three_rotations = get_rotation_angles(coords, spec_atom_1, end_point, atom3)
 
 	new_coords = np.copy(coords)
 	new_cube_origin = np.copy(cube_origin)
 
-	yaw, pitch, roll = 0, 0, 0
-
-	yaw = angle_between_axis(intersecting_vector, 1, 2)
-	if yaw != 0:
-		print_rotation_info("x", yaw, verbose)
-		end_point = apply_rotation(end_point, np.array([yaw, 0, 0]))
-		intersecting_vector = end_point - coords[atom_1_index]
-
-	pitch = angle_between_axis(intersecting_vector, 0, 2)
-	if pitch != 0:
-		print_rotation_info("y", pitch, verbose)
-		end_point = apply_rotation(end_point, np.array([0, pitch, 0]))
-
-	if atom3 is not False:
-		atom3_coords = coords[int(atom3) - 1]
-		intersecting_vector = atom3_coords - end_point
-		roll = angle_between_axis(intersecting_vector, 1, 0)
-		if roll != 0:
-			roll = check_rotated_atom3_x_direction(atom3_coords, roll)
-			print_rotation_info("z", roll, verbose)
-
-	if yaw != 0 or pitch != 0 or roll != 0:
-		# rotation of all of coords done here
-		three_rotations = np.array([yaw, pitch, roll])
+	if three_rotations is not None:
+		if verbose:
+			if three_rotations[0] != 0:
+				print_rotation_info("x", three_rotations[0], verbose)
+			if three_rotations[1] != 0:
+				print_rotation_info("y", three_rotations[1], verbose)
+			if three_rotations[2] != 0:
+				print_rotation_info("z", three_rotations[2], verbose)
 		new_coords = apply_rotation(new_coords, three_rotations)
 		if cube_origin is not False:
-			# effectively rotates whole grid that will be generated later
 			new_cube_origin = apply_rotation(cube_origin, three_rotations)
 	else:
 		if verbose:
