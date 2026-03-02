@@ -59,6 +59,9 @@ class dbstep:
 		# flag volume if buried shell requested
 		if options.vshell:
 			options.volume = True
+		# sterimol scan requires grid-based measurement for per-radius slicing
+		if options.sterimol and options.scan and options.measure == "classic":
+			options.measure = "grid"
 
 		origin = np.array([0, 0, 0])
 		self._get_spec_atoms(options)
@@ -476,6 +479,10 @@ def main():
 		options.radii = "bondi"
 		options.SCALE_VDW = 1.17
 		options.noH = True
+
+	# Sterimol scan requires grid-based measurement for per-radius slicing
+	if options.sterimol and options.scan and options.measure == "classic":
+		options.measure = "grid"
 
 	# make sure upper/lower case doesn't matter
 	options.surface = options.surface.lower()
