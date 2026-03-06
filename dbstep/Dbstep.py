@@ -310,7 +310,7 @@ class dbstep:
 					print("   {:>{fw}} {:>6} {:>6} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, atom2_str, Bmin, Bmax, L, fw=fw))
 
 		# Store results on self
-		if options.measure == "grid":
+		if occ_vol is not None:
 			self.occ_vol = occ_vol
 		if options.sterimol:
 			self.L = L
