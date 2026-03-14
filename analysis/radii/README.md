@@ -4,11 +4,13 @@ Comparison of VDW radii sets and scaling strategies for reproducing isodensity m
 
 ## Overview
 
-Three benchmarking analyses are provided:
+Five benchmarking analyses are provided:
 
 1. **Radii comparison** — qualitative comparison of Bondi vs Charry-Tkatchenko radii
-2. **Parity plots** — quantitative accuracy of three radii conditions vs isodensity reference (486 molecules, 1044 buried volume samples)
-3. **Optimal scaling** — systematic sweep of Bondi scaling factors to minimise deviation from isodensity reference
+2. **Parity plots (3D)** — quantitative accuracy of three radii conditions vs wB97XD/def2-TZVP isodensity reference (483 molecules, 1039 buried volume samples)
+3. **Optimal scaling** — systematic sweep of Bondi scaling factors to minimise deviation from isodensity reference (optimal s = 1.15)
+4. **Parity plots (2D)** — comparison of graph-based McGowan volumes and Crippen MR against the isodensity reference
+5. **Sphere radius dependence** — how 3D accuracy and 2D predictability vary with buried volume sphere radius (R = 2.0–5.0 Å)
 
 ---
 
@@ -40,7 +42,7 @@ uv run python analysis/radii/compare_radii.py
 **Script:** `parity_plots.py`
 **Output:** `parity_plots.png`
 
-A 2×3 figure comparing three radii conditions against the isodensity reference (0.0016 e/Bohr³ electron density surface):
+A 2×3 figure comparing three radii conditions against the isodensity reference (0.0016 e/Bohr³ electron density surface from wB97XD/def2-TZVP calculations):
 
 | Condition | Radii | Scaling | Hydrogens |
 |-----------|-------|---------|-----------|
@@ -48,13 +50,13 @@ A 2×3 figure comparing three radii conditions against the isodensity reference 
 | Charry-Tkatchenko | Charry-Tkatchenko | 1.0× | included |
 | SambVca | Bondi | 1.17× | excluded |
 
-**Top row — molecular volumes** (486 molecules from ZINC dataset):
+**Top row — molecular volumes** (483 molecules from ZINC dataset):
 - Parity plots of VDW vs isodensity molecular volume for each condition
-- Reference: `isodensity_volumes.txt`, `bondi_volumes.txt`, `charry_volumes.txt`, `sambvca_volumes.txt`
+- Reference: `tz_isodensity_volumes.txt`, `bondi_volumes.txt`, `charry_volumes.txt`, `sambvca_volumes.txt`
 
-**Bottom row — buried volumes** (1044 stratified atom-center samples):
+**Bottom row — buried volumes** (1039 stratified atom-center samples):
 - Parity plots of %V_Bur vs isodensity %V_Bur, coloured by center-atom element
-- Reference: `isodensity_sampled.csv`, `bondi_sampled.csv`, `charry_sampled.csv`, `sambvca_sampled.csv`
+- Reference: `tz_isodensity_sampled.csv`, `bondi_sampled.csv`, `charry_sampled.csv`, `sambvca_sampled.csv`
 
 ### Sampling strategy
 
@@ -83,7 +85,7 @@ uv run python analysis/radii/run_sampled_vbur.py
 
 This produces `bondi_sampled.csv`, `charry_sampled.csv`, and `sambvca_sampled.csv`.
 
-The isodensity reference (`isodensity_sampled.csv`) requires cube files and should be run on a server:
+The isodensity reference (`tz_isodensity_sampled.csv`) requires cube files generated at the wB97XD/def2-TZVP level of theory and should be run on a server:
 
 ```bash
 # Copy sample_atoms.csv and run_sampled_vbur.py to server, then:
@@ -105,20 +107,21 @@ uv run python analysis/radii/parity_plots.py
 **Script:** `optimal_scaling.py`
 **Output:** `optimal_scaling.png`
 
-Determines the optimal Bondi radius scaling factor for reproducing isodensity molecular volumes and buried volumes by running actual DBSTEP calculations across a sweep of scaling factors.
+Determines the optimal Bondi radius scaling factor for reproducing isodensity molecular volumes and buried volumes (wB97XD/def2-TZVP reference) by running actual DBSTEP calculations across a sweep of scaling factors.
 
-**Sweep:** s = 1.00 to 1.20 in steps of 0.01 (21 values total)
-- s = 1.00 uses `bondi_sampled.csv`
+**Result: s = 1.15 is optimal for both molecular volume (RMSE = 7.4 Å³) and %V_Bur (RMSE = 1.36%).**
+
+**Sweep:** s = 1.01 to 1.20 in steps of 0.01 (20 values total)
 - s = 1.01–1.20 uses `bondi_x{s:.2f}_sampled.csv`
 
 **Reference data:**
-- Molecular volumes: `isodensity_volumes.txt` (486 molecules, mol_id from filename)
-- Buried volumes: `isodensity_sampled.csv` (1044 samples)
+- Molecular volumes: `tz_isodensity_volumes.txt` (483 molecules, mol_id from filename)
+- Buried volumes: `tz_isodensity_sampled.csv` (1039 samples)
 
 **Output panels:**
 - **(a)** RMSE vs scaling factor for both molecular volume (Å³, left y-axis) and %V_Bur (%, right y-axis), with vertical lines marking the optimal s for each metric
-- **(b)** Molecular volume parity plot at the optimal scaling factor
-- **(c)** %V_Bur parity plot at the optimal scaling factor, coloured by center-atom element
+- **(b)** Molecular volume parity plot at s = 1.15
+- **(c)** %V_Bur parity plot at s = 1.15, coloured by center-atom element
 
 ### Running the sweep
 
@@ -138,6 +141,116 @@ uv run python analysis/radii/optimal_scaling.py
 
 ---
 
+## 4. 2D Graph-Based Volumes vs Isodensity Reference
+
+**Script:** `2d_parity_plots.py`
+**Output:** `2d_parity_plots.png`
+
+A 2×2 figure comparing 2D graph-based volume descriptors (computed from molecular connectivity only, no 3D coordinates) against the isodensity reference. Molecules are read from xyz files and bonds are perceived using RDKit's `rdDetermineBonds` (15/486 molecules fail bond perception and are excluded).
+
+### Top row — molecular volumes (468 molecules)
+
+- **(a)** McGowan volume (R² = 0.996, MAE = 51.3 Å³, RMSE = 52.4 Å³) — excellent linear correlation; McGowan volumes (converted to Å³) systematically underestimate isodensity volumes
+- **(b)** Crippen molar refractivity (R² = 0.939) — strong correlation despite measuring a different physical quantity (polarizability vs volume)
+
+### Bottom row — buried volume via per-element layer regression (999 samples, 5-fold CV)
+
+Per-atom contributions are binned by graph distance (0–6 bonds) from the center atom, then used as features in a linear regression to predict isodensity %V_Bur. A **separate model is trained for each center-atom element**, and predictions are from 5-fold cross-validation within each element group.
+
+- **(c)** McGowan per-element layer regression (R²_CV = 0.812, MAE = 3.8%)
+- **(d)** Crippen per-element layer regression (R²_CV = 0.720, MAE = 4.8%)
+
+### Per-element performance (5-fold CV)
+
+| Element | n | McGowan R²_CV | McGowan MAE | Crippen R²_CV | Crippen MAE |
+| ------- | ---: | :-----------: | :---------: | :-----------: | :---------: |
+| C | 242 | 0.763 | 3.6% | 0.613 | 4.9% |
+| H | 235 | 0.465 | 4.9% | 0.275 | 5.8% |
+| N | 144 | 0.751 | 3.9% | 0.582 | 5.0% |
+| O | 140 | 0.538 | 4.1% | 0.443 | 4.4% |
+| S | 98 | 0.834 | 2.5% | 0.359 | 4.8% |
+| F | 92 | 0.235 | 3.6% | 0.199 | 3.8% |
+| Cl | 48 | 0.549 | 2.1% | 0.477 | 2.2% |
+| **Overall** | **999** | **0.812** | **3.8%** | **0.720** | **4.8%** |
+
+### Global model layer regression coefficients
+
+For reference, a single global model (all elements pooled) gives R²_CV = 0.776 (McGowan) / 0.670 (Crippen). The learned layer weights are:
+
+| Layer (bonds from center) | McGowan weight | Crippen weight |
+| :-----------------------: | :------------: | :------------: |
+| 0 | −0.1057 | −0.1447 |
+| 1 | +0.1921 | +1.5648 |
+| 2 | +0.3203 | +1.1590 |
+| 3 | +0.2433 | +0.7406 |
+| 4 | +0.1354 | +0.2266 |
+| 5 | +0.1000 | +0.3938 |
+| 6 | +0.0051 | −0.0413 |
+| Intercept | 14.99 | 20.59 |
+
+Layers 1–3 carry the largest positive weights, consistent with the R = 3.5 Å buried volume sphere capturing atoms within ~3 bonds.
+
+**Conclusion:** 2D graph-based methods reproduce molecular volumes very well (R² = 0.996 for McGowan). For buried volume, per-element layer regression on McGowan contributions achieves R²_CV = 0.81, a reasonable approximation from connectivity alone, though 3D methods (R² > 0.99 at optimal scaling) remain substantially more accurate.
+
+```bash
+uv run python analysis/radii/2d_parity_plots.py
+```
+
+![2D Parity Plots](2d_parity_plots.png)
+
+---
+
+## 5. Sphere Radius Dependence
+
+**Script:** `radius_dependence.py`
+**Output:** `radius_dependence.png`
+
+Analyses how buried volume accuracy (3D) and predictability (2D) vary with the sphere radius R used in %V_Bur calculations. All previous analyses use the default R = 3.5 Å; this section tests R = 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0 Å.
+
+**Panels:**
+- **(a)** 3D accuracy: RMSE/MAE of Bondi ×1.15 vs isodensity %V_Bur at each R
+- **(b)** 2D predictability: McGowan per-element layer regression R²_CV at each R
+- **(c)** %V_Bur distribution: mean ± std of isodensity %V_Bur at each R
+
+### Results
+
+| R (Å) | Mean %V_Bur | Std %V_Bur | 3D RMSE (%) | 3D MAE (%) | 3D R² | 2D R²_CV | 2D MAE (%) |
+|:------:|:-----------:|:----------:|:-----------:|:----------:|:-----:|:--------:|:----------:|
+| 2.0 | 86.6 | 13.4 | 2.56 | 1.80 | 0.963 | 0.962 | 1.5 |
+| 2.5 | 71.6 | 13.6 | 1.88 | 1.50 | 0.981 | 0.910 | 3.0 |
+| 3.0 | 60.8 | 13.3 | 1.54 | 1.25 | 0.987 | 0.865 | 3.6 |
+| 3.5 | 51.6 | 12.1 | 1.31 | 1.04 | 0.988 | 0.815 | 3.8 |
+| 4.0 | 43.7 | 10.7 | 1.09 | 0.86 | 0.990 | 0.759 | 3.9 |
+| 4.5 | 37.2 | 9.3 | 0.93 | 0.72 | 0.990 | 0.705 | 3.7 |
+| 5.0 | 31.8 | 8.1 | 0.78 | 0.61 | 0.991 | 0.655 | 3.5 |
+
+**Key findings:**
+- **3D accuracy improves with larger R**: RMSE drops from 2.6% (R=2.0) to 0.8% (R=5.0) — larger spheres average out local radii differences between VDW and isodensity surfaces
+- **2D predictability improves with smaller R**: R²_CV rises from 0.66 (R=5.0) to 0.96 (R=2.0) — graph-distance features capture the local environment best at short range
+- **The default R = 3.5 Å is a reasonable compromise** between 3D accuracy (R² = 0.99, RMSE = 1.3%) and 2D predictability (R²_CV = 0.82)
+
+### Running the radius sweep
+
+Generate VDW data locally and isodensity data on the server:
+
+```bash
+# Local: Bondi x1.15 at each sphere radius
+uv run python analysis/radii/run_sampled_vbur.py --radius-sweep
+
+# Server: isodensity reference at each sphere radius
+python analysis/radii/run_sampled_vbur.py --radius-sweep --isodensity
+```
+
+Then generate the figure:
+
+```bash
+uv run python analysis/radii/radius_dependence.py
+```
+
+![Radius Dependence](radius_dependence.png)
+
+---
+
 ## Full Pipeline
 
 To reproduce all results from scratch (excluding the isodensity reference which requires cube files):
@@ -152,10 +265,15 @@ uv run python analysis/radii/run_sampled_vbur.py
 # 3. Run scaling sweep (Bondi x1.01 to x1.20)
 uv run python analysis/radii/run_sampled_vbur.py --sweep
 
-# 4. Generate figures
+# 4. Run radius sweep (Bondi x1.15 at R = 2.0–5.0 Å)
+uv run python analysis/radii/run_sampled_vbur.py --radius-sweep
+
+# 5. Generate figures
 uv run python analysis/radii/compare_radii.py
 uv run python analysis/radii/parity_plots.py
 uv run python analysis/radii/optimal_scaling.py
+uv run python analysis/radii/2d_parity_plots.py
+uv run python analysis/radii/radius_dependence.py
 ```
 
-Steps 2–4 require `isodensity_sampled.csv` and the `*_volumes.txt` files from the isodensity reference calculations.
+Steps 2–5 require `tz_isodensity_sampled.csv` and `tz_isodensity_volumes.txt` from the wB97XD/def2-TZVP isodensity reference calculations. Step 5 additionally requires `tz_isodensity_r{R}_sampled.csv` files from the server (run with `--radius-sweep --isodensity`).

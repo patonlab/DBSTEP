@@ -13,13 +13,22 @@ Modes:
                    to server and run with --isodensity
                    → isodensity_sampled.csv
 
-  --sweep        Bondi +H at scaling factors 1.05–1.10 in steps of 0.01
-                   → bondi_x1.05_sampled.csv … bondi_x1.10_sampled.csv
+  --sweep        Bondi +H at scaling factors 1.01–1.20 in steps of 0.01
+                   → bondi_x1.01_sampled.csv … bondi_x1.20_sampled.csv
+
+  --radius-sweep Bondi x1.15 +H at sphere radii 2.0–5.0 Å in steps of 0.5
+                   → bondi_x1.15_r2.0_sampled.csv … bondi_x1.15_r5.0_sampled.csv
+
+  --radius-sweep --isodensity
+                 Isodensity reference at sphere radii 2.0–5.0 Å
+                   → tz_isodensity_r2.0_sampled.csv … tz_isodensity_r5.0_sampled.csv
 
 Usage:
     python analysis/radii/run_sampled_vbur.py
     python analysis/radii/run_sampled_vbur.py --isodensity
     python analysis/radii/run_sampled_vbur.py --sweep
+    python analysis/radii/run_sampled_vbur.py --radius-sweep
+    python analysis/radii/run_sampled_vbur.py --radius-sweep --isodensity
 """
 
 import os
@@ -38,6 +47,9 @@ CUBE_DIR = os.path.join(HERE, "cube_files")
 
 # Scaling factors for the sweep
 SWEEP_SCALES = [1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09, 1.10, 1.11, 1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19, 1.20]
+
+# Sphere radii for the radius sweep (Å)
+RADIUS_SWEEP = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 
 VDW_CONDITIONS = [
     {
@@ -83,6 +95,28 @@ def sweep_conditions():
         }
         for s in SWEEP_SCALES
     ]
+
+
+def radius_sweep_conditions(isodensity=False):
+    conditions = []
+    for r in RADIUS_SWEEP:
+        if isodensity:
+            conditions.append({
+                "name": f"Isodensity R={r:.1f} Å",
+                "output": os.path.join(HERE, f"tz_isodensity_r{r:.1f}_sampled.csv"),
+                "file_dir": CUBE_DIR,
+                "file_fn": lambda stem: stem + "_medium.cube",
+                "kwargs": {"surface": "density", "isoval": 0.0016, "r": r},
+            })
+        else:
+            conditions.append({
+                "name": f"Bondi x1.15 +H, R={r:.1f} Å",
+                "output": os.path.join(HERE, f"bondi_x1.15_r{r:.1f}_sampled.csv"),
+                "file_dir": XYZ_DIR,
+                "file_fn": lambda stem: stem + ".xyz",
+                "kwargs": {"radii": "bondi", "scalevdw": 1.15, "noH": False, "r": r},
+            })
+    return conditions
 
 
 def xyz_stem(mol_file):
@@ -148,13 +182,20 @@ def run_condition(samples, condition):
 
 
 def main():
-    isodensity = "--isodensity" in sys.argv
-    sweep      = "--sweep" in sys.argv
+    isodensity   = "--isodensity" in sys.argv
+    sweep        = "--sweep" in sys.argv
+    radius_sweep = "--radius-sweep" in sys.argv
 
     samples = read_samples(SAMPLE_CSV)
     print(f"Loaded {len(samples)} samples from {SAMPLE_CSV}")
 
-    if isodensity:
+    if radius_sweep:
+        for condition in radius_sweep_conditions(isodensity=isodensity):
+            if os.path.exists(condition["output"]):
+                print(f"  Skipping {condition['name']} — {condition['output']} already exists")
+                continue
+            run_condition(samples, condition)
+    elif isodensity:
         run_condition(samples, ISODENSITY_CONDITION)
     elif sweep:
         for condition in sweep_conditions():

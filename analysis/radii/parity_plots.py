@@ -83,7 +83,7 @@ def parity_panel(ax, x, y, color, title, xlabel, ylabel, unit, elements=None):
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 
-ref    = parse_dbstep_file(HERE + "isodensity_volumes.txt")
+ref    = parse_dbstep_file(HERE + "tz_isodensity_volumes.txt")
 bondi  = parse_dbstep_file(HERE + "bondi_volumes.txt")
 charry = parse_dbstep_file(HERE + "charry_volumes.txt")
 sambvca = parse_dbstep_file(HERE + "sambvca_volumes.txt")
@@ -100,7 +100,7 @@ df = load_sampled(
     HERE + "bondi_sampled.csv",
     HERE + "charry_sampled.csv",
     HERE + "sambvca_sampled.csv",
-    HERE + "isodensity_sampled.csv",
+    HERE + "tz_isodensity_sampled.csv",
 )
 print(f"Buried volume comparison: {len(df)} atom samples")
 elements = df["element"]

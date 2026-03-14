@@ -63,8 +63,8 @@ def calc_stats(x, y):
 
 
 # ── Reference data ────────────────────────────────────────────────────────────
-ref_txt   = parse_dbstep_file(HERE + "isodensity_volumes.txt")
-iso_sampled = pd.read_csv(HERE + "isodensity_sampled.csv")
+ref_txt   = parse_dbstep_file(HERE + "tz_isodensity_volumes.txt")
+iso_sampled = pd.read_csv(HERE + "tz_isodensity_sampled.csv")
 
 # ── Load sweep CSVs ───────────────────────────────────────────────────────────
 sweep = {}   # scale -> DataFrame with columns [mol_file, atom1_idx, element, mol_vol, vbur]
