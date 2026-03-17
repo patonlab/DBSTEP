@@ -16,6 +16,88 @@ Currently supporting:
 """
 
 
+def get_xyz_structures(file_path):
+	"""Count and locate structures in a multi-XYZ file.
+
+	Args:
+		file_path (str): path to XYZ file
+
+	Returns:
+		list of (comment, atom_start_line, n_atoms) tuples
+	"""
+	with open(file_path) as f:
+		lines = f.readlines()
+	return _parse_xyz_boundaries(lines)
+
+
+def _parse_xyz_boundaries(file_lines):
+	"""Identify structure boundaries in a (multi-)XYZ file.
+
+	Returns:
+		list of (comment, atom_start_line, n_atoms) tuples.
+		Empty list if no standard XYZ headers found.
+	"""
+	structures = []
+	i = 0
+	while i < len(file_lines):
+		line = file_lines[i].strip()
+		if not line:
+			i += 1
+			continue
+		parts = line.split()
+		if len(parts) == 1:
+			try:
+				n_atoms = int(parts[0])
+			except ValueError:
+				i += 1
+				continue
+			if n_atoms <= 0:
+				i += 1
+				continue
+			comment = file_lines[i + 1].strip() if i + 1 < len(file_lines) else ""
+			structures.append((comment, i + 2, n_atoms))
+			i = i + 2 + n_atoms
+		else:
+			i += 1
+	return structures
+
+
+def get_sdf_structures(file_path):
+	"""Count and locate structures in a multi-SDF file.
+
+	Args:
+		file_path (str): path to SDF file
+
+	Returns:
+		list of (name, record_start_line, record_end_line) tuples
+	"""
+	with open(file_path) as f:
+		lines = f.readlines()
+	return _parse_sdf_boundaries(lines)
+
+
+def _parse_sdf_boundaries(file_lines):
+	"""Identify structure boundaries in a (multi-)SDF file.
+
+	Each record ends with a $$$$ delimiter line.
+
+	Returns:
+		list of (name, record_start_line, record_end_line) tuples.
+	"""
+	structures = []
+	record_start = 0
+	for i, line in enumerate(file_lines):
+		if line.strip() == "$$$$":
+			name = file_lines[record_start].strip() if record_start < len(file_lines) else ""
+			structures.append((name, record_start, i))
+			record_start = i + 1
+	# Handle file without trailing $$$$
+	if record_start < len(file_lines) and any(line.strip() for line in file_lines[record_start:]):
+		name = file_lines[record_start].strip()
+		structures.append((name, record_start, len(file_lines)))
+	return structures
+
+
 def read_input(molecule, ext, options):
 	"""Chooses a Parser based on input molecule format.
 
@@ -30,8 +112,11 @@ def read_input(molecule, ext, options):
 	if ext == ".cube":
 		mol = CubeParser(molecule, "cube")
 	else:
+		structure = getattr(options, 'structure', None)
 		if ext in [".xyz", ".com", ".gjf"]:
-			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
+			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
+		elif ext in [".sdf", ".mol"]:
+			mol = SDFParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext == "rdkit":
 			mol = RDKitParser(molecule, options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
 		else:
@@ -188,28 +273,26 @@ class CubeParser(DataParser):
 class XYZParser(DataParser):
 	"""Read XYZ Cartesians from an xyz file or chem files similar to xyz."""
 
-	def __init__(self, file, input_format, noH, exclude, spec_atom_1, spec_atom_2):
+	def __init__(self, file, input_format, noH, exclude, spec_atom_1, spec_atom_2, structure=None):
+		self._structure = structure
+		self.structure_name = None
 		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2, manual_file_lines=True)
 
 	def parse_input(self):
 		"""Parses input from either xyz file or com/gif file."""
 		file_lines = self.file_lines
 		if self.FORMAT == "xyz":
-			for i in range(0, len(file_lines)):
-				try:
-					coord = file_lines[i].split()
-					for i in range(len(coord)):
-						try:
-							coord[i] = float(coord[i])
-						except ValueError:
-							pass
-					if len(coord) == 4:
-						if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3], float):
-							[atom, x, y, z] = [coord[0], coord[1], coord[2], coord[3]]
-							self.ATOMTYPES.append(atom)
-							self.CARTESIANS.append([x, y, z])
-				except Exception:
-					pass
+			structures = _parse_xyz_boundaries(file_lines)
+			if structures:
+				idx = self._structure if self._structure is not None else 0
+				if idx >= len(structures):
+					sys.exit(f"  Structure index {idx} out of range (file has {len(structures)} structures)")
+				comment, atom_start, n_atoms = structures[idx]
+				self.structure_name = comment
+				self._parse_atom_lines(file_lines, atom_start, atom_start + n_atoms)
+			else:
+				# Fallback for non-standard XYZ files: parse all lines
+				self._parse_atom_lines(file_lines, 0, len(file_lines))
 		elif self.FORMAT == "com" or self.FORMAT == "gjf":
 			for i in range(0, len(file_lines)):
 				if file_lines[i].find("#") > -1:
@@ -218,21 +301,58 @@ class XYZParser(DataParser):
 					if len(file_lines[i + 2].split()) == 0:
 						start = i + 6
 					break
-			for i in range(start, len(file_lines)):
-				try:
-					coord = file_lines[i].split()
-					for i in range(len(coord)):
-						try:
-							coord[i] = float(coord[i])
-						except ValueError:
-							pass
-					if len(coord) == 4:
-						if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3], float):
-							[atom, x, y, z] = [coord[0], coord[1], coord[2], coord[3]]
-							self.ATOMTYPES.append(atom)
-							self.CARTESIANS.append([x, y, z])
-				except Exception:
-					pass
+			self._parse_atom_lines(file_lines, start, len(file_lines))
+
+	def _parse_atom_lines(self, file_lines, start, end):
+		"""Parse atom coordinate lines from file_lines[start:end]."""
+		for i in range(start, min(end, len(file_lines))):
+			try:
+				coord = file_lines[i].split()
+				for j in range(len(coord)):
+					try:
+						coord[j] = float(coord[j])
+					except ValueError:
+						pass
+				if len(coord) >= 4:
+					if isinstance(coord[1], float) and isinstance(coord[2], float) and isinstance(coord[3], float):
+						self.ATOMTYPES.append(coord[0])
+						self.CARTESIANS.append([coord[1], coord[2], coord[3]])
+			except Exception:
+				pass
+
+
+class SDFParser(DataParser):
+	"""Read XYZ Cartesians from an SDF/MOL file, with multi-structure support."""
+
+	def __init__(self, file, input_format, noH, exclude, spec_atom_1, spec_atom_2, structure=None):
+		self._structure = structure
+		self.structure_name = None
+		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2, manual_file_lines=True)
+
+	def parse_input(self):
+		"""Parses input from an SDF file using structure boundaries."""
+		file_lines = self.file_lines
+		structures = _parse_sdf_boundaries(file_lines)
+		if not structures:
+			sys.exit(f"  Unable to parse any structures from {self._input}")
+		idx = self._structure if self._structure is not None else 0
+		if idx >= len(structures):
+			sys.exit(f"  Structure index {idx} out of range (file has {len(structures)} structures)")
+		name, start, end = structures[idx]
+		self.structure_name = name
+
+		# Parse the counts line (4th line of the record) for number of atoms
+		counts_line = file_lines[start + 3]
+		n_atoms = int(counts_line.split()[0])
+
+		# Atom block starts at line start+4
+		atom_start = start + 4
+		for i in range(atom_start, atom_start + n_atoms):
+			parts = file_lines[i].split()
+			x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
+			atom_type = parts[3]
+			self.ATOMTYPES.append(atom_type)
+			self.CARTESIANS.append([x, y, z])
 
 
 class cclibParser(DataParser):
