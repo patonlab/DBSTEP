@@ -26,7 +26,7 @@ def count_grid_points_in_sphere(x_vals, y_vals, z_vals, origin, R):
 	return count
 
 
-def occupied_direct(coords, radii, origin, x_vals, y_vals, z_vals, options):
+def occupied_direct(coords, radii, origin, x_vals, y_vals, z_vals, options, return_mask=False):
 	"""Generate occupied grid points without allocating the full meshgrid.
 	Per-atom work is vectorized within the atom's bounding box via broadcasting.
 	The boolean mask provides automatic deduplication where atom spheres overlap."""
@@ -67,6 +67,8 @@ def occupied_direct(coords, radii, origin, x_vals, y_vals, z_vals, options):
 	occ_vol = n_occ * spacing**3
 	if options.verbose:
 		print("   Molecular volume is {:5.4f} Ang^3".format(occ_vol))
+	if return_mask:
+		return occ_grid, occ_vol, occ_mask
 	return occ_grid, occ_vol
 
 

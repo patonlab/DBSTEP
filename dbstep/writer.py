@@ -174,6 +174,87 @@ def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
 
 
+def tensor_pymol_export(file, mol, tensor, tensor_grid):
+	"""Outputs a PyMOL script to visualize the 3D occupancy tensor as a wireframe grid with occupied voxels"""
+	import numpy as np
+	base, ext = os.path.splitext(file)
+
+	log = Logger(base, "py", "tensor")
+	log.Writeonlyfile("from pymol.cgo import *")
+	log.Writeonlyfile("from pymol import cmd\n")
+
+	x_vals = tensor_grid["x_vals"]
+	y_vals = tensor_grid["y_vals"]
+	z_vals = tensor_grid["z_vals"]
+	spacing = tensor_grid["spacing"]
+
+	# Wireframe grid using CGO LINES
+	log.Writeonlyfile("grid = [")
+	log.Writeonlyfile("   BEGIN, LINES,")
+	log.Writeonlyfile("   COLOR, 0.7, 0.7, 0.7,")
+
+	# Lines parallel to X axis
+	for y in y_vals:
+		for z in z_vals:
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x_vals[0], y, z))
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x_vals[-1], y, z))
+
+	# Lines parallel to Y axis
+	for x in x_vals:
+		for z in z_vals:
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x, y_vals[0], z))
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x, y_vals[-1], z))
+
+	# Lines parallel to Z axis
+	for x in x_vals:
+		for y in y_vals:
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x, y, z_vals[0]))
+			log.Writeonlyfile("   VERTEX, {:.4f}, {:.4f}, {:.4f},".format(x, y, z_vals[-1]))
+
+	log.Writeonlyfile("   END,")
+	log.Writeonlyfile("]")
+	log.Writeonlyfile('cmd.load_cgo(grid, "grid")')
+	log.Writeonlyfile('cmd.set("cgo_line_width", 1.0, "grid")\n')
+
+	# Occupied voxels as spheres
+	occ_indices = np.argwhere(tensor)
+	r = spacing / 2.0
+	if len(occ_indices) > 0:
+		log.Writeonlyfile("occupied = [")
+		for idx in occ_indices:
+			x = x_vals[idx[0]]
+			y = y_vals[idx[1]]
+			z = z_vals[idx[2]]
+			log.Writeonlyfile("   COLOR, 0.2, 0.6, 1.0,")
+			log.Writeonlyfile("   SPHERE, {:.4f}, {:.4f}, {:.4f}, {:.4f},".format(x, y, z, r))
+		log.Writeonlyfile("]")
+		log.Writeonlyfile('cmd.load_cgo(occupied, "occupied")')
+		log.Writeonlyfile('cmd.set("cgo_transparency", 0.4, "occupied")\n')
+
+	# Empty (unoccupied) voxels as spheres
+	empty_indices = np.argwhere(tensor == 0)
+	if len(empty_indices) > 0:
+		log.Writeonlyfile("empty = [")
+		for idx in empty_indices:
+			x = x_vals[idx[0]]
+			y = y_vals[idx[1]]
+			z = z_vals[idx[2]]
+			log.Writeonlyfile("   COLOR, 0.9, 0.4, 0.4,")
+			log.Writeonlyfile("   SPHERE, {:.4f}, {:.4f}, {:.4f}, {:.4f},".format(x, y, z, r))
+		log.Writeonlyfile("]")
+		log.Writeonlyfile('cmd.load_cgo(empty, "empty")')
+		log.Writeonlyfile('cmd.set("cgo_transparency", 0.7, "empty")')
+		log.Writeonlyfile('cmd.disable("empty")\n')
+
+	# Load transformed molecule
+	full_path = os.path.abspath(file)
+	name, ext = os.path.splitext(full_path)
+	log.Writeonlyfile('cmd.load("' + name + '_transform.xyz")')
+	log.Writeonlyfile('cmd.show_as("spheres", "' + base.split("/")[-1] + '_transform")')
+	log.Writeonlyfile('cmd.set("sphere_transparency", 0.5)')
+	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
+
+
 def xyz_export(file, mol):
 	"""Write xyz coordinates of molecule to file"""
 	name, ext = os.path.splitext(file)

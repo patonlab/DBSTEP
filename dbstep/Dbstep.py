@@ -32,6 +32,8 @@ class dbstep:
 		self.L, self.Bmin, self.Bmax = False, False, False
 		# Volume Parameters
 		self.occ_vol, self.bur_vol, self.bur_shell = False, False, False
+		# Tensor Parameters
+		self.tensor, self.tensor_grid = False, False
 
 		if "options" in kwargs:
 			self.options = kwargs["options"]
@@ -59,6 +61,17 @@ class dbstep:
 		# flag volume if buried shell requested
 		if options.vshell:
 			options.volume = True
+		# tensor mode: force volume (for grid) and sterimol (for alignment)
+		if options.tensor:
+			if not options.atom3:
+				sys.exit("ERROR: --tensor requires --atom3 to fully define the molecular orientation.")
+			# default to coarser grid if user didn't explicitly set grid spacing
+			if options.grid == 0.05:
+				options.grid = 1.0
+			options._tensor_only_sterimol = not options.sterimol
+			options._tensor_only_volume = not options.volume
+			options.volume = True
+			options.sterimol = True
 		# sterimol scan requires grid-based measurement for per-radius slicing
 		if options.sterimol and options.scan and options.measure == "classic":
 			options.measure = "grid"
@@ -82,8 +95,32 @@ class dbstep:
 		r_min, r_max, r_intervals, strip_width = self._parse_scan(options)
 
 		# Build occupancy grid
-		occ_grid, occ_vol, point_tree, grid_axes = self._build_grid(
+		occ_grid, occ_vol, point_tree, grid_axes, occ_mask = self._build_grid(
 			mol, name, options, origin, x_min, x_max, y_min, y_max, z_min, z_max)
+
+		# Store tensor and metadata if requested
+		if options.tensor and occ_mask is not None:
+			self.tensor = occ_mask.astype(int)
+			self.tensor_grid = {
+				"origin": [x_min, y_min, z_min],
+				"spacing": options.grid,
+				"shape": occ_mask.shape,
+				"x_vals": grid_axes[0] if grid_axes else None,
+				"y_vals": grid_axes[1] if grid_axes else None,
+				"z_vals": grid_axes[2] if grid_axes else None,
+			}
+			if options.save:
+				save_base = name if isinstance(name, str) else "tensor"
+				np.save(save_base + "_tensor.npy", self.tensor)
+				if not options.quiet:
+					print("   Tensor saved to {}_tensor.npy (shape: {})".format(save_base, self.tensor.shape))
+
+		# Restore sterimol/volume flags if they were only set for tensor alignment
+		if options.tensor:
+			if getattr(options, '_tensor_only_sterimol', False):
+				options.sterimol = False
+			if getattr(options, '_tensor_only_volume', False):
+				options.volume = False
 
 		# Print column headers (once across multi-file runs)
 		self._print_column_header(options)
@@ -105,7 +142,10 @@ class dbstep:
 			if options.sterimol:
 				cylinders.append("   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,".format(self.L))
 			writer.xyz_export(file, mol)
-			writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
+			if options.sterimol or options.volume:
+				writer.pymol_export(file, mol, spheres, cylinders, options.isoval, options.visv, options.viss)
+			if options.tensor and self.tensor is not False:
+				writer.tensor_pymol_export(file, mol, self.tensor, self.tensor_grid)
 
 	def _assign_surface(self, mol, file, options, origin):
 		"""Assign VDW radii or parse density cube, translate molecule, and remove metals.
@@ -190,15 +230,16 @@ class dbstep:
 			exit()
 
 	def _build_grid(self, mol, name, options, origin, x_min, x_max, y_min, y_max, z_min, z_max):
-		"""Construct occupancy grid. Returns (occ_grid, occ_vol, point_tree, grid_axes)."""
+		"""Construct occupancy grid. Returns (occ_grid, occ_vol, point_tree, grid_axes, occ_mask)."""
 		grid_axes = None
 		occ_grid = occ_vol = point_tree = None
+		occ_mask = None
 
 		if options.surface == "vdw":
 			# User can override grid dimensions
 			if options.gridsize:
 				gs = [float(val) for val in options.gridsize.replace(":", ",").split(",")]
-				if gs[1] < x_max or gs[0] > x_min or gs[3] < y_max or gs[2] > y_min or gs[5] < z_max or gs[4] > z_min:
+				if not options.tensor and (gs[1] < x_max or gs[0] > x_min or gs[3] < y_max or gs[2] > y_min or gs[5] < z_max or gs[4] > z_min):
 					sys.exit("ERROR: Your molecule is larger than the gridsize you selected,\n       please try again with a larger gridsize")
 				x_min, x_max, y_min, y_max, z_min, z_max = gs
 
@@ -209,7 +250,10 @@ class dbstep:
 			if options.volume or options.measure == "grid":
 				if options.volume and not (options.sterimol and options.measure == "grid"):
 					# Fast path: skip full grid construction when grid sterimol not needed
-					occ_grid, occ_vol = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options)
+					if options.tensor:
+						occ_grid, occ_vol, occ_mask = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options, return_mask=True)
+					else:
+						occ_grid, occ_vol = sterics.occupied_direct(mol.CARTESIANS, mol.RADII, origin, x_vals, y_vals, z_vals, options)
 					point_tree = None
 					grid_axes = (x_vals, y_vals, z_vals)
 				else:
@@ -232,7 +276,7 @@ class dbstep:
 			if options.volume:
 				grid, point_tree = sterics.resize_grid(x_max, y_max, z_max, x_min, y_min, z_min, options, mol)
 
-		return occ_grid, occ_vol, point_tree, grid_axes
+		return occ_grid, occ_vol, point_tree, grid_axes, occ_mask
 
 	def _print_column_header(self, options):
 		"""Print column headers once across multi-file runs."""
@@ -265,7 +309,18 @@ class dbstep:
 		else:
 			occ_dist2 = None
 
-		fname = os.path.basename(file)
+		if isinstance(file, str):
+			fname = os.path.basename(file)
+		else:
+			try:
+				fname = file.GetProp("_Name")
+			except Exception:
+				fname = "rdkit_mol"
+		# Use structure name from multi-XYZ file if available
+		if hasattr(mol, 'structure_name') and mol.structure_name:
+			# Extract clean name from comment line (first word, strip extension)
+			sname = mol.structure_name.split()[0]
+			fname = os.path.splitext(sname)[0] if '.' in sname else sname
 		fw = dbstep._file_col_width
 
 		for rad in np.linspace(r_min, r_max, r_intervals):
@@ -293,21 +348,27 @@ class dbstep:
 					cylinders.extend(cyl)
 
 			# Tabulate result
+			dp = options.dp
+			vfmt = "{{:10.{}f}}".format(dp)
+			rfmt = "{{:6.{}f}}".format(dp)
 			if options.volume and options.sterimol:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
 					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
-					print("   {:>{fw}} {:>6} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L, fw=fw))
+					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
+					print(fmt.format(fname, options.spec_atom_1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L))
 			elif options.volume:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					print("   {:>{fw}} {:>6} {:6.2f} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell, fw=fw))
+					fmt = "   {:>" + str(fw) + "} {:>6} " + rfmt + " " + " ".join([vfmt] * 3)
+					print(fmt.format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell))
 			elif options.sterimol:
 				if not options.quiet:
 					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
-					print("   {:>{fw}} {:>6} {:>6} {:10.2f} {:10.2f} {:10.2f}".format(fname, options.spec_atom_1, atom2_str, Bmin, Bmax, L, fw=fw))
+					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
+					print(fmt.format(fname, options.spec_atom_1, atom2_str, Bmin, Bmax, L))
 
 		# Store results on self
 		if occ_vol is not None:
@@ -390,7 +451,7 @@ def set_options(kwargs):
 	var_dict = {
 		"verbose": ["verbose", False],
 		"v": ["verbose", False],
-		"grid": ["grid", 0.1],
+		"grid": ["grid", 0.05],
 		"scalevdw": ["SCALE_VDW", 1.0],
 		"noH": ["noH", False],
 		"nometals": ["no_metals", False],
@@ -408,6 +469,9 @@ def set_options(kwargs):
 		"debug": ["debug", False],
 		"b": ["volume", False],
 		"volume": ["volume", False],
+		"tensor": ["tensor", False],
+		"t": ["tensor", False],
+		"save": ["save", False],
 		"vshell": ["vshell", False],
 		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
@@ -416,6 +480,7 @@ def set_options(kwargs):
 		"gridsize": ["gridsize", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
+		"dp": ["dp", 2],
 		"graph": ["graph", False],
 		"fg": ["shared_fg", False],
 		"shared_fg": ["shared_fg", False],
@@ -424,6 +489,7 @@ def set_options(kwargs):
 		"voltype": ["voltype", "crippen"],
 		"visv": ["visv", "circle"],
 		"viss": ["viss", False],
+		"structure": ["structure", None],
 	}
 
 	for key in var_dict:
@@ -457,6 +523,7 @@ def main():
 	parser.add_option("--noH", dest="noH", action="store_true", help="Exclude hydrogen atoms from steric measurements", default=False)
 	parser.add_option("--nometals", dest="no_metals", action="store_true", help="Exclude metal atoms from steric measurements", default=False)
 	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecule (use if structures have been pre-aligned)", default=False)
+	parser.add_option("--dp", dest="dp", action="store", type="int", help="Number of decimal places for output values (default: 2)", default=2, metavar="dp")
 	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)", default=False)
 	parser.add_option("--quiet", dest="quiet", action="store_true", help="Suppress all print output", default=False)
 	parser.add_option("--radii", dest="radii", action="store", choices=["bondi", "charry-tkatchenko"], help="VDW radii set: bondi or charry-tkatchenko (default: bondi)", default="bondi")
@@ -467,6 +534,8 @@ def main():
 	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False)
 	parser.add_option("--measure", dest="measure", action="store", choices=["classic", "grid"], help="Sterimol method: classic (Verloop, default) or grid-based", default="classic", metavar="measure")
 	parser.add_option("--surface", dest="surface", action="store", choices=["vdw", "density"], help="Surface type: Bondi VDW radii or density cube file (default: vdw)", default="vdw", metavar="surface")
+	parser.add_option("-t", "--tensor", dest="tensor", action="store_true", help="Return 3D binary occupancy tensor (requires --atom1, --atom2, --atom3)", default=False)
+	parser.add_option("--save", dest="save", action="store_true", help="Save tensor to .npy file (use with --tensor)", default=False)
 	parser.add_option("-b", "--vbur", dest="volume", action="store_true", help="Calculate buried volume of input molecule", default=False)
 	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Print verbose output", default=False)
 	parser.add_option("--viss", dest="viss", action="store_true", help="Visualize Sterimol Bmin and Bmax in PyMOL as circle outlines", default=False)
@@ -479,6 +548,10 @@ def main():
 		options.radii = "bondi"
 		options.SCALE_VDW = 1.17
 		options.noH = True
+
+	# Tensor mode: default to coarser grid spacing if user didn't set --grid
+	if options.tensor and options.grid == 0.05:
+		options.grid = 1.0
 
 	# Sterimol scan requires grid-based measurement for per-radius slicing
 	if options.sterimol and options.scan and options.measure == "classic":
@@ -544,6 +617,24 @@ def main():
 			vec_df[numeric_cols] = vec_df[numeric_cols].round(2)
 			vec_df.to_csv(file.split(".")[0] + "_2d_output.csv", index=False)
 		else:
+			# Detect multi-structure files
+			_, ext = os.path.splitext(file)
+			if ext == ".xyz":
+				structures = parse_data.get_xyz_structures(file)
+				if len(structures) > 1:
+					for idx in range(len(structures)):
+						options.structure = idx
+						dbstep(file, options=options)
+					options.structure = None
+					continue
+			elif ext in [".sdf", ".mol"]:
+				structures = parse_data.get_sdf_structures(file)
+				if len(structures) > 1:
+					for idx in range(len(structures)):
+						options.structure = idx
+						dbstep(file, options=options)
+					options.structure = None
+					continue
 			dbstep(file, options=options)
 
 	if dbstep._column_width and not options.quiet:
