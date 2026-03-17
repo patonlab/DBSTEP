@@ -150,8 +150,6 @@ def fit_full_regression(X, y, nonneg=False):
 	if nonneg:
 		y_mean = y.mean()
 		w, _ = nnls(X, y - y_mean)
-		intercept = y_mean - X.mean(axis=0) @ w + y_mean  # recompute properly
-		# Actually: pred = X @ w + y_mean, so intercept = y_mean
 		return w, y_mean
 	else:
 		X_b = np.column_stack([X, np.ones(len(X))])

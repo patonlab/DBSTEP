@@ -33,3 +33,9 @@ htmlcov/
 .claude/
 ct4c00784_si_001.pdf
 TODO
+analysis/r_group_fragmentation/250k_rndm_zinc_drugs_clean_3_brics_counts.csv
+
+# Large data files
+analysis/steric_maps/*.sdf
+analysis/steric_maps/*_buried_shell.csv
+analysis/steric_maps/*_buried_shell_summary.csv

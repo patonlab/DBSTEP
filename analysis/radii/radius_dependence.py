@@ -128,9 +128,6 @@ if 3.5 not in available_bondi:
 	bf35 = HERE + "bondi_x1.15_sampled.csv"
 	if os.path.exists(bf35):
 		available_bondi[3.5] = pd.read_csv(bf35)
-	else:
-		# Try the sweep file
-		bf35 = HERE + "bondi_x1.15_sampled.csv"
 if 3.5 not in available_iso:
 	isof35 = HERE + "tz_isodensity_sampled.csv"
 	if os.path.exists(isof35):

@@ -203,11 +203,19 @@ def _assign_tbucy_stereo(mol, cap_name):
 def cap_fragment(frag_smi, cap_name):
     """Replace the dummy atom (*) in a fragment with a capping group.
 
-    Returns (canonical_smiles, attach_atom_idx) rooted at the capping group,
-    or (None, None) on failure. attach_atom_idx is the 0-based index of the
-    cap group's attachment atom in the canonical SMILES atom ordering — this
-    index is stable when hydrogens are added.
+    Returns (canonical_smiles, attach_atom_idx, frag_atom_idx, cap_heavy_indices)
+    rooted at the capping group, or (None, None, None, None) on failure.
+
+    Atom indices are 0-based in the canonical SMILES atom ordering and are
+    stable when hydrogens are added.
+
+    Uses atom-property tagging (not substructure matching) to identify cap vs
+    fragment atoms, so it works correctly even when the fragment contains the
+    same substructure as the cap group (e.g. phenyl cap on a phenyl-containing
+    fragment).
     """
+    import ast
+
     frag = Chem.MolFromSmiles(frag_smi)
     if frag is None:
         return None, None, None, None
@@ -215,6 +223,13 @@ def cap_fragment(frag_smi, cap_name):
     cap = Chem.MolFromSmiles(CAPS[cap_name])
     if cap is None:
         return None, None, None, None
+
+    # Tag fragment heavy atoms so we can distinguish them from cap atoms
+    # after ReplaceSubstructs (properties survive sanitization, uncharging,
+    # and stereo enumeration)
+    for atom in frag.GetAtoms():
+        if atom.GetAtomicNum() != 0:  # skip the dummy
+            atom.SetIntProp("_is_frag", 1)
 
     # ReplaceSubstructs replaces the dummy atom with the cap group
     products = AllChem.ReplaceSubstructs(frag, _DUMMY, cap)
@@ -254,26 +269,57 @@ def cap_fragment(frag_smi, cap_name):
     if rdMolDescriptors.CalcNumRotatableBonds(mol) >= 5:
         return None, None, None, None
 
-    # Find attachment atom, fragment atom, and cap group atoms
-    attach, frag_atom, cap_heavy = _find_cap_atoms(mol, cap_name)
+    # Identify cap vs fragment atoms using the _is_frag tag set before
+    # ReplaceSubstructs.  Cap atoms are those WITHOUT the tag.
+    cap_indices = []
+    frag_indices = []
+    for atom in mol.GetAtoms():
+        if atom.HasProp("_is_frag"):
+            frag_indices.append(atom.GetIdx())
+        else:
+            cap_indices.append(atom.GetIdx())
+
+    if not cap_indices:
+        return None, None, None, None
+
+    # Find the cap attachment atom (cap atom bonded to a fragment atom)
+    # and the fragment atom it connects to
+    attach = None
+    frag_atom = None
+    cap_set = set(cap_indices)
+    for ci in cap_indices:
+        for nbr in mol.GetAtomWithIdx(ci).GetNeighbors():
+            if nbr.HasProp("_is_frag"):
+                attach = ci
+                frag_atom = nbr.GetIdx()
+                break
+        if attach is not None:
+            break
 
     # Root the SMILES at a cap-group atom far from the attachment point so the
     # cap writes out fully before the fragment (e.g. "c1ccccc1C" not "Cc1ccccc1")
-    if cap_heavy and attach is not None:
+    if cap_indices and attach is not None:
         from rdkit.Chem import rdmolops as _rdmolops
         dmat = _rdmolops.GetDistanceMatrix(mol)
-        root = max(cap_heavy, key=lambda i: dmat[attach][i])
+        root = max(cap_indices, key=lambda i: dmat[attach][i])
     else:
         root = 0
 
     smi = Chem.MolToSmiles(mol, rootedAtAtom=root)
 
-    # Re-parse the canonical SMILES to get indices in the final atom ordering
-    # (MolToSmiles reorders atoms)
-    final_mol = Chem.MolFromSmiles(smi)
-    if final_mol is None:
-        return None, None, None, None, None
-    final_attach, final_frag_atom, final_cap_heavy = _find_cap_atoms(final_mol, cap_name)
+    # Map product atom indices → canonical SMILES atom indices using
+    # _smilesAtomOutputOrder (set by MolToSmiles on the mol object).
+    # order[smiles_pos] = product_atom_idx
+    try:
+        order = list(ast.literal_eval(mol.GetProp("_smilesAtomOutputOrder")))
+    except Exception:
+        return None, None, None, None
+
+    inv = {mol_idx: smi_pos for smi_pos, mol_idx in enumerate(order)}
+
+    final_attach = inv.get(attach) if attach is not None else None
+    final_frag_atom = inv.get(frag_atom) if frag_atom is not None else None
+    final_cap_heavy = sorted(inv[i] for i in cap_indices if i in inv)
 
     return smi, final_attach, final_frag_atom, final_cap_heavy
 

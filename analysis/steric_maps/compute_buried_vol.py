@@ -3,14 +3,13 @@ Compute buried volume (%V_Bur) at the cap attachment atom for capped fragment co
 
 Reads an SDF file from Auto3D (with multiple conformers per fragment) and a
 capped fragment CSV (from cap_fragments.py) that contains the attach_atom_idx
-and cap_atoms columns. Uses DBSTEP to compute the buried volume at the
+and cap_atoms columns.  Uses DBSTEP to compute the buried volume at the
 attachment point, excluding the cap group atoms (heavy atoms + their hydrogens)
 from the steric measurement.
 
 The attach_atom_idx and cap_atoms from the CSV are 0-based heavy-atom indices
-in the canonical SMILES, which are stable when hydrogens are added (H atoms are
-appended after heavy atoms by RDKit). At runtime, hydrogens bonded to cap heavy
-atoms are also identified and excluded.
+in the canonical SMILES ordering.  Auto3D preserves this ordering in the SDF,
+so the indices can be used directly.
 
 Usage:
   python compute_buried_vol.py --sdf aimnet2_out.sdf --csv capped_phenyl.csv --radius 3.5
@@ -50,7 +49,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Load attachment atom indices and cap group atoms from the capped CSV
+    # Load attachment atom indices and cap group atoms from the capped CSV.
+    # These are 0-based heavy-atom indices in the canonical SMILES ordering,
+    # which Auto3D preserves in the SDF — so they can be used directly.
     cap_df = pd.read_csv(args.csv)
     attach_map = dict(zip(cap_df["name"], cap_df["attach_atom_idx"]))
     cap_atoms_map = dict(zip(
@@ -89,7 +90,7 @@ def main():
 
         # DBSTEP uses 1-indexed atoms
         result = dbstep(mol, atom1=attach_idx + 1, volume=True, r=args.radius,
-                        exclude=exclude_str, verbose=False)
+                        exclude=exclude_str, verbose=False, quiet=True)
 
         records.append({
             "name": name,
