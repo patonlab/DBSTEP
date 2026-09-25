@@ -7,7 +7,7 @@ import argparse
 from glob import glob
 import numpy as np
 
-from dbstep import sterics, parse_data, calculator, writer, selection, trajectory
+from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble
 from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
 
 class dbstep:
@@ -125,6 +125,10 @@ class dbstep:
 		self.atoms, self.coords = np.array(mol.ATOMTYPES), np.array(mol.CARTESIANS)
 		self.spec_atoms = [options.spec_atom_1] + list(options.spec_atom_2)
 		self.metadata = {key: np.array(values) for key, values in getattr(mol, "METADATA", {}).items()}
+		# per-structure properties (SDF data fields such as <Energy>, xyz comment line) for ensemble weighting
+		self.properties = dict(getattr(mol, "PROPERTIES", {}))
+		self.structure_name = getattr(mol, "structure_name", None)
+		self.population = None
 
 		# Assign radii / parse density and set up grid bounds
 		x_min, x_max, y_min, y_max, z_min, z_max = self._assign_surface(mol, file, options, origin)
@@ -368,7 +372,14 @@ class dbstep:
 		structure_idx = getattr(options, 'structure', None)
 		structure_label = ""
 		if structure_idx is not None:
-			if getattr(mol, 'structure_name', None):
+			if getattr(mol, 'structure_name', None) and getattr(mol, 'FORMAT', '') in ('sdf', 'mol'):
+				# SDF titles identify the record (e.g. "ether 44" from a conformer search): keep them whole,
+				# only stripping a file extension from single-word titles such as "35diMePh.log"
+				structure_label = mol.structure_name.strip()
+				if len(structure_label.split()) == 1 and "." in structure_label:
+					structure_label = os.path.splitext(structure_label)[0]
+				fname = structure_label
+			elif getattr(mol, 'structure_name', None):
 				# Extract clean name from comment line (first word, strip extension)
 				sname = mol.structure_name.split()[0]
 				structure_label = os.path.splitext(sname)[0] if '.' in sname else sname
@@ -560,6 +571,9 @@ def set_options(kwargs):
 		"chain": ["chain", False],
 		"csv": ["csv", False],
 		"frames": ["frames", False],
+		"boltzmann": ["boltzmann", False],
+		"temperature": ["temperature", 298.15],
+		"energy_units": ["energy_units", "kcal"],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -583,6 +597,22 @@ def set_options(kwargs):
 			print("Warning! Option: [", key, ":", kwargs[key], "] provided but no option exists, try -h to see available options.")
 
 	return options
+
+
+def format_result_row(row, options, fw):
+	"""Format a result row (as in dbstep.results) the way the results table prints it."""
+	dp = options.dp
+	vfmt = "{{:10.{}f}}".format(dp)
+	rfmt = "{{:6.{}f}}".format(dp)
+	label = " ".join(str(part) for part in (row["file"], row["structure"], row["residue"]) if part)
+	if options.volume and options.sterimol:
+		fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
+		return fmt.format(label, row["atom1"], row["atom2"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"], row["bmin"], row["bmax"], row["L"])
+	if options.volume:
+		fmt = "   {:>" + str(fw) + "} {:>6} " + rfmt + " " + " ".join([vfmt] * 3)
+		return fmt.format(label, row["atom1"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"])
+	fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
+	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"])
 
 
 def from_rdkit(mol, **kwargs):
@@ -706,6 +736,9 @@ def build_parser():
 
 	frames = parser.add_argument_group("Trajectories and output")
 	frames.add_argument("--frames", dest="frames", default=False, metavar="frames", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)")
+	frames.add_argument("--boltzmann", dest="boltzmann", nargs="?", const="auto", default=False, metavar="TAG", help="Boltzmann-average the results over the structures of each multi-structure file (conformer ensembles). Energies come from an SDF data field (auto-detected: Energy, E, G, dG, ... or give the tag) or from a number in the xyz comment line")
+	frames.add_argument("--temperature", dest="temperature", type=float, default=298.15, metavar="K", help="Temperature for Boltzmann weighting in K (default: 298.15)")
+	frames.add_argument("--energy-units", dest="energy_units", type=str.lower, choices=["kcal", "kj", "hartree", "ev"], default="kcal", help="Units of the energies used for Boltzmann weighting (default: kcal, i.e. kcal/mol)")
 	frames.add_argument("--csv", dest="csv", default=False, metavar="file", help="Write all result rows (one per file/frame/residue/radius) to this CSV file")
 	frames.add_argument("--dp", dest="dp", type=int, default=2, metavar="dp", help="Number of decimal places for output values (default: 2)")
 	frames.add_argument("--pymol", dest="pymol", action="store_true", default=False, help="Write PyMOL visualization and xyz output files")
@@ -773,6 +806,8 @@ def main(argv=None):
 	dbstep._file_col_width = max(len(os.path.basename(f)) for f in files) + 2
 	if options.residue:
 		dbstep._file_col_width += (12 if str(options.residue).lower() == "all" else len(str(options.residue)) + 5)  # room for "A:45 LEU"
+	if options.boltzmann:
+		dbstep._file_col_width += len(" boltzmann")  # the summary row is labelled "<file> boltzmann"
 
 	if not options.quiet:
 		print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
@@ -811,7 +846,7 @@ def main(argv=None):
 				print("   Cartesian grid-spacing will be determined by cube file(s)\n")
 
 	# loop over all specified output files
-	runs = []
+	runs, summary_rows, notes = [], [], []
 	for file in files:
 		if options.graph:
 			try:
@@ -825,13 +860,25 @@ def main(argv=None):
 			vec_df.to_csv(os.path.splitext(file)[0] + "_2d_output.csv", index=False)
 		else:
 			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per selected frame
-			runs.extend(run_file(file, options))
+			file_runs = run_file(file, options)
+			runs.extend(file_runs)
+			if options.boltzmann:
+				summary = ensemble.boltzmann_average(file_runs, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units)
+				summary_rows.extend(summary)
+				if not options.quiet:
+					for row in summary:
+						print(format_result_row(row, options, dbstep._file_col_width))
+					if options.verbose or len(file_runs) <= 12:
+						populations = ", ".join("{} {:.3f}".format(r.structure_name or r.results[0]["file"], r.population) for r in file_runs)
+						notes.append("   Boltzmann populations at {:.2f} K ({}): {}".format(options.temperature, ensemble.unit_label(options.energy_units), populations))
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))
+	for note in notes:
+		print(note)
 
 	if options.csv and runs:
-		writer.csv_export(options.csv, [row for run in runs for row in run.results])
+		writer.csv_export(options.csv, [row for run in runs for row in run.results] + summary_rows)
 		if not options.quiet:
 			print("\n   Results written to {}".format(options.csv))
 

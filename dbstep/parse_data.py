@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import re
 import sys
 import numpy as np
 import cclib
@@ -219,6 +220,8 @@ class DataParser(ABC):
 		"""
 		self._input, self.FORMAT = _input, input_format
 		self.ATOMTYPES, self.CARTESIANS = [], []
+		# per-structure properties (SDF data fields, xyz comment line); filled by parsers that have them
+		self.PROPERTIES = {}
 		self.noH = noH
 		self.exclude = exclude
 		self.spec_atom_1, self.spec_atom_2 = spec_atom_1, spec_atom_2
@@ -385,6 +388,7 @@ class XYZParser(DataParser):
 					sys.exit(f"  Structure index {idx} out of range (file has {len(structures)} structures)")
 				comment, atom_start, n_atoms = structures[idx]
 				self.structure_name = comment
+				self.PROPERTIES = {"comment": comment}
 				self._parse_atom_lines(file_lines, atom_start, atom_start + n_atoms)
 			else:
 				# Fallback for non-standard XYZ files: parse all lines
@@ -453,6 +457,30 @@ class SDFParser(DataParser):
 			atom_type = parts[3]
 			self.ATOMTYPES.append(atom_type)
 			self.CARTESIANS.append([x, y, z])
+		self.PROPERTIES = _parse_sdf_data_fields(file_lines[atom_start + n_atoms:end])
+
+
+def _parse_sdf_data_fields(lines):
+	"""Data fields of one SDF record: a ">  <Tag>  (n)" header line, the value line(s), then a blank line.
+
+	Returns:
+		dict tag -> value (multi-line values joined with newlines), e.g. {"Energy": "1.62", "SMILES": "CCOCC"}
+	"""
+	properties = {}
+	tag, value = None, []
+	for line in lines:
+		if line.startswith(">"):
+			match = re.search(r"<([^>]*)>", line)
+			tag, value = (match.group(1).strip() if match else None), []
+		elif tag is not None:
+			if line.strip() == "":
+				properties[tag] = "\n".join(value)
+				tag = None
+			else:
+				value.append(line.rstrip("\n"))
+	if tag is not None:
+		properties[tag] = "\n".join(value)
+	return properties
 
 
 class PDBParser(DataParser):

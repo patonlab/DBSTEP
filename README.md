@@ -47,6 +47,8 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * `--maxpath` - The number of layers to measure. A connectivity matrix is used to compute the shortest path to each atom from the reference functional group.
     * `--2d-type` - The type of steric contributions to use. Options include Crippen molar refractivities or McGowan volume
 
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
 ## Requirements & Dependencies
 * Python 3.10 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
@@ -104,6 +106,25 @@ With a PDB file you can pick a residue and atoms by name instead of file indices
 
 * `--residue all` runs every polymer residue in turn (waters and ligands are skipped, modified residues such as MSE are included; combine with `--chain`)
 * `--csv results.csv` writes one row per file, frame, residue and radius with the columns `file, frame, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
+
+### Conformer ensembles (Boltzmann weighting)
+
+A multi-record `.sdf` from a conformer search (AQME, CREST, RDKit) is run record by record; `--boltzmann` adds a population to every conformer and a final `boltzmann` row with the population-weighted %V_Bur, %S_Bur, L, Bmin and Bmax. Energies are read from an SDF data field such as `<Energy>` (also E, G, dG and similar; name another one with `--boltzmann TAG`), or from a floating-point number in the comment line of a multi-frame `.xyz` (CREST style). `--energy-units` (kcal, kJ, hartree, eV; default kcal/mol) and `--temperature` (default 298.15 K) control the weights, and a structure without an energy is an error rather than silently dropped.
+
+```
+>>>dbstep ether_conformers.sdf --atom1 3 --atom2 2 --sterimol --vbur --boltzmann --csv ether.csv
+
+                               File  Atom1  Atom2    R/Å    Mol_Vol     %V_Bur     %S_Bur       Bmin       Bmax          L
+   -----------------------------------------------------------------------------------------------------------------------
+                           ether 44      3      2   3.50      79.69      39.98       0.00       1.98       3.32       4.09
+                           ether 12      3      2   3.50      79.74      39.74       0.00       1.99       4.28       4.08
+                            ether 6      3      2   3.50      79.81      39.63       0.00       2.00       4.23       4.14
+     ether_conformers.sdf boltzmann      3      2   3.50      79.69      39.96       0.00       1.98       3.40       4.09
+   -----------------------------------------------------------------------------------------------------------------------
+   Boltzmann populations at 298.15 K (kcal/mol): ether 44 0.923, ether 12 0.071, ether 6 0.006
+```
+
+From Python: `runs = db.all_frames("ether_conformers.sdf", atom1=3, atom2=2, sterimol=True, volume=True)` then `dbstep.ensemble.boltzmann_average(runs, temperature=298.15, units="kcal")` returns the summary rows and sets `population` and `energy` on each run.
 
 ### Trajectories
 
