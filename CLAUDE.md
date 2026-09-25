@@ -27,7 +27,8 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
 - `examples/` — Jupyter notebook examples
 - `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff)
 - `reference/` — Reference data
-- `.github/workflows/ci.yml` — GitHub Actions CI (test, lint, publish)
+- `.github/workflows/ci.yml` — GitHub Actions CI (test, lint)
+- `.github/workflows/release.yml` — Publishes to PyPI when a GitHub Release is published
 
 ## Development Commands
 
@@ -60,6 +61,9 @@ uv run dbstep <file> --sterimol --atom1 <idx> --atom2 <idx>
 ```
 uv build
 ```
+
+### Release
+Bump `__version__` in `dbstep/__init__.py` (and the version in `meta.yaml`), merge to master, then publish a GitHub Release whose tag is the version (e.g. `1.2.0`). `.github/workflows/release.yml` checks the tag against `__version__`, runs the tests, uploads to PyPI via trusted publishing and attaches the sdist/wheel to the release.
 
 ## Key Dependencies
 
