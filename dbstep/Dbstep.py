@@ -648,25 +648,18 @@ def main():
 			vec_df[numeric_cols] = vec_df[numeric_cols].round(2)
 			vec_df.to_csv(os.path.splitext(file)[0] + "_2d_output.csv", index=False)
 		else:
-			# Detect multi-structure files
+			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per structure
 			_, ext = os.path.splitext(file)
-			if ext == ".xyz":
-				structures = parse_data.get_xyz_structures(file)
-				if len(structures) > 1:
-					for idx in range(len(structures)):
-						options.structure = idx
-						dbstep(file, options=options)
-					options.structure = None
-					continue
-			elif ext in [".sdf", ".mol"]:
-				structures = parse_data.get_sdf_structures(file)
-				if len(structures) > 1:
-					for idx in range(len(structures)):
-						options.structure = idx
-						dbstep(file, options=options)
-					options.structure = None
-					continue
-			dbstep(file, options=options)
+			counters = {".xyz": parse_data.get_xyz_structures, ".sdf": parse_data.get_sdf_structures, ".mol": parse_data.get_sdf_structures,
+						".pdb": parse_data.get_pdb_models, ".ent": parse_data.get_pdb_models}
+			n_structures = len(counters[ext](file)) if ext in counters else 1
+			if n_structures > 1:
+				for idx in range(n_structures):
+					options.structure = idx
+					dbstep(file, options=options)
+				options.structure = None
+			else:
+				dbstep(file, options=options)
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))

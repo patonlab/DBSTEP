@@ -80,7 +80,9 @@ Luchini, G.; Patterson, T.; Paton, R. S. DBSTEP: DFT Based Steric Parameters. 20
 ```
 
 ## Usage
-File parsing is done by the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823), which can parse many quantum chemistry output files along with other common chemical structure file formats (sdf, xyz, pdb). For a full list of acceptable cclib file types, see their documentation [here](https://cclib.github.io/). Additionally, if used in a Python script, DBSTEP can also read coordinate information from [RDKit](https://www.rdkit.org/) mol objects if three-dimensional coordinates are present along with Gaussian 16 cube files containing volumetric density information.
+DBSTEP reads `.xyz` (single or multi-structure), `.sdf`/`.mol` (V2000, single or multi-structure), `.pdb`/`.ent` (Protein Data Bank, single or multi-MODEL) and Gaussian `.com`/`.gjf` input files natively, and Gaussian 16 cube files containing volumetric density information. Quantum chemistry output files are parsed with the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823); for the list of supported programs see their documentation [here](https://cclib.github.io/). When used from a Python script, DBSTEP can also read coordinates from [RDKit](https://www.rdkit.org/) mol objects that carry a 3D conformer.
+
+For large systems such as proteins, combine `--cutoff auto` with numeric atom indices to keep the grid around the atom of interest (residue and atom-name selection is under development).
 
 To execute the program:
 - Run from the command line with: `dbstep file --atom1 a1idx --atom2 a2idx` (or `python -m dbstep ...`)
