@@ -80,7 +80,7 @@ def test_results_records_for_a_scan():
 	mol = run(ALA5, residue="A:3", volume=True, sterimol=True, scan="2.0:4.0:1.0")
 	assert [row["radius"] for row in mol.results] == [2.0, 3.0, 4.0]
 	row = mol.results[0]
-	assert row["file"] == "ala5.pdb" and row["structure"] == "" and row["residue"] == "A:3 ALA"
+	assert row["file"] == "ala5.pdb" and row["frame"] == "" and row["structure"] == "" and row["residue"] == "A:3 ALA"
 	assert (row["atom1"], row["atom2"]) == ("CA", "CB")
 	assert row["percent_vbur"] == mol.bur_vol[0]
 	assert row["bmin"] == mol.Bmin[0]
@@ -110,7 +110,7 @@ def test_csv_all_residues_matches_table(tmp_path):
 	text = run_cli(ALA5, "--residue", "all", "-b", "-s", "--csv", str(out))
 	rows = read_csv(out)
 	assert len(rows) == 5
-	assert list(rows[0].keys()) == ["file", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L"]
+	assert list(rows[0].keys()) == ["file", "frame", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L"]
 	assert f"Results written to {out}" in text
 	for row in rows:
 		printed = re.search(rf"ala5\.pdb {re.escape(row['residue'])}\s+CA\s+CB\s+3\.50\s+([\d.]+)\s+([\d.]+)\s+[\d.]+\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", text)
