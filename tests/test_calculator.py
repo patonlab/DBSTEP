@@ -89,7 +89,6 @@ def test_rotate_mol(vector_to_rotate):
 	coords = np.array([[0, 0, 0], vector_to_rotate])
 	spec_atom_1 = 1
 	end_point = vector_to_rotate
-	atom3 = False
 
 	new_coords = calculator.rotate_mol(coords, spec_atom_1, end_point)
 

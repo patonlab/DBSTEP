@@ -97,8 +97,7 @@ def max_dim(coords, radii, options):
 			[r_min, r_max, strip_width] = [float(scan) for scan in options.scan.split(":")]
 			ex_radius = r_max + r_max * 0.1 + strip_width * 0.5
 		except (ValueError, AttributeError):
-			print("   Can't read your scan request. Try something like --scan 3:5:0.5")
-			exit()
+			sys.exit("   Can't read your scan request. Try something like --scan 3:5:0.5")
 
 	x_max = ex_radius
 	y_max = ex_radius
@@ -128,9 +127,6 @@ def max_dim(coords, radii, options):
 	if options.verbose:
 		print("\n   Molecule is bounded by the region X:[{:6.3f} to {:6.3f}] Y:[{:6.3f} to {:6.3f}] Z:[{:6.3f} to {:6.3f}]".format(x_min, x_max, y_min, y_max, z_min, z_max))
 
-	# compute cubic volume containing molecule and estimate the number of grid points based on grid spacing and volume size
-	cubic_volume = (2 * max_dim) ** 3
-	n_points = int(cubic_volume / (spacing**3))
 	return [x_min, x_max, y_min, y_max, z_min, z_max, max_dim]
 
 
@@ -161,8 +157,8 @@ def occupied(grid, coords, radii, origin, options):
 		# visualize grid points quickly
 		import pptk
 
-		u = pptk.viewer(grid)
-		v = pptk.viewer(grid[jdx])
+		pptk.viewer(grid)
+		pptk.viewer(grid[jdx])
 
 	return grid[jdx], point_tree, occ_vol
 
@@ -318,7 +314,8 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 		xy_grid = occ_grid
 
 	if measure_pos:
-		xy_grid = occ_grid[occ_grid[:, 2] >= 0]
+		# keep any strip selection above and additionally restrict to the +Z side of atom1
+		xy_grid = xy_grid[xy_grid[:, 2] >= 0]
 
 	if len(xy_grid) > 0:
 		radii = np.sqrt(xy_grid[:, 0] ** 2 + xy_grid[:, 1] ** 2)
@@ -428,7 +425,7 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist
 			import pptk
 
 			shell_mask = (occ_dist2 <= R_pos**2) & (occ_dist2 > R_neg**2)
-			u = pptk.viewer(occ_grid[shell_mask])
+			pptk.viewer(occ_grid[shell_mask])
 
 		percent_shell_vol = shell_occ_vol / tot_shell_vol * 100.0
 	else:

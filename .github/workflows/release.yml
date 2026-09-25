@@ -1,0 +1,71 @@
+name: Release
+
+# Publishing a GitHub Release (tag "1.2.0" or "v1.2.0") builds the package,
+# verifies the tag matches dbstep.__version__, runs the test suite, uploads
+# the sdist/wheel to PyPI via trusted publishing and attaches them to the release.
+#
+# One-time PyPI setup (https://pypi.org/manage/project/dbstep/settings/publishing/):
+#   owner: patonlab   repository: DBSTEP   workflow: release.yml   environment: pypi
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.13
+      - name: Check that the release tag matches dbstep.__version__
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' dbstep/__init__.py)"
+          echo "tag=$tag version=$version"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Release tag '$GITHUB_REF_NAME' does not match dbstep.__version__ '$version'. Bump dbstep/__init__.py (and meta.yaml) before releasing."
+            exit 1
+          fi
+      - run: uv sync --extra test
+      - run: uv run pytest
+      - run: uv build
+      - name: Check the built distributions
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/dbstep/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  attach-to-release:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Upload sdist and wheel to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber

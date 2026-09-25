@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [master]
-    tags: ["*"]
   pull_request:
     branches: [master]
 
@@ -29,15 +28,3 @@ jobs:
       - run: uv python install 3.13
       - run: uv sync --extra dev
       - run: uv run ruff check .
-
-  publish:
-    needs: [test, lint]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - run: uv build
-      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -22,14 +22,17 @@ class Logger:
 	def Writeonlyfile(self, message):
 		self.log.write(message + "\n")
 
+	def close(self):
+		self.log.close()
+
 
 class WriteCubeData:
 	"""Write new cube file of translated, rotated molecule for PyMOL"""
 
 	def __init__(self, file, cube):
 		self.FORMAT = "cube"
-		oldfile = open(file + "." + self.FORMAT, "r")
-		oldlines = oldfile.readlines()
+		with open(file + "." + self.FORMAT) as oldfile:
+			oldlines = oldfile.readlines()
 		molfile = open(file + "_radius." + self.FORMAT, "w")
 		# write new coordinates to file
 		for line in oldlines[0:2]:
@@ -172,6 +175,7 @@ def pymol_export(file, mol, spheres, cylinders, isoval, visv, viss):
 	log.Writeonlyfile('cmd.show_as("spheres", "' + base.split("/")[-1] + '_transform")')
 	log.Writeonlyfile('cmd.set("sphere_transparency", 0.5)')
 	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
+	log.close()
 
 
 def tensor_pymol_export(file, mol, tensor, tensor_grid):
@@ -253,6 +257,7 @@ def tensor_pymol_export(file, mol, tensor, tensor_grid):
 	log.Writeonlyfile('cmd.show_as("spheres", "' + base.split("/")[-1] + '_transform")')
 	log.Writeonlyfile('cmd.set("sphere_transparency", 0.5)')
 	log.Writeonlyfile('cmd.set("orthoscopic", "on")')
+	log.close()
 
 
 def xyz_export(file, mol):
@@ -265,6 +270,7 @@ def xyz_export(file, mol):
 	for i in range(len(mol.ATOMTYPES)):
 		coords += mol.ATOMTYPES[i] + "\t"
 		for j in range(3):
-			coords += "{0:.8f}".format(mol.CARTESIANS[i][j]) + "\t"
+			coords += "{:.8f}".format(mol.CARTESIANS[i][j]) + "\t"
 		coords += "\n"
 	log.Writeonlyfile(coords)
+	log.close()

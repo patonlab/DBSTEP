@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 
 # Python Libraries
+import copy
 import os, sys
 from glob import glob
 import numpy as np
@@ -15,7 +16,8 @@ class dbstep:
 
 	Objects that can currently be referenced are:
 			L, Bmax, Bmin,
-			occ_vol, bur_vol, bur_shell
+			occ_vol, bur_vol, bur_shell,
+			atom1, atom2 (the reference atom indices as given in the input file)
 
 	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
@@ -36,7 +38,9 @@ class dbstep:
 		self.tensor, self.tensor_grid = False, False
 
 		if "options" in kwargs:
-			self.options = kwargs["options"]
+			# Work on a copy: the calculation renumbers spec atoms (--noH/--exclude) and
+			# toggles flags, which must not leak into the next file of a multi-file run
+			self.options = copy.copy(kwargs["options"])
 		else:
 			self.options = set_options(kwargs)
 		# SambVca mode: Bondi radii scaled by 1.17, exclude H atoms
@@ -78,6 +82,8 @@ class dbstep:
 
 		origin = np.array([0, 0, 0])
 		self._get_spec_atoms(options)
+		# remember the user-facing (input file) indices: --noH/--exclude renumber options.spec_atom_* internally
+		self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
 		mol = parse_data.read_input(file, ext, options)
 		self._check_num_atoms(mol, file)
 
@@ -157,8 +163,7 @@ class dbstep:
 			radii_dict = charry_tkatchenko if options.radii == "charry-tkatchenko" else bondi
 			for atom in mol.ATOMTYPES:
 				if atom not in periodic_table and atom not in radii_dict:
-					print("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: ", atom)
-					exit()
+					sys.exit("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: " + str(atom))
 			mol.RADII = [radii_dict.get(atom, 2.0) for atom in mol.ATOMTYPES]
 			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
 
@@ -181,8 +186,7 @@ class dbstep:
 
 		elif options.surface == "density":
 			if not hasattr(mol, "DENSITY"):
-				print("   UNABLE TO READ DENSITY CUBE")
-				exit()
+				sys.exit("   UNABLE TO READ DENSITY CUBE")
 			mol.DENSITY = np.array(mol.DENSITY)
 			if options.verbose:
 				print("\n   Read cube file {} containing {} points".format(file, mol.xdim * mol.ydim * mol.zdim))
@@ -196,8 +200,7 @@ class dbstep:
 				max(x_max, y_max, z_max, abs(x_min), abs(y_min), abs(z_min)), origin)
 
 		else:
-			print("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface))
-			exit()
+			sys.exit("   Requested surface {} is not currently implemented. Try either vdw or density".format(options.surface))
 
 		return x_min, x_max, y_min, y_max, z_min, z_max
 
@@ -226,8 +229,7 @@ class dbstep:
 			r_intervals += int((r_max - r_min) / strip_width)
 			return r_min, r_max, r_intervals, strip_width
 		except (ValueError, AttributeError):
-			print("   Can't read your scan request. Try something like --scan 3:5:0.25")
-			exit()
+			sys.exit("   Can't read your scan request. Try something like --scan 3:5:0.25")
 
 	def _build_grid(self, mol, name, options, origin, x_min, x_max, y_min, y_max, z_min, z_max):
 		"""Construct occupancy grid. Returns (occ_grid, occ_vol, point_tree, grid_axes, occ_mask)."""
@@ -316,12 +318,18 @@ class dbstep:
 				fname = file.GetProp("_Name")
 			except Exception:
 				fname = "rdkit_mol"
-		# Use structure name from multi-XYZ file if available
-		if hasattr(mol, 'structure_name') and mol.structure_name:
-			# Extract clean name from comment line (first word, strip extension)
-			sname = mol.structure_name.split()[0]
-			fname = os.path.splitext(sname)[0] if '.' in sname else sname
+		# For multi-structure files, label each structure by its name/comment line
+		# (single-structure files keep the filename: comment lines often hold energies etc.)
+		structure_idx = getattr(options, 'structure', None)
+		if structure_idx is not None:
+			if getattr(mol, 'structure_name', None):
+				# Extract clean name from comment line (first word, strip extension)
+				sname = mol.structure_name.split()[0]
+				fname = os.path.splitext(sname)[0] if '.' in sname else sname
+			else:
+				fname = "{}[{}]".format(fname, structure_idx)
 		fw = dbstep._file_col_width
+		atom2_str = ",".join(str(a) for a in self.atom2)
 
 		for rad in np.linspace(r_min, r_max, r_intervals):
 			if options.volume:
@@ -340,8 +348,7 @@ class dbstep:
 				elif options.surface == "vdw":
 					L, Bmax, Bmin, cyl = sterics.get_classic_sterimol(mol.CARTESIANS, mol.RADII, mol.ATOMTYPES)
 				else:
-					print("   Can't use classic Sterimol with the isodensity surface. Use --measure grid or --surface vdw")
-					exit()
+					sys.exit("   Can't use classic Sterimol with the isodensity surface. Use --measure grid or --surface vdw")
 				Bmin_list.append(Bmin)
 				Bmax_list.append(Bmax)
 				if options.pymol:
@@ -355,20 +362,18 @@ class dbstep:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
-					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
-					print(fmt.format(fname, options.spec_atom_1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L))
 			elif options.volume:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
 					fmt = "   {:>" + str(fw) + "} {:>6} " + rfmt + " " + " ".join([vfmt] * 3)
-					print(fmt.format(fname, options.spec_atom_1, rad, occ_vol, bur_vol, bur_shell))
+					print(fmt.format(fname, self.atom1, rad, occ_vol, bur_vol, bur_shell))
 			elif options.sterimol:
 				if not options.quiet:
-					atom2_str = ",".join(str(a) for a in options.spec_atom_2)
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
-					print(fmt.format(fname, options.spec_atom_1, atom2_str, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, Bmin, Bmax, L))
 
 		# Store results on self
 		if occ_vol is not None:
@@ -402,7 +407,7 @@ class dbstep:
 			try:
 				options.spec_atom_1 = int(options.spec_atom_1)
 			except Exception as atom1_exception:
-				raise type(atom1_exception)(f"{options.spec_atom_1} is not a valid input for atom1. Please enter a positive integer index.")
+				raise type(atom1_exception)(f"{options.spec_atom_1} is not a valid input for atom1. Please enter a positive integer index.") from atom1_exception
 			if options.spec_atom_1 <= 0:
 				sys.exit(f"{options.spec_atom_1} is not a valid input for atom1. DBSTEP uses 1-indexed numbers, please enter a positive integer index.")
 		# set default for atom 2
@@ -419,7 +424,7 @@ class dbstep:
 			try:
 				options.spec_atom_2 = [int(atom) for atom in options.spec_atom_2]
 			except Exception as atom2_error:
-				raise type(atom2_error)(f"{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n\tAn int, comma separated ints, or a python list of ints")
+				raise type(atom2_error)(f"{options.spec_atom_2} is not a valid input for atom2. Valid inputs are: \n\tAn int, comma separated ints, or a python list of ints") from atom2_error
 			for a2 in options.spec_atom_2:
 				if a2 <= 0:
 					sys.exit(f"{a2} is not a valid input for atom2. DBSTEP uses 1-indexed numbers, please enter a positive integer index.")
@@ -542,6 +547,8 @@ def main():
 	parser.add_option("--visv", dest="visv", action="store", choices=["circle", "sphere"], help="Visualize volume in PyMOL as circle or sphere (default: circle)", default="circle")
 	parser.add_option("--vshell", dest="vshell", action="store", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius", default=False, type=float, metavar="width")
 	(options, args) = parser.parse_args()
+	# index of the structure within a multi-structure file (set per structure in the loop below)
+	options.structure = None
 
 	# SambVca mode: Bondi radii scaled by 1.17, exclude H atoms
 	if options.sambvca:
@@ -615,7 +622,7 @@ def main():
 			vec_df = graph.mol_to_vec(file, options.shared_fg, options.voltype, options.max_path_length, options.verbose)
 			numeric_cols = vec_df.select_dtypes(include='number').columns
 			vec_df[numeric_cols] = vec_df[numeric_cols].round(2)
-			vec_df.to_csv(file.split(".")[0] + "_2d_output.csv", index=False)
+			vec_df.to_csv(os.path.splitext(file)[0] + "_2d_output.csv", index=False)
 		else:
 			# Detect multi-structure files
 			_, ext = os.path.splitext(file)
