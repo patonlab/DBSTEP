@@ -82,7 +82,27 @@ Luchini, G.; Patterson, T.; Paton, R. S. DBSTEP: DFT Based Steric Parameters. 20
 ## Usage
 DBSTEP reads `.xyz` (single or multi-structure), `.sdf`/`.mol` (V2000, single or multi-structure), `.pdb`/`.ent` (Protein Data Bank, single or multi-MODEL) and Gaussian `.com`/`.gjf` input files natively, and Gaussian 16 cube files containing volumetric density information. Quantum chemistry output files are parsed with the [cclib module](https://onlinelibrary.wiley.com/doi/abs/10.1002/jcc.20823); for the list of supported programs see their documentation [here](https://cclib.github.io/). When used from a Python script, DBSTEP can also read coordinates from [RDKit](https://www.rdkit.org/) mol objects that carry a 3D conformer.
 
-For large systems such as proteins, combine `--cutoff auto` with numeric atom indices to keep the grid around the atom of interest (residue and atom-name selection is under development).
+### Residues in proteins (PDB input)
+
+With a PDB file you can pick a residue and atoms by name instead of file indices. The measurement is centred on the chosen atom and only the atoms within reach of the buried-volume sphere are kept (`--cutoff auto` is switched on automatically), so a whole protein runs in seconds.
+
+```
+>>>dbstep 1a8o.pdb --residue A:186 --vbur --sterimol --nowater
+
+                   File  Atom1  Atom2    R/Å MolVol_cut     %V_Bur     %S_Bur       Bmin       Bmax          L
+   -----------------------------------------------------------------------------------------------------------
+     1a8o.pdb A:186 THR     CA     CB   3.50     533.54      65.95       0.00       5.54       7.12       7.19
+   -----------------------------------------------------------------------------------------------------------
+```
+
+* `--residue A:45` selects chain A residue 45 (append an insertion code: `A:45A`; `45` alone works when only one chain has it; several residues separated by commas form one selection)
+* `--atom CA` names atom1 within the residue (default CA); `--atom2` and `--atom3` accept atom names too (default atom2: CB, falling back to HA or N for glycine)
+* `--nowater` drops water molecules; `--nohet` drops other hetero groups such as ligands and ions (modified residues with a peptide backbone, e.g. MSE, stay); `--chain A` keeps a single chain
+* `--exclude-self` lets the residue occupy no volume, so only its environment is measured (a pocket size); `--self-only` keeps only the residue, which equals extracting it to its own file
+* Sterimol L measured from CA through the surroundings is a distance to the nearest steric wall along the CA→CB direction, not a substituent length, so do not compare it with Verloop values
+* Crystal structures usually lack hydrogens; results differ from a protonated model. `--sambvca` (heavy atoms only, Bondi × 1.17) is a consistent choice for raw PDB files
+
+From Python: `db.dbstep("1a8o.pdb", residue="A:186", atom="CA", atom2="CB", volume=True, nowater=True, exclude_self=True)`; the object also exposes `atoms`, `coords` and `metadata` for the atoms that were actually measured.
 
 To execute the program:
 - Run from the command line with: `dbstep file --atom1 a1idx --atom2 a2idx` (or `python -m dbstep ...`)
