@@ -11,7 +11,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `Dbstep.py` — Core `dbstep` class and CLI entry point (`main()`)
   - `calculator.py` — Math/geometry routines (rotations, angles)
   - `sterics.py` — Steric parameter calculations
-  - `selection.py` — Atom selection before measurement (radial crop around atom1 for `--cutoff`)
+  - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
   - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
   - `graph.py` — 2D graph-based steric contribution calculations
@@ -27,6 +27,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_cube.py` — Density-based (cube file) buried volume and Sterimol tests
   - `test_crop.py` — `--cutoff` radial crop: exactness of %V_bur, renumbering, large-cluster equivalence
   - `test_pdb_parser.py` — PDB parsing: columns, element inference, metadata, altlocs, MODEL blocks
+  - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
   - `pdb_files/` — PDB fixtures: `1a8o.pdb` (real, no H, waters, MSE) and generated `ala5.pdb` (with H, waters, Na); see its README
 - `examples/` — Jupyter notebook examples

@@ -18,7 +18,10 @@ class dbstep:
 			L, Bmax, Bmin,
 			occ_vol, bur_vol, bur_shell,
 			atom1, atom2 (the reference atom indices as given in the input file),
-			cutoff, n_atoms_total, n_atoms_kept (radial crop, see --cutoff)
+			cutoff, n_atoms_total, n_atoms_kept (radial crop, see --cutoff),
+			residue_label (PDB residue mode, e.g. "A:45 LEU"),
+			atoms, coords, spec_atoms (the structure actually measured, after selection and crop,
+				in input orientation; spec_atoms are 1-indexed into it)
 
 	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
@@ -82,10 +85,27 @@ class dbstep:
 			options.measure = "grid"
 
 		origin = np.array([0, 0, 0])
-		self._get_spec_atoms(options)
-		# remember the user-facing (input file) indices: --noH/--exclude renumber options.spec_atom_* internally
-		self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
-		mol = parse_data.read_input(file, ext, options)
+		self.residue_label = None
+		if options.residue:
+			# PDB residue mode: parse everything first, then resolve atom names and apply all filters in one pass
+			if ext not in (".pdb", ".ent"):
+				sys.exit("   --residue requires PDB input (.pdb/.ent)")
+			raw = copy.copy(options)
+			raw.noH, raw.exclude, raw.spec_atom_1, raw.spec_atom_2 = False, False, 1, [1]
+			mol = parse_data.read_input(file, ext, raw)
+			info = selection.apply_residue_selection(mol, options, verbose=options.verbose)
+			self.residue_label = info["label"]
+			# user-facing labels are the atom names in residue mode
+			self.atom1, self.atom2 = info["atom1_name"], info["atom2_names"]
+			if options.cutoff is False:
+				options.cutoff = "auto"
+			if options.verbose:
+				print("   Residue {}: {} atoms; {} atoms removed by filters".format(self.residue_label, info["n_self"], info["n_removed"]))
+		else:
+			self._get_spec_atoms(options)
+			# remember the user-facing (input file) indices: --noH/--exclude renumber options.spec_atom_* internally
+			self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
+			mol = parse_data.read_input(file, ext, options)
 		self._check_num_atoms(mol, file)
 
 		# Radial crop: drop atoms too far from atom1 to influence the measurement,
@@ -101,6 +121,10 @@ class dbstep:
 						print("   Cutoff {:.2f} Ang around atom1: keeping {} of {} atoms".format(self.cutoff, self.n_atoms_kept, self.n_atoms_total))
 			elif not options.quiet:
 				print("   Note: --cutoff is ignored for density cube input (the grid comes from the cube file)")
+		# the structure actually measured (after selection and crop), before translation/rotation
+		self.atoms, self.coords = np.array(mol.ATOMTYPES), np.array(mol.CARTESIANS)
+		self.spec_atoms = [options.spec_atom_1] + list(options.spec_atom_2)
+		self.metadata = {key: np.array(values) for key, values in getattr(mol, "METADATA", {}).items()}
 
 		# Assign radii / parse density and set up grid bounds
 		x_min, x_max, y_min, y_max, z_min, z_max = self._assign_surface(mol, file, options, origin)
@@ -340,6 +364,8 @@ class dbstep:
 		# For multi-structure files, label each structure by its name/comment line
 		# (single-structure files keep the filename: comment lines often hold energies etc.)
 		structure_idx = getattr(options, 'structure', None)
+		if self.residue_label:
+			fname = "{} {}".format(fname, self.residue_label)
 		if structure_idx is not None:
 			if getattr(mol, 'structure_name', None):
 				# Extract clean name from comment line (first word, strip extension)
@@ -503,6 +529,13 @@ def set_options(kwargs):
 		"sambvca": ["sambvca", False],
 		"gridsize": ["gridsize", False],
 		"cutoff": ["cutoff", False],
+		"residue": ["residue", False],
+		"atom": ["atom", False],
+		"nowater": ["nowater", False],
+		"nohet": ["nohet", False],
+		"exclude_self": ["exclude_self", False],
+		"self_only": ["self_only", False],
+		"chain": ["chain", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -543,6 +576,13 @@ def main():
 	parser.add_option("--fg", dest="shared_fg", action="store", default=False, help="[2D sterics] SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
 	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.05)", default=0.05, type=float, metavar="grid")
 	parser.add_option("--gridsize", dest="gridsize", action="store", help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax", default=False)
+	parser.add_option("--residue", dest="residue", action="store", help="[PDB] Residue to measure, e.g. A:45 (chain:number, insertion code appended) or 45; several separated by commas form one selection", default=False, metavar="residue")
+	parser.add_option("--atom", dest="atom", action="store", help="[PDB] Name of atom1 within the residue (default: CA); --atom2/--atom3 also accept atom names in residue mode (default atom2: CB)", default=False, metavar="name")
+	parser.add_option("--nowater", dest="nowater", action="store_true", help="[PDB] Exclude water molecules", default=False)
+	parser.add_option("--nohet", dest="nohet", action="store_true", help="[PDB] Exclude hetero groups (ligands, ions) other than waters, the selected residue and modified polymer residues", default=False)
+	parser.add_option("--chain", dest="chain", action="store", help="[PDB] Keep only this chain (plus the selected residue)", default=False, metavar="chain")
+	parser.add_option("--exclude-self", dest="exclude_self", action="store_true", help="[PDB] The selected residue occupies no volume: measure only its environment", default=False)
+	parser.add_option("--self-only", dest="self_only", action="store_true", help="[PDB] Keep only the selected residue (same as measuring it extracted to its own file)", default=False)
 	parser.add_option("--cutoff", dest="cutoff", action="store", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)", default=False, metavar="cutoff")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
@@ -606,6 +646,8 @@ def main():
 
 	# Set file column width based on longest filename
 	dbstep._file_col_width = max(len(os.path.basename(f)) for f in files) + 2
+	if options.residue:
+		dbstep._file_col_width += len(str(options.residue)) + 5  # room for "A:45 LEU"
 
 	if not options.quiet:
 		print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
@@ -628,8 +670,14 @@ def main():
 				radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
 				print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
 				print("   Hydrogen atoms are {}".format("excluded" if options.noH else "included"))
-				if options.cutoff:
-					print("   Atoms farther than {} from atom1 are ignored (--cutoff)".format("the auto cutoff" if str(options.cutoff).lower() == "auto" else "{} Angstrom".format(options.cutoff)))
+				if options.residue:
+					filters = [name for flag, name in ((options.nowater, "waters"), (options.nohet, "hetero groups"), (options.exclude_self, "the residue itself")) if flag]
+					print("   PDB residue mode: measuring residue {}{}".format(options.residue, ", excluding " + " and ".join(filters) if filters else ""))
+					if options.self_only:
+						print("   Only the selected residue is kept (--self-only)")
+				if options.cutoff or options.residue:
+					cutoff = options.cutoff if options.cutoff else "auto"
+					print("   Atoms farther than {} from atom1 are ignored (--cutoff)".format("the auto cutoff" if str(cutoff).lower() == "auto" else "{} Angstrom".format(cutoff)))
 				print("")
 			else:
 				print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))

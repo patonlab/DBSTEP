@@ -297,6 +297,18 @@ def get_classic_sterimol(coords, radii, atoms):
 	return L, Bmax, Bmin, cyl
 
 
+def _xy_hull_points(xy):
+	"""Vertices of the 2D convex hull of the points in `xy` (falls back to the unique points when a hull cannot be built)."""
+	unique = np.unique(xy, axis=0)
+	if len(unique) < 3:
+		return unique
+	try:
+		hull = spatial.ConvexHull(unique)
+	except spatial.QhullError:  # e.g. all points collinear
+		return unique
+	return unique[hull.vertices]
+
+
 def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 	"""Uses grid occupancy to define Sterimol L, B1 and B5 parameters. If the grid-spacing is small enough this should be close to the
 	conventional values above when the grid occupancy is based on VDW radii. The real advantage is that the isodensity surface can be used,
@@ -327,10 +339,13 @@ def get_cube_sterimol(occ_grid, R, spacing, strip_width, measure_pos=False):
 		# Go around in angle increments and record the farthest out point in each slice
 		angles = np.linspace(-math.pi, -math.pi + 2 * math.pi, 361)  # sweep full circle
 
-		# Vectorized angular sweep: project all grid points onto each angle direction
+		# The largest projection onto any direction is attained at a vertex of the convex hull of the
+		# XY points, so sweeping the hull vertices is exact and avoids a 361 x N_points matrix
+		# (millions of points for fine grids around large systems).
+		xy_points = _xy_hull_points(xy_grid[:, :2])
 		cos_a = np.cos(angles)
 		sin_a = np.sin(angles)
-		projections = np.outer(cos_a, xy_grid[:, 0]) + np.outer(sin_a, xy_grid[:, 1])
+		projections = np.outer(cos_a, xy_points[:, 0]) + np.outer(sin_a, xy_points[:, 1])
 		max_r = projections.max(axis=1)  # max projection per angle
 
 		# Filter out zero-radius angles

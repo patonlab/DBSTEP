@@ -240,24 +240,36 @@ class DataParser(ABC):
 		A specified atom (atom1/atom2) that would be removed is kept as a zero-radius ghost ("Bq")
 		so that translation and alignment still work; the remaining atoms are renumbered.
 		"""
-		n_atoms = len(self.ATOMTYPES)
-		atoms_to_remove = np.zeros(n_atoms, dtype=bool)
+		atoms_to_remove = np.zeros(len(self.ATOMTYPES), dtype=bool)
 		if self.noH:
 			atoms_to_remove |= self.ATOMTYPES == "H"
 		if self.exclude:
 			indices = self.exclude.split(",") if isinstance(self.exclude, str) else self.exclude
 			atoms_to_remove[[int(atom) - 1 for atom in indices]] = True
+		spec_atoms = [self.spec_atom_1] + list(self.spec_atom_2)
+		new_spec = self.exclude_mask(atoms_to_remove, spec_atoms)
+		self.spec_atom_1, self.spec_atom_2 = new_spec[0], new_spec[1:]
 
-		spec_atoms = [self.spec_atom_1 - 1] + [atom - 1 for atom in self.spec_atom_2]
+	def exclude_mask(self, atoms_to_remove, spec_atoms):
+		"""Remove the atoms flagged in `atoms_to_remove` (boolean array).
 
-		# if removed atom is one of the spec atoms, replace its atom type with Bq (radii=0)
-		self.ATOMTYPES = np.array(["Bq" if i in spec_atoms and atoms_to_remove[i] else self.ATOMTYPES[i] for i in range(n_atoms)])
-		atoms_to_remove[spec_atoms] = False
+		Any of the 1-indexed `spec_atoms` that is flagged is kept as a zero-radius ghost ("Bq")
+		instead of being removed, so translation and alignment still work.
 
+		Returns:
+			list of the 1-indexed spec atoms renumbered to the remaining atoms
+		"""
+		atoms_to_remove = np.asarray(atoms_to_remove, dtype=bool).copy()
+		spec_idx = [int(atom) - 1 for atom in spec_atoms]
+		ghosts = [i for i in spec_idx if atoms_to_remove[i]]
+		if ghosts:
+			atomtypes = np.array(self.ATOMTYPES, dtype=object)
+			atomtypes[ghosts] = "Bq"
+			self.ATOMTYPES = np.array(list(atomtypes))
+			atoms_to_remove[ghosts] = False
 		removed_before = np.cumsum(atoms_to_remove) - atoms_to_remove
-		self.spec_atom_1 = int(self.spec_atom_1 - removed_before[self.spec_atom_1 - 1])
-		self.spec_atom_2 = [int(atom - removed_before[atom - 1]) for atom in self.spec_atom_2]
 		self.keep(~atoms_to_remove)
+		return [int(i - removed_before[i]) + 1 for i in spec_idx]
 
 	def keep(self, mask):
 		"""Keep only the atoms where `mask` is True, in all per-atom arrays (ATOMTYPES, CARTESIANS and any METADATA)."""
