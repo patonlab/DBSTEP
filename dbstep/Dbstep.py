@@ -20,6 +20,8 @@ class dbstep:
 			atom1, atom2 (the reference atom indices as given in the input file),
 			cutoff, n_atoms_total, n_atoms_kept (radial crop, see --cutoff),
 			residue_label (PDB residue mode, e.g. "A:45 LEU"),
+			results (list of dicts, one per radius: file, structure, residue, atom1, atom2, radius,
+				mol_vol, percent_vbur, percent_sbur, bmin, bmax, L; also what --csv writes),
 			atoms, coords, spec_atoms (the structure actually measured, after selection and crop,
 				in input orientation; spec_atoms are 1-indexed into it)
 
@@ -90,9 +92,7 @@ class dbstep:
 			# PDB residue mode: parse everything first, then resolve atom names and apply all filters in one pass
 			if ext not in (".pdb", ".ent"):
 				sys.exit("   --residue requires PDB input (.pdb/.ent)")
-			raw = copy.copy(options)
-			raw.noH, raw.exclude, raw.spec_atom_1, raw.spec_atom_2 = False, False, 1, [1]
-			mol = parse_data.read_input(file, ext, raw)
+			mol = selection.load_pdb(file, ext, options)
 			info = selection.apply_residue_selection(mol, options, verbose=options.verbose)
 			self.residue_label = info["label"]
 			# user-facing labels are the atom names in residue mode
@@ -169,6 +169,7 @@ class dbstep:
 
 		# Print column headers (once across multi-file runs)
 		self._print_column_header(options)
+		self.results = []
 
 		# Compute steric parameters over radius range
 		spheres, cylinders = self._compute(
@@ -361,18 +362,22 @@ class dbstep:
 				fname = file.GetProp("_Name")
 			except Exception:
 				fname = "rdkit_mol"
+		plain_name = fname
 		# For multi-structure files, label each structure by its name/comment line
 		# (single-structure files keep the filename: comment lines often hold energies etc.)
 		structure_idx = getattr(options, 'structure', None)
-		if self.residue_label:
-			fname = "{} {}".format(fname, self.residue_label)
+		structure_label = ""
 		if structure_idx is not None:
 			if getattr(mol, 'structure_name', None):
 				# Extract clean name from comment line (first word, strip extension)
 				sname = mol.structure_name.split()[0]
-				fname = os.path.splitext(sname)[0] if '.' in sname else sname
+				structure_label = os.path.splitext(sname)[0] if '.' in sname else sname
+				fname = structure_label
 			else:
+				structure_label = str(structure_idx)
 				fname = "{}[{}]".format(fname, structure_idx)
+		if self.residue_label:
+			fname = "{} {}".format(fname, self.residue_label)
 		fw = dbstep._file_col_width
 		atom2_str = ",".join(str(a) for a in self.atom2)
 
@@ -398,6 +403,22 @@ class dbstep:
 				Bmax_list.append(Bmax)
 				if options.pymol:
 					cylinders.extend(cyl)
+
+			# Record the result row (also written by --csv)
+			self.results.append({
+				"file": plain_name,
+				"structure": structure_label,
+				"residue": self.residue_label or "",
+				"atom1": self.atom1,
+				"atom2": atom2_str if options.sterimol else "",
+				"radius": float(rad) if options.volume else "",
+				"mol_vol": occ_vol if options.volume else "",
+				"percent_vbur": bur_vol if options.volume else "",
+				"percent_sbur": bur_shell if options.volume else "",
+				"bmin": Bmin if options.sterimol else "",
+				"bmax": Bmax if options.sterimol else "",
+				"L": L if options.sterimol else "",
+			})
 
 			# Tabulate result
 			dp = options.dp
@@ -536,6 +557,7 @@ def set_options(kwargs):
 		"exclude_self": ["exclude_self", False],
 		"self_only": ["self_only", False],
 		"chain": ["chain", False],
+		"csv": ["csv", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -561,6 +583,36 @@ def set_options(kwargs):
 	return options
 
 
+def all_residues(file, **kwargs):
+	"""Run one calculation per residue of a PDB file (the Python side of --residue all).
+
+	Residues are the polymer residues (ATOM records, plus HETATM residues with a peptide backbone
+	such as MSE) that contain the atom1 name (default CA); waters and other hetero groups are
+	skipped; --chain restricts the chains. Accepts the same keyword arguments as dbstep(), or
+	options=<options object>.
+
+	Returns:
+		list of dbstep objects in file order
+	"""
+	options = kwargs["options"] if "options" in kwargs else set_options(kwargs)
+	_, ext = os.path.splitext(file)
+	if ext not in (".pdb", ".ent"):
+		sys.exit("   --residue all requires PDB input (.pdb/.ent)")
+	mol = selection.load_pdb(file, ext, options)
+	residues = selection.list_residues(mol, options)
+	if not residues:
+		sys.exit("   No residues containing atom {} found in {}".format(options.atom or "CA", file))
+	previous = options.residue
+	runs = []
+	try:
+		for resid in residues:
+			options.residue = resid
+			runs.append(dbstep(file, options=options))
+	finally:
+		options.residue = previous
+	return runs
+
+
 def main():
 	files = []
 	# get command line inputs. Use -h to list all possible arguments and default values
@@ -583,6 +635,7 @@ def main():
 	parser.add_option("--chain", dest="chain", action="store", help="[PDB] Keep only this chain (plus the selected residue)", default=False, metavar="chain")
 	parser.add_option("--exclude-self", dest="exclude_self", action="store_true", help="[PDB] The selected residue occupies no volume: measure only its environment", default=False)
 	parser.add_option("--self-only", dest="self_only", action="store_true", help="[PDB] Keep only the selected residue (same as measuring it extracted to its own file)", default=False)
+	parser.add_option("--csv", dest="csv", action="store", help="Write all result rows (one per file/structure/residue/radius) to this CSV file", default=False, metavar="file")
 	parser.add_option("--cutoff", dest="cutoff", action="store", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)", default=False, metavar="cutoff")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
@@ -647,7 +700,7 @@ def main():
 	# Set file column width based on longest filename
 	dbstep._file_col_width = max(len(os.path.basename(f)) for f in files) + 2
 	if options.residue:
-		dbstep._file_col_width += len(str(options.residue)) + 5  # room for "A:45 LEU"
+		dbstep._file_col_width += (12 if str(options.residue).lower() == "all" else len(str(options.residue)) + 5)  # room for "A:45 LEU"
 
 	if not options.quiet:
 		print("\n   \u00b7\u2584\u2584\u2584\u2584  \u2584\u2584\u2584\u2584\u00b7 .\u2584\u2584 \u00b7\u2584\u2584\u2584\u2584\u2584\u2584\u2584\u2584 . \u2584\u2584\u2584\u00b7")
@@ -684,6 +737,7 @@ def main():
 				print("   Cartesian grid-spacing will be determined by cube file(s)\n")
 
 	# loop over all specified output files
+	runs = []
 	for file in files:
 		if options.graph:
 			try:
@@ -701,16 +755,21 @@ def main():
 			counters = {".xyz": parse_data.get_xyz_structures, ".sdf": parse_data.get_sdf_structures, ".mol": parse_data.get_sdf_structures,
 						".pdb": parse_data.get_pdb_models, ".ent": parse_data.get_pdb_models}
 			n_structures = len(counters[ext](file)) if ext in counters else 1
-			if n_structures > 1:
-				for idx in range(n_structures):
-					options.structure = idx
-					dbstep(file, options=options)
-				options.structure = None
-			else:
-				dbstep(file, options=options)
+			for idx in (range(n_structures) if n_structures > 1 else [None]):
+				options.structure = idx
+				if options.residue and str(options.residue).lower() == "all":
+					runs.extend(all_residues(file, options=options))
+				else:
+					runs.append(dbstep(file, options=options))
+			options.structure = None
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))
+
+	if options.csv and runs:
+		writer.csv_export(options.csv, [row for run in runs for row in run.results])
+		if not options.quiet:
+			print("\n   Results written to {}".format(options.csv))
 
 
 if __name__ == "__main__":

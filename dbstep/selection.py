@@ -129,7 +129,7 @@ def residue_mask(mol, spec):
 	mask = np.zeros(len(mol.ATOMTYPES), dtype=bool)
 	for token in parse_residue_spec(spec):
 		if token.lower() == "all":
-			sys.exit("   --residue all is not supported yet")
+			sys.exit("   'all' loops over residues: use --residue all on the command line or dbstep.Dbstep.all_residues() from Python")
 		if ":" in token:
 			hits = np.char.upper(meta["resid"].astype(str)) == token.upper()
 		else:
@@ -284,3 +284,36 @@ def apply_residue_selection(mol, options, verbose=False):
 		"n_self": int(self_mask.sum()),
 		"n_removed": int(remove.sum()),
 	}
+
+
+def load_pdb(file, ext, options):
+	"""Parse a PDB file with no atoms removed yet (residue selection applies --noH/--exclude itself)."""
+	import copy
+
+	from dbstep import parse_data
+
+	raw = copy.copy(options)
+	raw.noH, raw.exclude, raw.spec_atom_1, raw.spec_atom_2 = False, False, 1, [1]
+	return parse_data.read_input(file, ext, raw)
+
+
+def list_residues(mol, options):
+	"""Residues covered by --residue all: polymer residues (ATOM records, or HETATM residues with a
+	peptide backbone) that contain the atom1 name, in file order; waters and other hetero groups
+	are skipped and --chain restricts the chains."""
+	_require_metadata(mol, "--residue all")
+	atom_name = options.atom if options.atom not in (False, None, "") else "CA"
+	try:
+		int(atom_name)
+	except (TypeError, ValueError):
+		pass
+	else:
+		sys.exit("   With --residue all, --atom must be an atom name such as CA, not a file index")
+	meta = mol.METADATA
+	names = np.char.upper(meta["name"].astype(str))
+	polymer = (meta["record"] == "ATOM") | polymer_hetatm_mask(mol)
+	candidates = polymer & ~water_mask(mol)
+	if options.chain:
+		candidates &= np.char.upper(meta["chain"].astype(str)) == str(options.chain).strip().upper()
+	has_atom = set(meta["resid"][candidates & (names == str(atom_name).strip().upper())])
+	return [resid for resid in dict.fromkeys(meta["resid"][candidates]) if resid in has_atom]

@@ -102,7 +102,10 @@ With a PDB file you can pick a residue and atoms by name instead of file indices
 * Sterimol L measured from CA through the surroundings is a distance to the nearest steric wall along the CA→CB direction, not a substituent length, so do not compare it with Verloop values
 * Crystal structures usually lack hydrogens; results differ from a protonated model. `--sambvca` (heavy atoms only, Bondi × 1.17) is a consistent choice for raw PDB files
 
-From Python: `db.dbstep("1a8o.pdb", residue="A:186", atom="CA", atom2="CB", volume=True, nowater=True, exclude_self=True)`; the object also exposes `atoms`, `coords` and `metadata` for the atoms that were actually measured.
+* `--residue all` runs every polymer residue in turn (waters and ligands are skipped, modified residues such as MSE are included; combine with `--chain`)
+* `--csv results.csv` writes one row per file, structure, residue and radius with the columns `file, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
+
+From Python: `db.dbstep("1a8o.pdb", residue="A:186", atom="CA", atom2="CB", volume=True, nowater=True, exclude_self=True)`; the object also exposes `atoms`, `coords` and `metadata` for the atoms that were actually measured, and `results`, the list of row dictionaries that `--csv` writes. `db.all_residues("1a8o.pdb", volume=True, nowater=True)` returns one such object per residue.
 
 To execute the program:
 - Run from the command line with: `dbstep file --atom1 a1idx --atom2 a2idx` (or `python -m dbstep ...`)

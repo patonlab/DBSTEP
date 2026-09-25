@@ -177,7 +177,7 @@ def test_insertion_code_and_lower_case_selection(tmp_path):
 		({"residue": "A:999"}, "not found"),
 		({"residue": "A:3", "atom": "XX"}, "No atom named XX"),
 		({"residue": "A:3", "self_only": True, "exclude_self": True}, "cannot be combined"),
-		({"residue": "all"}, "not supported yet"),
+		({"residue": "all"}, "all_residues"),
 	],
 )
 def test_selection_errors(kwargs, message):

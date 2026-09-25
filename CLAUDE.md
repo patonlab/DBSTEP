@@ -15,7 +15,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
   - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
   - `graph.py` — 2D graph-based steric contribution calculations
-  - `writer.py` — Output formatting and file writing
+  - `writer.py` — Output formatting and file writing (PyMOL scripts, xyz, CSV results)
   - `__init__.py` — Package init, `__version__`, `__all__`
   - `__main__.py` — Module entry point for `python -m dbstep`
   - `data/` — Benchmark molecular structure files (xyz format)
@@ -28,6 +28,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_crop.py` — `--cutoff` radial crop: exactness of %V_bur, renumbering, large-cluster equivalence
   - `test_pdb_parser.py` — PDB parsing: columns, element inference, metadata, altlocs, MODEL blocks
   - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics
+  - `test_residue_all.py` — `--residue all`, per-run `results` records and `--csv` output
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
   - `pdb_files/` — PDB fixtures: `1a8o.pdb` (real, no H, waters, MSE) and generated `ala5.pdb` (with H, waters, Na); see its README
 - `examples/` — Jupyter notebook examples
