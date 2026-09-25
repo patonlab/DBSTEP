@@ -1,5 +1,5 @@
 from rdkit import Chem
-from rdkit.Chem import rdmolops, rdMolDescriptors, Crippen, GraphDescriptors
+from rdkit.Chem import rdmolops, Crippen
 import numpy as np
 import pandas as pd
 import sys

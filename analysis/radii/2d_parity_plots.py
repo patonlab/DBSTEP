@@ -329,7 +329,7 @@ for el in ELEMENT_ORDER:
 	print(f"{el:<6} {n_el:>5}  {mcg_r2:>9.3f} {mcg_mae:>7.1f}% {mcg_rmse:>8.1f}%  {cr_r2:>9.3f} {cr_mae:>7.1f}% {cr_rmse:>8.1f}%")
 
 # Per-element fits (separate model per element)
-print(f"\n--- Per-element fits (separate regression per element) ---")
+print("\n--- Per-element fits (separate regression per element) ---")
 print(f"{'Element':<6} {'n':>5}  {'McG R²_CV':>9} {'McG MAE':>8} {'McG RMSE':>9}  {'Cr R²_CV':>9} {'Cr MAE':>8} {'Cr RMSE':>9}")
 mcg_cv_per_el = np.zeros(len(y_vbur))
 cr_cv_per_el = np.zeros(len(y_vbur))
@@ -369,7 +369,6 @@ col_mcg = "#2176AE"
 col_cr = "#E8553A"
 
 # (a) McGowan mol vol vs isodensity mol vol
-from functools import partial
 
 ax = axes[0, 0]
 x = mol_df["iso_vol"].values

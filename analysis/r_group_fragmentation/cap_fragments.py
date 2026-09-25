@@ -286,7 +286,6 @@ def cap_fragment(frag_smi, cap_name):
     # and the fragment atom it connects to
     attach = None
     frag_atom = None
-    cap_set = set(cap_indices)
     for ci in cap_indices:
         for nbr in mol.GetAtomWithIdx(ci).GetNeighbors():
             if nbr.HasProp("_is_frag"):

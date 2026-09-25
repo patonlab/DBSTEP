@@ -171,3 +171,31 @@ class TestVburAgainstSambvca:
 		assert abs(db_obj.bur_vol - sambvca_vbur) <= tolerance, (
 			f"{file}: DBSTEP {db_obj.bur_vol:.1f} vs SambVca {sambvca_vbur} (diff {abs(db_obj.bur_vol - sambvca_vbur):.1f})"
 		)
+
+
+class TestOptionsReuse:
+	"""A shared options object must survive being used for several structures (CLI multi-file runs)."""
+
+	def test_options_not_mutated_between_runs(self):
+		options = Dbstep.set_options({"atom1": 5, "atom2": 2, "sterimol": True, "noH": True, "quiet": True})
+		first = Dbstep.dbstep("dbstep/data/Et.xyz", options=options)
+		second = Dbstep.dbstep("dbstep/data/Et.xyz", options=options)
+		assert options.spec_atom_1 == 5
+		assert options.spec_atom_2 == 2
+		assert first.L == pytest.approx(second.L)
+		assert first.Bmin == pytest.approx(second.Bmin)
+		assert first.Bmax == pytest.approx(second.Bmax)
+
+
+class TestCubeSterimol:
+	"""Tests grid-based Sterimol slicing."""
+
+	def test_pos_keeps_strip_selection(self):
+		from dbstep import sterics
+
+		# points at z = -1 (r = 5), z = 1 (r = 1) and z = 3 (r = 2)
+		occ_grid = np.array([[5.0, 0.0, -1.0], [1.0, 0.0, 1.0], [2.0, 0.0, 3.0]])
+		L, Bmax, Bmin, cyl = sterics.get_cube_sterimol(occ_grid, R=1.0, spacing=0.1, strip_width=1.0, measure_pos=True)
+		# only the z = 1 point lies in the strip (0, 2]; --pos must not widen the slice to all z >= 0
+		assert Bmax == pytest.approx(1.0)
+		assert L == pytest.approx(1.0)

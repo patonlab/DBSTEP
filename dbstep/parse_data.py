@@ -1,5 +1,5 @@
 # -*- coding: UTF-8 -*-
-import os, sys
+import sys
 import numpy as np
 import cclib
 from abc import ABC, abstractmethod
@@ -203,7 +203,7 @@ class DataParser(ABC):
 		Returns:
 			list with lines of the file
 		"""
-		with open(file, "r") as f:
+		with open(file) as f:
 			return f.readlines()
 
 
@@ -226,6 +226,8 @@ class CubeParser(DataParser):
 		self.ATOMNUM, self.DENSITY, self.DENSITY_LINE = [], [], []
 		file_lines = self.file_lines
 		start_of_atoms = 6
+		# orbital cube files flag themselves with a negative atom count and carry one extra header line after the atom block
+		mo_header_line = None
 
 		# first two lines skipped as they do not have useful information for this program
 		for i in range(2, len(file_lines)):
@@ -233,7 +235,9 @@ class CubeParser(DataParser):
 				curr_line = file_lines[i]
 				coord = [float(c) for c in curr_line.split()]
 				if i == 2:
-					self.num_atoms = coord[0]
+					self.num_atoms = int(abs(coord[0]))
+					if coord[0] < 0:
+						mo_header_line = start_of_atoms + self.num_atoms
 					self.ORIGIN = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif i == 3:
 					self.xdim = int(coord[0])
@@ -247,12 +251,18 @@ class CubeParser(DataParser):
 					self.z_inc = [coord[1] * BOHR_TO_ANG, coord[2] * BOHR_TO_ANG, coord[3] * BOHR_TO_ANG]
 				elif self.num_atoms and start_of_atoms <= i < start_of_atoms + self.num_atoms:
 					self._parse_atom_line(coord)
+				elif i == mo_header_line:
+					continue
 				else:
 					self._parse_density_line(coord, curr_line)
-			except ValueError as e:
+			except ValueError:
 				# TODO: make a custom cube file exception to chain ValueError with this error
 				# TODO: handle potentially invalid atom errors
 				sys.exit(f'  Unable to parse "{self._input}", a value on line {i + 1} could not be read in.')
+
+		n_expected = self.xdim * self.ydim * self.zdim
+		if len(self.DENSITY) != n_expected:
+			sys.exit(f'  Unable to parse "{self._input}": expected {n_expected} volumetric values but read {len(self.DENSITY)}. Only single-dataset cube files are supported.')
 
 	def _parse_atom_line(self, split_line):
 		"""Parses a line in the cube file containing atom number and coordinates."""
@@ -341,9 +351,13 @@ class SDFParser(DataParser):
 		name, start, end = structures[idx]
 		self.structure_name = name
 
-		# Parse the counts line (4th line of the record) for number of atoms
+		# Parse the counts line (4th line of the record) for number of atoms.
+		# V2000 counts fields are fixed-width (3 chars), so >99 atoms and bonds run together ("100100  0 ...")
 		counts_line = file_lines[start + 3]
-		n_atoms = int(counts_line.split()[0])
+		try:
+			n_atoms = int(counts_line[0:3])
+		except ValueError:
+			n_atoms = int(counts_line.split()[0])
 
 		# Atom block starts at line start+4
 		atom_start = start + 4

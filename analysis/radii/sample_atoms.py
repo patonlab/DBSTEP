@@ -109,7 +109,7 @@ def main():
     # Sort for readability
     samples.sort(key=lambda x: (x[2], x[0], x[1]))
 
-    print(f"\nSample counts by element:")
+    print("\nSample counts by element:")
     from collections import Counter
     for el, cnt in sorted(Counter(s[2] for s in samples).items()):
         print(f"  {el:3s}: {cnt}")

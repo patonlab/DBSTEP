@@ -23,11 +23,9 @@ import os, sys, re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from scipy import stats
 
 from rdkit import Chem
-from rdkit.Chem import rdDetermineBonds, rdmolops, Crippen
+from rdkit.Chem import rdDetermineBonds, rdmolops
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from dbstep.constants import mcgowan_volumes, periodic_table

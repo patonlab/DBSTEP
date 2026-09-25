@@ -75,10 +75,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# TODO: remove these per-file-ignores as code gets cleaned up
-"dbstep/*.py" = ["F401", "F841", "UP015", "UP030", "B904"]
 "examples/**" = ["F401", "F841"]
-"tests/**" = ["F841"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["dbstep"]

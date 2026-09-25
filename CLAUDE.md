@@ -21,8 +21,12 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
 - `tests/` — Pytest test suite
   - `test_dbstep.py` — Sterimol parameter validation against Verloop's reference values
   - `test_calculator.py` — Unit tests for rotation/geometry math
-  - `test_parse_data.py` — Input parsing tests
+  - `test_parse_data.py` — Input parsing tests (xyz, multi-structure xyz/sdf, cube)
+  - `test_cli.py` — End-to-end tests of the `python -m dbstep` command line
   - `cube_files/` — Test cube file fixtures
+- `examples/` — Jupyter notebook examples
+- `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff)
+- `reference/` — Reference data
 - `.github/workflows/ci.yml` — GitHub Actions CI (test, lint, publish)
 
 ## Development Commands
