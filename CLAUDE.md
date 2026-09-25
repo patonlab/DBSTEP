@@ -8,7 +8,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
 
 - `pyproject.toml` — Project metadata, dependencies, and tool configuration
 - `dbstep/` — Main package source code
-  - `Dbstep.py` — Core `dbstep` class and CLI entry point (`main()`)
+  - `Dbstep.py` — Core `dbstep` class, CLI entry point (`main()`, argparse in `build_parser()`), `all_residues()`, `all_frames()`, `from_rdkit()`
   - `calculator.py` — Math/geometry routines (rotations, angles)
   - `sterics.py` — Steric parameter calculations
   - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
@@ -90,7 +90,7 @@ Bump `__version__` in `dbstep/__init__.py` (and the version in `meta.yaml`), mer
 ## Code Conventions
 
 - Uses tabs for indentation throughout
-- Python 3.9+ required
+- Python 3.10+ required (CI runs 3.10 through 3.14)
 - Main class is lowercase `dbstep` in `dbstep/Dbstep.py`
 - Atom indexing is 1-based (matching chemical structure file conventions)
 - Tests compare computed values against Verloop's reference Sterimol parameters with a tolerance of 0.01

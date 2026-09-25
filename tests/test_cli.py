@@ -61,3 +61,37 @@ def test_cutoff_option():
 	full = run_cli(XYZ_DIR + "CEt3.xyz", "--atom1", "1", "--vbur")
 	vbur = lambda text: re.search(r"CEt3\.xyz\s+1\s+3\.50\s+[\d.]+\s+([\d.]+)", text).group(1)
 	assert vbur(out) == vbur(full)
+
+
+def test_help_lists_argument_groups():
+	out = run_cli("--help")
+	for text in ("What to compute", "Proteins (PDB input)", "Trajectories and output", "--residue", "--frames", "--csv"):
+		assert text in out
+
+
+def test_option_value_that_names_an_existing_file_is_not_an_input(tmp_path):
+	"""Regression: option values used to be globbed as input files, so --csv out.csv re-read an existing out.csv."""
+	out = tmp_path / "out.csv"
+	out.write_text("stale\n")
+	text = run_cli(XYZ_DIR + "Et.xyz", "--sterimol", "--atom1", "2", "--atom2", "5", "--csv", str(out))
+	assert "Et.xyz" in text and "out.csv" not in text.replace(str(out), "")
+	assert out.read_text().startswith("file,frame,structure,residue")
+
+
+def test_equals_form_and_wildcards(tmp_path):
+	out = run_cli(XYZ_DIR + "Et.xyz", "--sterimol", "--atom1=2", "--atom2=5", "--grid=0.1")
+	assert re.search(r"Et\.xyz\s+2\s+5\s+1\.99\s+2\.13\s+3\.24", out)
+	out = run_cli(XYZ_DIR + "[EM][te].xyz", "--sterimol", "--atom1", "1", "--atom2", "2")
+	assert "Et.xyz" in out and "Me.xyz" in out
+
+
+@pytest.mark.parametrize("args, message", [
+	([XYZ_DIR + "nope.xyz", "-b"], "input file not found"),
+	(["-b"], "at least one input file"),
+	([XYZ_DIR + "Et.xyz", "--bogus"], "unrecognized arguments"),
+	([XYZ_DIR + "Et.xyz", "--measure", "fancy"], "invalid choice"),
+])
+def test_argument_errors(args, message):
+	result = subprocess.run([sys.executable, "-m", "dbstep", *args], capture_output=True, text=True)
+	assert result.returncode == 2
+	assert message in result.stderr
