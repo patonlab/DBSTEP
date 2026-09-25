@@ -287,3 +287,15 @@ def csv_export(path, rows):
 		out.writeheader()
 		for row in rows:
 			out.writerow({key: row.get(key, "") for key in CSV_COLUMNS})
+
+
+CONTRIBUTION_COLUMNS = ["file", "frame", "structure", "residue", "radius", "contributor", "percent_vbur"]
+
+
+def contributions_csv_export(path, rows):
+	"""Write per-residue %V_bur contribution rows (see Dbstep.contribution_rows) to a CSV file."""
+	with open(path, "w", newline="") as f:
+		out = csv.DictWriter(f, fieldnames=CONTRIBUTION_COLUMNS, extrasaction="ignore")
+		out.writeheader()
+		for row in rows:
+			out.writerow({key: row.get(key, "") for key in CONTRIBUTION_COLUMNS})

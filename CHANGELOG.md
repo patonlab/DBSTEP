@@ -2,6 +2,12 @@
 
 All notable changes to DBSTEP. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+- `--decompose`: per-residue contributions to %V_bur (overlaps shared equally, contributions sum to the total); `contributions` on the Python object and `<csv>_contributions.csv` with `--csv`.
+- `examples/proteins_and_conformers.ipynb`: worked notebook for the protein, trajectory and conformer-ensemble workflows, executed by the test suite.
+
 ## 2.0.0 — 2026-09
 
 ### Breaking changes

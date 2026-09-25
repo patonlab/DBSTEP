@@ -13,6 +13,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `calculator.py` — Math/geometry routines (rotations, angles)
   - `sterics.py` — Steric parameter calculations
   - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
+  - `sterics.py` also holds `buried_vol_by_group` (per-residue %V_bur decomposition for `--decompose`)
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
   - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, energies from SDF data fields or xyz comments)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
@@ -33,11 +34,13 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics
   - `test_residue_all.py` — `--residue all`, per-run `results` records and `--csv` output
   - `test_trajectory.py` — `--frames` parsing, per-frame runs on `ala5_traj.pdb`, multi-frame xyz, CSV time series
+  - `test_decompose.py` — `--decompose` per-residue contributions: sums to %V_bur, overlap sharing, CLI/CSV
+  - `test_examples.py` — Executes the code cells of `examples/proteins_and_conformers.ipynb`
   - `test_ensemble.py` — SDF data fields, Boltzmann weights/averages, CLI `--boltzmann` on `sdf_files/ether_conformers.sdf` (AQME output)
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
   - `sdf_files/` — `ether_conformers.sdf`: three diethyl ether conformers from AQME with `<Energy>` fields (kcal/mol)
   - `pdb_files/` — PDB fixtures: `1a8o.pdb` (real, no H, waters, MSE) and generated `ala5.pdb` (with H, waters, Na) and `ala5_traj.pdb` (10 models, water approaching A:3); see its README
-- `examples/` — Jupyter notebook examples
+- `examples/` — Jupyter notebook examples (`proteins_and_conformers.ipynb` is kept runnable by `tests/test_examples.py`; `carbene_sterics.ipynb` predates 2.0)
 - `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff; extra deps via `uv sync --group analysis`)
 - `reference/` — Reference data
 - `docs/plans/` — Design and implementation plans (e.g. proteins and trajectories for 2.0)

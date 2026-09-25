@@ -38,6 +38,8 @@ def occupied_direct(coords, radii, origin, x_vals, y_vals, z_vals, options, retu
 		center = coords[n] + origin
 		r = radii[n]
 		r2 = r * r
+		if r2 == 0.0:  # zero-radius ghost atoms (Bq) occupy nothing, even when they sit on a lattice point
+			continue
 
 		# Narrow to bounding box of this atom's VDW sphere
 		xi = np.where((x_vals - center[0]) ** 2 <= r2)[0]
@@ -139,6 +141,8 @@ def occupied(grid, coords, radii, origin, options):
 	idx = []
 	point_tree = spatial.cKDTree(grid, balanced_tree=False, compact_nodes=False)
 	for n in range(len(coords)):
+		if radii[n] == 0.0:  # zero-radius ghost atoms (Bq) occupy nothing
+			continue
 		center = coords[n] + origin
 		idx.append(point_tree.query_ball_point(center, radii[n], workers=-1))
 	# construct a list of indices of the grid array that are occupied
@@ -463,3 +467,63 @@ def buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist
 		print("   WARNING! {:5.2f}% error in estimating the exact spherical volume. The grid spacing is probably too big in relation to the sphere volume".format(vol_err))
 
 	return percent_buried_vol, percent_shell_vol
+
+
+def buried_vol_by_group(coords, radii, labels, x_vals, y_vals, z_vals, origin, R):
+	"""Split the buried volume of a sphere between groups of atoms (e.g. residues).
+
+	Uses the same lattice as the volume calculation. A lattice point inside the sphere that is
+	covered by atoms of k different groups is shared equally between them (1/k each), so the
+	contributions add up to the total %V_bur exactly on the direct-lattice path (volume-only and
+	classic-Sterimol runs); with grid-based Sterimol the total comes from a KD-tree query whose
+	boundary arithmetic differs slightly, so the sum can deviate at the 1e-3 % level.
+
+	Args:
+		coords, radii: atom coordinates (sphere centre at `origin`) and scaled VDW radii
+		labels: group label per atom (same length as coords)
+		x_vals, y_vals, z_vals: lattice coordinates along each axis
+		origin: sphere centre
+		R: sphere radius
+
+	Returns:
+		dict label -> percent of the sphere volume occupied by that group, in order of first appearance
+	"""
+	R2 = R * R
+	# lattice points inside the sphere's bounding box, then the sphere itself
+	xi = np.where((x_vals - origin[0]) ** 2 <= R2)[0]
+	yi = np.where((y_vals - origin[1]) ** 2 <= R2)[0]
+	zi = np.where((z_vals - origin[2]) ** 2 <= R2)[0]
+	xs, ys, zs = x_vals[xi], y_vals[yi], z_vals[zi]
+	dx2, dy2, dz2 = (xs - origin[0]) ** 2, (ys - origin[1]) ** 2, (zs - origin[2]) ** 2
+	inside = dx2[:, None, None] + dy2[None, :, None] + dz2[None, None, :] <= R2
+	n_voxel = count_grid_points_in_sphere(x_vals, y_vals, z_vals, origin, R)
+
+	labels = np.asarray(labels)
+	groups = list(dict.fromkeys(labels))
+
+	def group_mask(group):
+		mask = np.zeros(inside.shape, dtype=bool)
+		for n in np.where(labels == group)[0]:
+			center = coords[n] + origin
+			r2 = radii[n] ** 2
+			if r2 == 0.0:
+				continue
+			ax = np.where((xs - center[0]) ** 2 <= r2)[0]
+			ay = np.where((ys - center[1]) ** 2 <= r2)[0]
+			az = np.where((zs - center[2]) ** 2 <= r2)[0]
+			if len(ax) == 0 or len(ay) == 0 or len(az) == 0:
+				continue
+			d2 = (xs[ax] - center[0]) ** 2
+			d2 = d2[:, None, None] + ((ys[ay] - center[1]) ** 2)[None, :, None] + ((zs[az] - center[2]) ** 2)[None, None, :]
+			mask[np.ix_(ax, ay, az)] |= d2 <= r2
+		return mask & inside
+
+	# pass 1: how many groups cover each point; pass 2: share points between covering groups
+	coverage = np.zeros(inside.shape, dtype=np.int32)
+	for group in groups:
+		coverage += group_mask(group)
+	contributions = {}
+	for group in groups:
+		mask = group_mask(group)
+		contributions[group] = float((1.0 / coverage[mask]).sum()) / n_voxel * 100.0 if mask.any() else 0.0
+	return contributions
