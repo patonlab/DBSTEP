@@ -2,11 +2,14 @@
 
 All notable changes to DBSTEP. Versions follow [semantic versioning](https://semver.org/).
 
-## Unreleased
+## 2.1.0 — 2026-09-25
 
 ### Added
 - `--decompose`: per-residue contributions to %V_bur (overlaps shared equally, contributions sum to the total); `contributions` on the Python object and `<csv>_contributions.csv` with `--csv`.
 - `examples/proteins_and_conformers.ipynb`: worked notebook for the protein, trajectory and conformer-ensemble workflows, executed by the test suite.
+
+### Fixed
+- Zero-radius ghost atoms (the spec atoms kept for alignment under `--exclude-self`, `--noH` or `--exclude`) no longer occupy the single grid point they sit on.
 
 ## 2.0.0 — 2026-09
 
