@@ -14,6 +14,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `sterics.py` — Steric parameter calculations
   - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
+  - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, energies from SDF data fields or xyz comments)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
   - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
   - `graph.py` — 2D graph-based steric contribution calculations
@@ -32,7 +33,9 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics
   - `test_residue_all.py` — `--residue all`, per-run `results` records and `--csv` output
   - `test_trajectory.py` — `--frames` parsing, per-frame runs on `ala5_traj.pdb`, multi-frame xyz, CSV time series
+  - `test_ensemble.py` — SDF data fields, Boltzmann weights/averages, CLI `--boltzmann` on `sdf_files/ether_conformers.sdf` (AQME output)
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
+  - `sdf_files/` — `ether_conformers.sdf`: three diethyl ether conformers from AQME with `<Energy>` fields (kcal/mol)
   - `pdb_files/` — PDB fixtures: `1a8o.pdb` (real, no H, waters, MSE) and generated `ala5.pdb` (with H, waters, Na) and `ala5_traj.pdb` (10 models, water approaching A:3); see its README
 - `examples/` — Jupyter notebook examples
 - `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff; extra deps via `uv sync --group analysis`)
