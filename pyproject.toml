@@ -88,7 +88,15 @@ indent-style = "tab"
 testpaths = ["tests"]
 addopts = "-v"
 
+# Extra packages for the standalone scripts in analysis/ (not installed by default):
+#   uv sync --group analysis
 [dependency-groups]
-dev = [
+analysis = [
     "matplotlib>=3.9.4",
+    "pandas",
+    "rdkit",
+    "tqdm",
 ]
+
+[tool.uv]
+default-groups = []
