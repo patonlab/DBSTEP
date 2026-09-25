@@ -7,6 +7,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
 ## Repository Structure
 
 - `pyproject.toml` — Project metadata, dependencies, and tool configuration
+- `CHANGELOG.md` — Release notes per version (update with every user-facing change)
 - `dbstep/` — Main package source code
   - `Dbstep.py` — Core `dbstep` class, CLI entry point (`main()`, argparse in `build_parser()`), `all_residues()`, `all_frames()`, `from_rdkit()`
   - `calculator.py` — Math/geometry routines (rotations, angles)
@@ -79,7 +80,7 @@ uv build
 ```
 
 ### Release
-Bump `__version__` in `dbstep/__init__.py` (and the version in `meta.yaml`), merge to master, then publish a GitHub Release whose tag is the version (e.g. `1.2.0`). `.github/workflows/release.yml` checks the tag against `__version__`, runs the tests, uploads to PyPI via trusted publishing and attaches the sdist/wheel to the release.
+Add a CHANGELOG.md entry, bump `__version__` in `dbstep/__init__.py` (and the version in `meta.yaml`), merge to master, then publish a GitHub Release whose tag is the version (e.g. `1.2.0`). `.github/workflows/release.yml` checks the tag against `__version__`, runs the tests, uploads to PyPI via trusted publishing and attaches the sdist/wheel to the release.
 
 ## Key Dependencies
 

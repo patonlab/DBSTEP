@@ -47,6 +47,8 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * `--maxpath` - The number of layers to measure. A connectivity matrix is used to compute the shortest path to each atom from the reference functional group.
     * `--2d-type` - The type of steric contributions to use. Options include Crippen molar refractivities or McGowan volume
 
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
+
 ## Requirements & Dependencies
 * Python 3.10 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
