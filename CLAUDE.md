@@ -11,6 +11,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `Dbstep.py` — Core `dbstep` class and CLI entry point (`main()`)
   - `calculator.py` — Math/geometry routines (rotations, angles)
   - `sterics.py` — Steric parameter calculations
+  - `selection.py` — Atom selection before measurement (radial crop around atom1 for `--cutoff`)
   - `parse_data.py` — Input file parsing (xyz, cube, cclib-supported formats)
   - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
   - `graph.py` — 2D graph-based steric contribution calculations
@@ -24,6 +25,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_parse_data.py` — Input parsing tests (xyz, multi-structure xyz/sdf, cube)
   - `test_cli.py` — End-to-end tests of the `python -m dbstep` command line
   - `test_cube.py` — Density-based (cube file) buried volume and Sterimol tests
+  - `test_crop.py` — `--cutoff` radial crop: exactness of %V_bur, renumbering, large-cluster equivalence
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
 - `examples/` — Jupyter notebook examples
 - `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff; extra deps via `uv sync --group analysis`)

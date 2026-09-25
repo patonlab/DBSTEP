@@ -7,7 +7,7 @@ from glob import glob
 import numpy as np
 from optparse import OptionParser
 
-from dbstep import sterics, parse_data, calculator, writer
+from dbstep import sterics, parse_data, calculator, writer, selection
 from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
 
 class dbstep:
@@ -17,7 +17,8 @@ class dbstep:
 	Objects that can currently be referenced are:
 			L, Bmax, Bmin,
 			occ_vol, bur_vol, bur_shell,
-			atom1, atom2 (the reference atom indices as given in the input file)
+			atom1, atom2 (the reference atom indices as given in the input file),
+			cutoff, n_atoms_total, n_atoms_kept (radial crop, see --cutoff)
 
 	If steric scan is requested, Bmin and Bmax variables
 	contain lists of params along scan
@@ -86,6 +87,20 @@ class dbstep:
 		self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
 		mol = parse_data.read_input(file, ext, options)
 		self._check_num_atoms(mol, file)
+
+		# Radial crop: drop atoms too far from atom1 to influence the measurement,
+		# so the grid scales with the sphere rather than with the whole system
+		self.cutoff = None
+		self.n_atoms_total = self.n_atoms_kept = len(mol.ATOMTYPES)
+		if options.cutoff:
+			if options.surface == "vdw":
+				self.cutoff = selection.resolve_cutoff(options, mol.ATOMTYPES)
+				if self.cutoff is not None:
+					self.n_atoms_total, self.n_atoms_kept = selection.crop(mol, options, self.cutoff)
+					if options.verbose:
+						print("   Cutoff {:.2f} Ang around atom1: keeping {} of {} atoms".format(self.cutoff, self.n_atoms_kept, self.n_atoms_total))
+			elif not options.quiet:
+				print("   Note: --cutoff is ignored for density cube input (the grid comes from the cube file)")
 
 		# Assign radii / parse density and set up grid bounds
 		x_min, x_max, y_min, y_max, z_min, z_max = self._assign_surface(mol, file, options, origin)
@@ -245,9 +260,11 @@ class dbstep:
 					sys.exit("ERROR: Your molecule is larger than the gridsize you selected,\n       please try again with a larger gridsize")
 				x_min, x_max, y_min, y_max, z_min, z_max = gs
 
-			x_vals = np.linspace(x_min, x_max, int(1 + round((x_max - x_min) / options.grid)))
-			y_vals = np.linspace(y_min, y_max, int(1 + round((y_max - y_min) / options.grid)))
-			z_vals = np.linspace(z_min, z_max, int(1 + round((z_max - z_min) / options.grid)))
+			# Snap lattice coordinates to 8 decimals: linspace endpoints differ between box extents by
+			# rounding noise, which would otherwise flip grid points lying exactly on a sphere boundary
+			x_vals = np.round(np.linspace(x_min, x_max, int(1 + round((x_max - x_min) / options.grid))), 8)
+			y_vals = np.round(np.linspace(y_min, y_max, int(1 + round((y_max - y_min) / options.grid))), 8)
+			z_vals = np.round(np.linspace(z_min, z_max, int(1 + round((z_max - z_min) / options.grid))), 8)
 
 			if options.volume or options.measure == "grid":
 				if options.volume and not (options.sterimol and options.measure == "grid"):
@@ -285,12 +302,14 @@ class dbstep:
 		if options.quiet or dbstep._column_header_printed:
 			return
 		fw = dbstep._file_col_width
+		# with a cutoff the molecular volume only covers the kept atoms
+		vol_label = "MolVol_cut" if self.cutoff is not None else "Mol_Vol"
 		if options.volume and options.sterimol:
-			header = "   {:>{fw}} {:>6} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom1", "Atom2", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
+			header = "   {:>{fw}} {:>6} {:>6} {:>6} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}".format("File", "Atom1", "Atom2", "R/Å", vol_label, "%V_Bur", "%S_Bur", "Bmin", "Bmax", "L", fw=fw)
 		elif options.sterimol:
 			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom1", "Atom2", "Bmin", "Bmax", "L", fw=fw)
 		elif options.volume:
-			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", "Mol_Vol", "%V_Bur", "%S_Bur", fw=fw)
+			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", vol_label, "%V_Bur", "%S_Bur", fw=fw)
 		else:
 			header = None
 		if header:
@@ -483,6 +502,7 @@ def set_options(kwargs):
 		"radii": ["radii", "bondi"],
 		"sambvca": ["sambvca", False],
 		"gridsize": ["gridsize", False],
+		"cutoff": ["cutoff", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -523,6 +543,7 @@ def main():
 	parser.add_option("--fg", dest="shared_fg", action="store", default=False, help="[2D sterics] SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
 	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.05)", default=0.05, type=float, metavar="grid")
 	parser.add_option("--gridsize", dest="gridsize", action="store", help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax", default=False)
+	parser.add_option("--cutoff", dest="cutoff", action="store", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)", default=False, metavar="cutoff")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
 	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
 	parser.add_option("--noH", dest="noH", action="store_true", help="Exclude hydrogen atoms from steric measurements", default=False)
@@ -606,7 +627,10 @@ def main():
 				print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
 				radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
 				print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
-				print("   Hydrogen atoms are {}\n".format("excluded" if options.noH else "included"))
+				print("   Hydrogen atoms are {}".format("excluded" if options.noH else "included"))
+				if options.cutoff:
+					print("   Atoms farther than {} from atom1 are ignored (--cutoff)".format("the auto cutoff" if str(options.cutoff).lower() == "auto" else "{} Angstrom".format(options.cutoff)))
+				print("")
 			else:
 				print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
 				print("   Cartesian grid-spacing will be determined by cube file(s)\n")

@@ -52,3 +52,12 @@ def test_multi_structure_file_labels_each_structure(filename):
 def test_quiet_suppresses_output():
 	out = run_cli(XYZ_DIR + "Et.xyz", "--sterimol", "--atom1", "2", "--atom2", "5", "--quiet")
 	assert out.strip() == ""
+
+
+def test_cutoff_option():
+	out = run_cli(XYZ_DIR + "CEt3.xyz", "--atom1", "1", "--vbur", "--cutoff", "auto", "-v")
+	assert "MolVol_cut" in out
+	assert re.search(r"Cutoff [\d.]+ Ang around atom1: keeping \d+ of \d+ atoms", out)
+	full = run_cli(XYZ_DIR + "CEt3.xyz", "--atom1", "1", "--vbur")
+	vbur = lambda text: re.search(r"CEt3\.xyz\s+1\s+3\.50\s+[\d.]+\s+([\d.]+)", text).group(1)
+	assert vbur(out) == vbur(full)

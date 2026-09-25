@@ -18,6 +18,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * `-b` or `--vbur` AND `--scan [rmin:rmax:interval]` - Vol2Vec Parameters
 * `-r` - Adjust radius of percent buried volume measurements (default 3.5 Angstrom)
 * `--dp [n]` - Number of decimal places in the printed results (default 2)
+* `--cutoff [Å or auto]` - Ignore atoms farther than this from atom1. `auto` keeps exactly the atoms that can occupy the buried-volume sphere, so %V_Bur is unchanged while the grid stays small for large systems (clusters, proteins). With a cutoff, the molecular volume column reports only the kept atoms (`MolVol_cut`) and Sterimol L is bounded by the cutoff.
 * `--quiet` - Suppress all printed output (results are still available from the Python object)
 * Exclude atoms from steric measurement with `--exclude [atom indices]` option (no spaces, separated by commas)
 * Sterimol parameters can be computed using the classic (Verloop) definition from van der Waals radii, or using a three-dimensional grid (default is classic).

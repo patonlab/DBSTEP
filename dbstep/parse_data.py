@@ -193,6 +193,14 @@ class DataParser(ABC):
 		self.ATOMTYPES = self.ATOMTYPES[np.invert(atoms_to_remove)]
 		self.CARTESIANS = self.CARTESIANS[np.invert(atoms_to_remove)]
 
+	def keep(self, mask):
+		"""Keep only the atoms where `mask` is True, in all per-atom arrays (ATOMTYPES, CARTESIANS and any METADATA)."""
+		mask = np.asarray(mask, dtype=bool)
+		self.ATOMTYPES = self.ATOMTYPES[mask]
+		self.CARTESIANS = self.CARTESIANS[mask]
+		for key, values in getattr(self, "METADATA", {}).items():
+			self.METADATA[key] = np.asarray(values)[mask]
+
 	@staticmethod
 	def get_file_lines(file):
 		""" "Reads file and returns the lines using readlines()
