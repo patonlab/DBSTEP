@@ -104,6 +104,7 @@ With a PDB file you can pick a residue and atoms by name instead of file indices
 * Sterimol L measured from CA through the surroundings is a distance to the nearest steric wall along the CA→CB direction, not a substituent length, so do not compare it with Verloop values
 * Crystal structures usually lack hydrogens; results differ from a protonated model. `--sambvca` (heavy atoms only, Bondi × 1.17) is a consistent choice for raw PDB files
 
+* `--decompose` splits %V_Bur between the residues whose atoms fill the sphere (a grid point covered by several residues is shared equally, so the contributions add up to the total); printed after the table and, with `--csv out.csv`, written to `out_contributions.csv`. In Python the object carries `contributions`, a dict from residue label to percent
 * `--residue all` runs every polymer residue in turn (waters and ligands are skipped, modified residues such as MSE are included; combine with `--chain`)
 * `--csv results.csv` writes one row per file, frame, residue and radius with the columns `file, frame, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
 
@@ -165,6 +166,8 @@ For buried volume parameters, only the `--atom1 [atom]` argument is necessary to
 If no atoms are specified, the first two atoms in the file will be used as reference.
 
 ### Examples
+A notebook covering the protein, trajectory and conformer-ensemble workflows is at `examples/proteins_and_conformers.ipynb`.
+
 Examples for obtaining Sterimol, Sterimol2Vec, Percent Buried Volume and Vol2Vec parameter sets are shown below (all example files found in dbstep/data/ directory).
 
 1. Sterimol Parameters for Ethane

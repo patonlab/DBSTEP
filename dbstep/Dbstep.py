@@ -40,6 +40,8 @@ class dbstep:
 		self.L, self.Bmin, self.Bmax = False, False, False
 		# Volume Parameters
 		self.occ_vol, self.bur_vol, self.bur_shell = False, False, False
+		# Per-residue contributions to %V_bur (--decompose): dict label -> percent, or a list of dicts for scans
+		self.contributions = None
 		# Tensor Parameters
 		self.tensor, self.tensor_grid = False, False
 
@@ -308,6 +310,7 @@ class dbstep:
 					# Standard path: full grid needed for grid-based sterimol
 					grid = np.array(np.meshgrid(x_vals, y_vals, z_vals)).T.reshape(-1, 3)
 					occ_grid, point_tree, occ_vol = sterics.occupied(grid, mol.CARTESIANS, mol.RADII, origin, options)
+					grid_axes = (x_vals, y_vals, z_vals)
 
 		elif options.surface == "density":
 			x_vals = np.linspace(x_min, x_max, mol.xdim)
@@ -351,7 +354,7 @@ class dbstep:
 				 r_min, r_max, r_intervals, strip_width):
 		"""Run volume and/or sterimol calculations. Returns (spheres, cylinders) for PyMOL."""
 		spheres, cylinders = [], []
-		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list = [], [], [], []
+		Bmin_list, Bmax_list, bur_vol_list, bur_shell_list, contributions_list = [], [], [], [], []
 
 		# Precompute squared distances from origin for occupied grid points
 		if options.volume:
@@ -400,6 +403,8 @@ class dbstep:
 					if options.vshell:
 						strip_width = options.vshell
 					bur_vol, bur_shell = sterics.buried_vol(occ_grid, point_tree, origin, rad, strip_width, options, occ_dist2=occ_dist2, grid_axes=grid_axes)
+					if options.decompose:
+						contributions_list.append(self._decompose(mol, options, grid_axes, origin, rad if strip_width != 0.0 else options.radius))
 				bur_vol_list.append(bur_vol)
 				bur_shell_list.append(bur_shell)
 
@@ -465,6 +470,8 @@ class dbstep:
 			if options.volume:
 				self.bur_vol = bur_vol
 				self.bur_shell = bur_shell
+				if contributions_list:
+					self.contributions = contributions_list[0]
 		else:
 			if options.sterimol:
 				self.Bmax = Bmax_list
@@ -472,8 +479,19 @@ class dbstep:
 			if options.volume:
 				self.bur_vol = bur_vol_list
 				self.bur_shell = bur_shell_list
+				if contributions_list:
+					self.contributions = contributions_list
 
 		return spheres, cylinders
+
+	def _decompose(self, mol, options, grid_axes, origin, R):
+		"""Per-residue contributions to %V_bur (--decompose), as a dict "A:45 LEU" -> percent."""
+		if options.surface != "vdw" or grid_axes is None:
+			sys.exit("   --decompose works with VDW surfaces only (not density cubes)")
+		if not self.metadata or "resid" not in self.metadata:
+			sys.exit("   --decompose needs residue information: use PDB input")
+		labels = ["{} {}".format(resid, resname) for resid, resname in zip(self.metadata["resid"], self.metadata["resname"])]
+		return sterics.buried_vol_by_group(mol.CARTESIANS, mol.RADII, labels, *grid_axes, origin, R)
 
 	def _get_spec_atoms(self, options):
 		"""Gets the specification atoms from input or sets the defaults."""
@@ -569,6 +587,7 @@ def set_options(kwargs):
 		"exclude_self": ["exclude_self", False],
 		"self_only": ["self_only", False],
 		"chain": ["chain", False],
+		"decompose": ["decompose", False],
 		"csv": ["csv", False],
 		"frames": ["frames", False],
 		"boltzmann": ["boltzmann", False],
@@ -597,6 +616,34 @@ def set_options(kwargs):
 			print("Warning! Option: [", key, ":", kwargs[key], "] provided but no option exists, try -h to see available options.")
 
 	return options
+
+
+def contribution_rows(run):
+	"""Per-residue contribution rows of a run (one per residue and radius), for the contributions CSV."""
+	if not run.contributions:
+		return []
+	per_radius = run.contributions if isinstance(run.contributions, list) else [run.contributions]
+	rows = []
+	for result, contributions in zip(run.results, per_radius):
+		for label, percent in contributions.items():
+			rows.append({"file": result["file"], "frame": result["frame"], "structure": result["structure"], "residue": result["residue"],
+						 "radius": result["radius"], "contributor": label, "percent_vbur": percent})
+	return rows
+
+
+def contribution_lines(run, dp=2):
+	"""Printable per-residue contribution block for a run."""
+	if not run.contributions:
+		return []
+	per_radius = run.contributions if isinstance(run.contributions, list) else [run.contributions]
+	lines = []
+	for result, contributions in zip(run.results, per_radius):
+		label = " ".join(str(part) for part in (result["file"], result["structure"], result["residue"]) if part)
+		lines.append("\n   %V_Bur contributions for {} (R = {:.2f} Ang, total {:.{dp}f}%):".format(label, result["radius"], result["percent_vbur"], dp=dp))
+		for name, percent in sorted(contributions.items(), key=lambda item: -item[1]):
+			if percent > 0:
+				lines.append("      {:<16} {:>{w}.{dp}f}".format(name, percent, w=6 + dp, dp=dp))
+	return lines
 
 
 def format_result_row(row, options, fw):
@@ -732,6 +779,7 @@ def build_parser():
 	protein.add_argument("--nohet", dest="nohet", action="store_true", default=False, help="Exclude hetero groups (ligands, ions) other than waters, the selected residue and modified polymer residues")
 	protein.add_argument("--chain", dest="chain", default=False, metavar="chain", help="Keep only this chain (plus the selected residue)")
 	protein.add_argument("--exclude-self", dest="exclude_self", action="store_true", default=False, help="The selected residue occupies no volume: measure only its environment")
+	protein.add_argument("--decompose", dest="decompose", action="store_true", default=False, help="Split %%V_bur between the residues that occupy the sphere (overlaps shared equally); printed after the table and written to <csv>_contributions.csv with --csv")
 	protein.add_argument("--self-only", dest="self_only", action="store_true", default=False, help="Keep only the selected residue (same as measuring it extracted to its own file)")
 
 	frames = parser.add_argument_group("Trajectories and output")
@@ -877,10 +925,20 @@ def main(argv=None):
 	for note in notes:
 		print(note)
 
+	if options.decompose and not options.quiet:
+		for run in runs:
+			for line in contribution_lines(run, options.dp):
+				print(line)
+
 	if options.csv and runs:
 		writer.csv_export(options.csv, [row for run in runs for row in run.results] + summary_rows)
 		if not options.quiet:
 			print("\n   Results written to {}".format(options.csv))
+		if options.decompose:
+			path = os.path.splitext(options.csv)[0] + "_contributions.csv"
+			writer.contributions_csv_export(path, [row for run in runs for row in contribution_rows(run)])
+			if not options.quiet:
+				print("   Residue contributions written to {}".format(path))
 
 
 if __name__ == "__main__":
