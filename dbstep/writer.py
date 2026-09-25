@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+import csv
 import os
 from dbstep.constants import BOHR_TO_ANG
 
@@ -274,3 +275,15 @@ def xyz_export(file, mol):
 		coords += "\n"
 	log.Writeonlyfile(coords)
 	log.close()
+
+
+CSV_COLUMNS = ["file", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L"]
+
+
+def csv_export(path, rows):
+	"""Write result rows (dicts as produced by dbstep.results) to a CSV file with a fixed column order."""
+	with open(path, "w", newline="") as f:
+		out = csv.DictWriter(f, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+		out.writeheader()
+		for row in rows:
+			out.writerow({key: row.get(key, "") for key in CSV_COLUMNS})
