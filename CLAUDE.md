@@ -23,12 +23,14 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_calculator.py` — Unit tests for rotation/geometry math
   - `test_parse_data.py` — Input parsing tests (xyz, multi-structure xyz/sdf, cube)
   - `test_cli.py` — End-to-end tests of the `python -m dbstep` command line
-  - `cube_files/` — Test cube file fixtures
+  - `test_cube.py` — Density-based (cube file) buried volume and Sterimol tests
+  - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
 - `examples/` — Jupyter notebook examples
-- `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff)
+- `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff; extra deps via `uv sync --group analysis`)
 - `reference/` — Reference data
 - `.github/workflows/ci.yml` — GitHub Actions CI (test, lint)
 - `.github/workflows/release.yml` — Publishes to PyPI when a GitHub Release is published
+- `.github/dependabot.yml` — Monthly grouped updates for uv.lock and GitHub Actions
 
 ## Development Commands
 
@@ -40,6 +42,11 @@ uv sync
 ### Install with dev tools
 ```
 uv sync --extra dev
+```
+
+### Install extras for the analysis scripts (matplotlib, pandas, rdkit, tqdm)
+```
+uv sync --group analysis
 ```
 
 ### Run tests
