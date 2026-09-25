@@ -440,3 +440,12 @@ isovals = {"Bq": 0.00, "H": 0.00475}
 # Values
 
 BOHR_TO_ANG = 0.529177249
+
+# Residue names treated as water in PDB input
+WATER_RESNAMES = {"HOH", "WAT", "H2O", "TIP", "TIP3", "TIP4", "SOL", "DOD", "D2O"}
+
+# The 20 standard amino acids (three-letter codes)
+STANDARD_AMINO_ACIDS = {
+	"ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
+	"LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+}

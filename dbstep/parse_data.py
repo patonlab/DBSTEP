@@ -10,9 +10,13 @@ from dbstep.constants import BOHR_TO_ANG, periodic_table
 parse_data
 
 Parses data from files
-Currently supporting: 
-	.cube Gaussian volumetric files 
+Currently supporting:
+	.xyz (single and multi-structure), .com/.gjf Gaussian inputs
+	.sdf/.mol V2000 (single and multi-structure)
+	.pdb/.ent Protein Data Bank files (single and multi-MODEL), with per-atom residue metadata
+	.cube Gaussian volumetric files
 	all filetypes parsed by the cclib python package (see https://cclib.github.io/)
+	RDKit mol objects (Python API)
 """
 
 
@@ -98,6 +102,63 @@ def _parse_sdf_boundaries(file_lines):
 	return structures
 
 
+def get_pdb_models(file_path):
+	"""Count and locate MODEL records in a (multi-model) PDB file.
+
+	Args:
+		file_path (str): path to PDB file
+
+	Returns:
+		list of (name, start_line, end_line) tuples, one per MODEL; a single entry covering the
+		whole file when it has no MODEL records
+	"""
+	with open(file_path) as f:
+		lines = f.readlines()
+	return _parse_pdb_boundaries(lines)
+
+
+def _parse_pdb_boundaries(file_lines):
+	"""Identify MODEL/ENDMDL blocks in a PDB file. Files without MODEL records are one structure."""
+	structures = []
+	start = None
+	for i, line in enumerate(file_lines):
+		record = line[:6].strip()
+		if record == "MODEL":
+			start = i
+			name = "model" + line[6:].strip()
+		elif record == "ENDMDL" and start is not None:
+			structures.append((name, start, i))
+			start = None
+	if start is not None:  # unterminated final MODEL
+		structures.append((name, start, len(file_lines)))
+	if not structures:
+		structures.append(("", 0, len(file_lines)))
+	return structures
+
+
+def _pdb_element(name_field, element_field=""):
+	"""Element symbol for a PDB atom from columns 77-78, falling back to the atom name (columns 13-16).
+
+	PDB atom names are right-justified so that a two-letter element occupies columns 13-14
+	("FE  ", "CA  " calcium) while a one-letter element starts in column 14 (" CA " alpha carbon,
+	" HG " gamma hydrogen). Four-character hydrogen names may start with a digit ("1HB ") or
+	with H ("HD21").
+	"""
+	# note: periodic_table[0] is "" so membership tests must exclude the empty string
+	element = element_field.strip().capitalize()
+	if element and element in periodic_table:
+		return element
+	name = name_field.ljust(4)
+	if name[0].isalpha():
+		candidate = name[0:2].strip().capitalize()
+		if candidate and candidate in periodic_table:
+			return candidate
+	for char in name:
+		if char.isalpha():
+			return char.upper()
+	return name.strip()
+
+
 def read_input(molecule, ext, options):
 	"""Chooses a Parser based on input molecule format.
 
@@ -117,6 +178,8 @@ def read_input(molecule, ext, options):
 			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext in [".sdf", ".mol"]:
 			mol = SDFParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
+		elif ext in [".pdb", ".ent"]:
+			mol = PDBParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext == "rdkit":
 			mol = RDKitParser(molecule, options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
 		else:
@@ -172,26 +235,29 @@ class DataParser(ABC):
 		pass
 
 	def exclude_atoms(self):
-		"""Remove requested atoms - hydrogens or manually specified atoms"""
-		atoms_to_remove = [False for i in range(len(self.ATOMTYPES))]
-		if self.noH:
-			atoms_to_remove = [True if self.ATOMTYPES[i] == "H" else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
-		if self.exclude:
-			del_atom_list = [int(atom) - 1 for atom in self.exclude.split(",")]
-			atoms_to_remove = [True if i in del_atom_list else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
+		"""Remove requested atoms - hydrogens or manually specified atoms.
 
-		spec_atoms = [self.spec_atom_1 - 1]
-		[spec_atoms.append(atom - 1) for atom in self.spec_atom_2]
+		A specified atom (atom1/atom2) that would be removed is kept as a zero-radius ghost ("Bq")
+		so that translation and alignment still work; the remaining atoms are renumbered.
+		"""
+		n_atoms = len(self.ATOMTYPES)
+		atoms_to_remove = np.zeros(n_atoms, dtype=bool)
+		if self.noH:
+			atoms_to_remove |= self.ATOMTYPES == "H"
+		if self.exclude:
+			indices = self.exclude.split(",") if isinstance(self.exclude, str) else self.exclude
+			atoms_to_remove[[int(atom) - 1 for atom in indices]] = True
+
+		spec_atoms = [self.spec_atom_1 - 1] + [atom - 1 for atom in self.spec_atom_2]
 
 		# if removed atom is one of the spec atoms, replace its atom type with Bq (radii=0)
-		self.ATOMTYPES = np.array(["Bq" if i in spec_atoms and atoms_to_remove[i] else self.ATOMTYPES[i] for i in range(len(atoms_to_remove))])
-		atoms_to_remove = [False if i in spec_atoms and atoms_to_remove[i] else atoms_to_remove[i] for i in range(len(atoms_to_remove))]
+		self.ATOMTYPES = np.array(["Bq" if i in spec_atoms and atoms_to_remove[i] else self.ATOMTYPES[i] for i in range(n_atoms)])
+		atoms_to_remove[spec_atoms] = False
 
-		spec_atoms = [spec_atom - np.count_nonzero(atoms_to_remove[:spec_atom]) for spec_atom in spec_atoms]
-		self.spec_atom_1 = spec_atoms[0] + 1
-		self.spec_atom_2 = [atom + 1 for atom in spec_atoms[1:]]
-		self.ATOMTYPES = self.ATOMTYPES[np.invert(atoms_to_remove)]
-		self.CARTESIANS = self.CARTESIANS[np.invert(atoms_to_remove)]
+		removed_before = np.cumsum(atoms_to_remove) - atoms_to_remove
+		self.spec_atom_1 = int(self.spec_atom_1 - removed_before[self.spec_atom_1 - 1])
+		self.spec_atom_2 = [int(atom - removed_before[atom - 1]) for atom in self.spec_atom_2]
+		self.keep(~atoms_to_remove)
 
 	def keep(self, mask):
 		"""Keep only the atoms where `mask` is True, in all per-atom arrays (ATOMTYPES, CARTESIANS and any METADATA)."""
@@ -375,6 +441,67 @@ class SDFParser(DataParser):
 			atom_type = parts[3]
 			self.ATOMTYPES.append(atom_type)
 			self.CARTESIANS.append([x, y, z])
+
+
+class PDBParser(DataParser):
+	"""Read Cartesians and per-atom residue metadata from a PDB file (ATOM/HETATM records, fixed columns).
+
+	Attributes:
+		METADATA (dict of numpy arrays): record ("ATOM"/"HETATM"), name, resname, chain, resseq (int),
+			icode, element, and resid ("A:45", "A:45A" with an insertion code), all aligned with ATOMTYPES
+		structure_name (str or None): "modelN" for multi-MODEL files, otherwise None
+		n_altloc_dropped (int): atoms skipped because they carry an alternate location other than "A"
+	"""
+
+	def __init__(self, file, input_format, noH, exclude, spec_atom_1, spec_atom_2, structure=None):
+		self._structure = structure
+		self.structure_name = None
+		self.METADATA = {}
+		self.n_altloc_dropped = 0
+		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2, manual_file_lines=True)
+
+	def parse_input(self):
+		"""Parses ATOM/HETATM records of the selected MODEL (default: the first)."""
+		file_lines = self.file_lines
+		structures = _parse_pdb_boundaries(file_lines)
+		idx = self._structure if self._structure is not None else 0
+		if idx >= len(structures):
+			sys.exit(f"  Structure index {idx} out of range (file has {len(structures)} models)")
+		name, start, end = structures[idx]
+		if len(structures) > 1:
+			self.structure_name = name
+
+		meta = {key: [] for key in ("record", "name", "resname", "chain", "resseq", "icode", "element")}
+		for line_number in range(start, end):
+			line = file_lines[line_number]
+			record = line[:6].strip()
+			if record not in ("ATOM", "HETATM"):
+				continue
+			line = line.rstrip("\n").ljust(80)
+			altloc = line[16]
+			if altloc not in (" ", "A"):
+				self.n_altloc_dropped += 1
+				continue
+			try:
+				x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
+				resseq = int(line[22:26])
+			except ValueError:
+				sys.exit(f'  Unable to parse "{self._input}", line {line_number + 1} is not a valid ATOM/HETATM record.')
+			element = _pdb_element(line[12:16], line[76:78])
+			self.ATOMTYPES.append(element)
+			self.CARTESIANS.append([x, y, z])
+			meta["record"].append(record)
+			meta["name"].append(line[12:16].strip())
+			meta["resname"].append(line[17:20].strip())
+			meta["chain"].append(line[21].strip())
+			meta["resseq"].append(resseq)
+			meta["icode"].append(line[26].strip())
+			meta["element"].append(element)
+
+		if not self.ATOMTYPES:
+			sys.exit(f"  No ATOM/HETATM records found in {self._input}")
+		self.METADATA = {key: np.array(values) for key, values in meta.items()}
+		self.METADATA["resid"] = np.array([f"{chain}:{resseq}{icode}" for chain, resseq, icode in zip(meta["chain"], meta["resseq"], meta["icode"])])
 
 
 class cclibParser(DataParser):
