@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "DFT-Based Steric Parameters"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Guilian Luchini" },
     { name = "Toby Patterson" },
@@ -17,11 +17,11 @@ authors = [
 keywords = ["compchem", "steric", "sterimol", "informatics"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
@@ -56,7 +56,7 @@ dbstep = ["data/*.xyz"]
 # ── Ruff ─────────────────────────────────────────────────────────────
 [tool.ruff]
 line-length = 200
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "UP", "B"]
@@ -70,6 +70,7 @@ ignore = [
     "E402",                                    # module-level import order
     "E7",                                      # statement rules
     "B006", "B007",                            # mutable default, unused loop var
+    "B905",                                    # zip() without strict= (py310+)
     "UP010",                                   # unnecessary __future__ imports
     "UP031", "UP032",                          # %-format and .format() → f-string
 ]

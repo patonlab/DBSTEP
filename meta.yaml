@@ -18,12 +18,12 @@ build:
 requirements:
   host:
     - pip
-    - python >=3.9
+    - python >=3.10
     - setuptools >=64
   run:
     - cclib
     - numpy
-    - python >=3.9
+    - python >=3.10
     - scipy
 
 test:

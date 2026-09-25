@@ -3,9 +3,9 @@
 # Python Libraries
 import copy
 import os, sys
+import argparse
 from glob import glob
 import numpy as np
-from optparse import OptionParser
 
 from dbstep import sterics, parse_data, calculator, writer, selection, trajectory
 from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
@@ -585,6 +585,20 @@ def set_options(kwargs):
 	return options
 
 
+def from_rdkit(mol, **kwargs):
+	"""Measure an RDKit molecule that carries a 3D conformer. Accepts the same keyword arguments as dbstep().
+
+	Example:
+		mol = Chem.AddHs(Chem.MolFromSmiles("CC(C)C")); AllChem.EmbedMolecule(mol)
+		result = from_rdkit(mol, atom1=1, atom2=2, sterimol=True, volume=True)
+	"""
+	if isinstance(mol, str):
+		sys.exit("   from_rdkit() expects an RDKit Mol object; pass file names to dbstep() instead")
+	if not hasattr(mol, "GetNumConformers") or mol.GetNumConformers() == 0:
+		sys.exit("   The RDKit molecule has no 3D conformer (embed it first, e.g. AllChem.EmbedMolecule)")
+	return dbstep(mol, **kwargs)
+
+
 def all_residues(file, **kwargs):
 	"""Run one calculation per residue of a PDB file (the Python side of --residue all).
 
@@ -650,55 +664,77 @@ def all_frames(file, frames=None, **kwargs):
 	return run_file(file, options)
 
 
-def main():
-	files = []
-	# get command line inputs. Use -h to list all possible arguments and default values
-	parser = OptionParser(usage="Usage: %prog [options] <input1>.log <input2>.log ...")
-	parser.add_option("--2d", dest="graph", action="store_true", help="[2D sterics] Analyze 2D steric contributions from SMILES input", default=False)
-	parser.add_option("--2d-type", dest="voltype", action="store", default="crippen", choices=["crippen", "mcgowan", "degree"], help="[2D sterics] Atomic volume method: crippen, mcgowan, or degree (default: crippen)")
-	parser.add_option("--atom1", dest="spec_atom_1", action="store", help="Specify the base atom number (default: 1)", default=False, metavar="spec_atom_1")
-	parser.add_option("--atom2", dest="spec_atom_2", action="store", help="Specify the connected atom(s) number(s), e.g. 3 or 3,4 (default: 2)", default=False, metavar="spec_atom_2")
-	parser.add_option("--atom3", dest="atom3", action="store", help="Align a third atom to the positive x direction", default=False)
-	parser.add_option("--pymol", dest="pymol", action="store_true", help="Write PyMOL visualization and xyz output files", default=False)
-	parser.add_option("--debug", dest="debug", action="store_true", help="Debug mode: graph grid points, print extra information", default=False)
-	parser.add_option("--exclude", dest="exclude", action="store", help="Atom indices to ignore, comma-separated with no spaces", default=False, metavar="exclude")
-	parser.add_option("--fg", dest="shared_fg", action="store", default=False, help="[2D sterics] SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
-	parser.add_option("--grid", dest="grid", action="store", help="Grid point spacing in Angstrom (default: 0.05)", default=0.05, type=float, metavar="grid")
-	parser.add_option("--gridsize", dest="gridsize", action="store", help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax", default=False)
-	parser.add_option("--residue", dest="residue", action="store", help="[PDB] Residue to measure, e.g. A:45 (chain:number, insertion code appended) or 45; several separated by commas form one selection", default=False, metavar="residue")
-	parser.add_option("--atom", dest="atom", action="store", help="[PDB] Name of atom1 within the residue (default: CA); --atom2/--atom3 also accept atom names in residue mode (default atom2: CB)", default=False, metavar="name")
-	parser.add_option("--nowater", dest="nowater", action="store_true", help="[PDB] Exclude water molecules", default=False)
-	parser.add_option("--nohet", dest="nohet", action="store_true", help="[PDB] Exclude hetero groups (ligands, ions) other than waters, the selected residue and modified polymer residues", default=False)
-	parser.add_option("--chain", dest="chain", action="store", help="[PDB] Keep only this chain (plus the selected residue)", default=False, metavar="chain")
-	parser.add_option("--exclude-self", dest="exclude_self", action="store_true", help="[PDB] The selected residue occupies no volume: measure only its environment", default=False)
-	parser.add_option("--self-only", dest="self_only", action="store_true", help="[PDB] Keep only the selected residue (same as measuring it extracted to its own file)", default=False)
-	parser.add_option("--frames", dest="frames", action="store", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)", default=False, metavar="frames")
-	parser.add_option("--csv", dest="csv", action="store", help="Write all result rows (one per file/structure/residue/radius) to this CSV file", default=False, metavar="file")
-	parser.add_option("--cutoff", dest="cutoff", action="store", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)", default=False, metavar="cutoff")
-	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
-	parser.add_option("--maxpath", dest="max_path_length", type=int, action="store", default=9, help="[2D sterics] Maximum path length in bonds (default: 9)")
-	parser.add_option("--noH", dest="noH", action="store_true", help="Exclude hydrogen atoms from steric measurements", default=False)
-	parser.add_option("--nometals", dest="no_metals", action="store_true", help="Exclude metal atoms from steric measurements", default=False)
-	parser.add_option("--norot", dest="norot", action="store_true", help="Do not rotate the molecule (use if structures have been pre-aligned)", default=False)
-	parser.add_option("--dp", dest="dp", action="store", type="int", help="Number of decimal places for output values (default: 2)", default=2, metavar="dp")
-	parser.add_option("--pos", dest="pos", action="store_true", help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)", default=False)
-	parser.add_option("--quiet", dest="quiet", action="store_true", help="Suppress all print output", default=False)
-	parser.add_option("--radii", dest="radii", action="store", choices=["bondi", "charry-tkatchenko"], help="VDW radii set: bondi or charry-tkatchenko (default: bondi)", default="bondi")
-	parser.add_option("-r", dest="radius", action="store", help="Radius of sphere in Angstrom (default: 3.5)", default=3.5, type=float, metavar="radius")
-	parser.add_option("--sambvca", dest="sambvca", action="store_true", help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms", default=False)
-	parser.add_option("--scalevdw", dest="SCALE_VDW", action="store", help="Scaling factor for VDW radii (default: 1.0)", type=float, default=1.0, metavar="SCALE_VDW")
-	parser.add_option("--scan", dest="scan", action="store", help="Scan over a range of radii, format: rmin:rmax:interval", default=False, metavar="scan")
-	parser.add_option("-s", "--sterimol", dest="sterimol", action="store_true", help="Compute Sterimol parameters (L, Bmin, Bmax)", default=False)
-	parser.add_option("--measure", dest="measure", action="store", choices=["classic", "grid"], help="Sterimol method: classic (Verloop, default) or grid-based", default="classic", metavar="measure")
-	parser.add_option("--surface", dest="surface", action="store", choices=["vdw", "density"], help="Surface type: Bondi VDW radii or density cube file (default: vdw)", default="vdw", metavar="surface")
-	parser.add_option("-t", "--tensor", dest="tensor", action="store_true", help="Return 3D binary occupancy tensor (requires --atom1, --atom2, --atom3)", default=False)
-	parser.add_option("--save", dest="save", action="store_true", help="Save tensor to .npy file (use with --tensor)", default=False)
-	parser.add_option("-b", "--vbur", dest="volume", action="store_true", help="Calculate buried volume of input molecule", default=False)
-	parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Print verbose output", default=False)
-	parser.add_option("--viss", dest="viss", action="store_true", help="Visualize Sterimol Bmin and Bmax in PyMOL as circle outlines", default=False)
-	parser.add_option("--visv", dest="visv", action="store", choices=["circle", "sphere"], help="Visualize volume in PyMOL as circle or sphere (default: circle)", default="circle")
-	parser.add_option("--vshell", dest="vshell", action="store", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius", default=False, type=float, metavar="width")
-	(options, args) = parser.parse_args()
+def build_parser():
+	"""Command line parser for the dbstep entry point."""
+	parser = argparse.ArgumentParser(
+		prog="dbstep",
+		usage="%(prog)s [options] file1 [file2 ...]",
+		description="DBSTEP: DFT-based steric parameters. Computes Sterimol parameters (L, Bmin, Bmax), percent buried volume, Sterimol2Vec and Vol2Vec descriptors from structure files.",
+		allow_abbrev=False,
+	)
+	parser.add_argument("files", nargs="*", metavar="file", help="Input structure file(s): xyz, sdf/mol, pdb, Gaussian com/gjf or cube, or any cclib-supported output; shell wildcards are expanded")
+
+	measure = parser.add_argument_group("What to compute")
+	measure.add_argument("-s", "--sterimol", dest="sterimol", action="store_true", default=False, help="Compute Sterimol parameters (L, Bmin, Bmax)")
+	measure.add_argument("-b", "--vbur", dest="volume", action="store_true", default=False, help="Calculate buried volume of input molecule")
+	measure.add_argument("-r", dest="radius", type=float, default=3.5, metavar="radius", help="Radius of sphere in Angstrom (default: 3.5)")
+	measure.add_argument("--scan", dest="scan", default=False, metavar="scan", help="Scan over a range of radii, format: rmin:rmax:interval")
+	measure.add_argument("--vshell", dest="vshell", type=float, default=False, metavar="width", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius")
+	measure.add_argument("--measure", dest="measure", choices=["classic", "grid"], default="classic", metavar="measure", help="Sterimol method: classic (Verloop, default) or grid-based")
+	measure.add_argument("--pos", dest="pos", action="store_true", default=False, help="Measure Sterimol parameters in positive direction (from atom1 toward atom2)")
+	measure.add_argument("-t", "--tensor", dest="tensor", action="store_true", default=False, help="Return 3D binary occupancy tensor (requires --atom1, --atom2, --atom3)")
+	measure.add_argument("--save", dest="save", action="store_true", default=False, help="Save tensor to .npy file (use with --tensor)")
+
+	atoms = parser.add_argument_group("Reference atoms and atom selection")
+	atoms.add_argument("--atom1", dest="spec_atom_1", default=False, metavar="spec_atom_1", help="Specify the base atom number (default: 1)")
+	atoms.add_argument("--atom2", dest="spec_atom_2", default=False, metavar="spec_atom_2", help="Specify the connected atom(s) number(s), e.g. 3 or 3,4 (default: 2)")
+	atoms.add_argument("--atom3", dest="atom3", default=False, help="Align a third atom to the positive x direction")
+	atoms.add_argument("--exclude", dest="exclude", default=False, metavar="exclude", help="Atom indices to ignore, comma-separated with no spaces")
+	atoms.add_argument("--noH", dest="noH", action="store_true", default=False, help="Exclude hydrogen atoms from steric measurements")
+	atoms.add_argument("--nometals", dest="no_metals", action="store_true", default=False, help="Exclude metal atoms from steric measurements")
+	atoms.add_argument("--norot", dest="norot", action="store_true", default=False, help="Do not rotate the molecule (use if structures have been pre-aligned)")
+	atoms.add_argument("--cutoff", dest="cutoff", default=False, metavar="cutoff", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)")
+
+	protein = parser.add_argument_group("Proteins (PDB input)")
+	protein.add_argument("--residue", dest="residue", default=False, metavar="residue", help="Residue to measure, e.g. A:45 (chain:number, insertion code appended) or 45; several separated by commas form one selection; 'all' runs every residue")
+	protein.add_argument("--atom", dest="atom", default=False, metavar="name", help="Name of atom1 within the residue (default: CA); --atom2/--atom3 also accept atom names in residue mode (default atom2: CB)")
+	protein.add_argument("--nowater", dest="nowater", action="store_true", default=False, help="Exclude water molecules")
+	protein.add_argument("--nohet", dest="nohet", action="store_true", default=False, help="Exclude hetero groups (ligands, ions) other than waters, the selected residue and modified polymer residues")
+	protein.add_argument("--chain", dest="chain", default=False, metavar="chain", help="Keep only this chain (plus the selected residue)")
+	protein.add_argument("--exclude-self", dest="exclude_self", action="store_true", default=False, help="The selected residue occupies no volume: measure only its environment")
+	protein.add_argument("--self-only", dest="self_only", action="store_true", default=False, help="Keep only the selected residue (same as measuring it extracted to its own file)")
+
+	frames = parser.add_argument_group("Trajectories and output")
+	frames.add_argument("--frames", dest="frames", default=False, metavar="frames", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)")
+	frames.add_argument("--csv", dest="csv", default=False, metavar="file", help="Write all result rows (one per file/frame/residue/radius) to this CSV file")
+	frames.add_argument("--dp", dest="dp", type=int, default=2, metavar="dp", help="Number of decimal places for output values (default: 2)")
+	frames.add_argument("--pymol", dest="pymol", action="store_true", default=False, help="Write PyMOL visualization and xyz output files")
+	frames.add_argument("--visv", dest="visv", choices=["circle", "sphere"], default="circle", help="Visualize volume in PyMOL as circle or sphere (default: circle)")
+	frames.add_argument("--viss", dest="viss", action="store_true", default=False, help="Visualize Sterimol Bmin and Bmax in PyMOL as circle outlines")
+	frames.add_argument("-v", "--verbose", dest="verbose", action="store_true", default=False, help="Print verbose output")
+	frames.add_argument("--quiet", dest="quiet", action="store_true", default=False, help="Suppress all print output")
+	frames.add_argument("--debug", dest="debug", action="store_true", default=False, help="Debug mode: graph grid points, print extra information")
+
+	surface = parser.add_argument_group("Surface and grid")
+	surface.add_argument("--radii", dest="radii", choices=["bondi", "charry-tkatchenko"], default="bondi", help="VDW radii set: bondi or charry-tkatchenko (default: bondi)")
+	surface.add_argument("--scalevdw", dest="SCALE_VDW", type=float, default=1.0, metavar="SCALE_VDW", help="Scaling factor for VDW radii (default: 1.0)")
+	surface.add_argument("--sambvca", dest="sambvca", action="store_true", default=False, help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms")
+	surface.add_argument("--surface", dest="surface", choices=["vdw", "density"], default="vdw", metavar="surface", help="Surface type: Bondi VDW radii or density cube file (default: vdw)")
+	surface.add_argument("--isoval", dest="isoval", type=float, default=0.0016, metavar="isoval", help="Density isovalue cutoff (default: 0.0016)")
+	surface.add_argument("--grid", dest="grid", type=float, default=0.05, metavar="grid", help="Grid point spacing in Angstrom (default: 0.05)")
+	surface.add_argument("--gridsize", dest="gridsize", default=False, help="Manual grid dimensions: xmin,xmax:ymin,ymax:zmin,zmax")
+
+	graph = parser.add_argument_group("2D graph-based sterics (requires RDKit and pandas)")
+	graph.add_argument("--2d", dest="graph", action="store_true", default=False, help="Analyze 2D steric contributions from SMILES input")
+	graph.add_argument("--2d-type", dest="voltype", choices=["crippen", "mcgowan", "degree"], default="crippen", help="Atomic volume method: crippen, mcgowan, or degree (default: crippen)")
+	graph.add_argument("--fg", dest="shared_fg", default=False, help="SMILES pattern of shared functional group to define the origin, e.g. 'C(O)=O'")
+	graph.add_argument("--maxpath", dest="max_path_length", type=int, default=9, help="Maximum path length in bonds (default: 9)")
+	return parser
+
+
+def main(argv=None):
+	parser = build_parser()
+	options = parser.parse_args(argv)
 	# index of the structure within a multi-structure file (set per structure in the loop below)
 	options.structure = None
 
@@ -719,17 +755,15 @@ def main():
 	# make sure upper/lower case doesn't matter
 	options.surface = options.surface.lower()
 
-	# Get input files from commandline
-	if len(sys.argv) > 1:
-		for elem in sys.argv[1:]:
-			try:
-				for file in glob(elem):
-					files.append(file)
-			except IndexError:
-				pass
-
-	if len(files) == 0:
-		sys.exit("    Please specify a valid input file and try again.")
+	# Expand input files (shell wildcards that reached us unexpanded are globbed here)
+	files = []
+	for pattern in options.files:
+		matches = sorted(glob(pattern)) if any(ch in pattern for ch in "*?[") else ([pattern] if os.path.exists(pattern) else [])
+		if not matches:
+			parser.error("input file not found: {}".format(pattern))
+		files.extend(matches)
+	if not files:
+		parser.error("please specify at least one input file")
 
 	# Auto-detect density surface from cube file input
 	if any(f.endswith(".cube") for f in files):

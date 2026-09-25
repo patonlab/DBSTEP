@@ -48,7 +48,7 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
     * `--2d-type` - The type of steric contributions to use. Options include Crippen molar refractivities or McGowan volume
 
 ## Requirements & Dependencies
-* Python 3.9 or greater
+* Python 3.10 or greater
 * Non-standard dependencies will be installed along with DBSTEP, but include [numpy](https://numpy.org/), [scipy](https://www.scipy.org/), and [cclib](https://cclib.github.io/).
 
 ## Install
