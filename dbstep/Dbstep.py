@@ -7,7 +7,7 @@ from glob import glob
 import numpy as np
 from optparse import OptionParser
 
-from dbstep import sterics, parse_data, calculator, writer, selection
+from dbstep import sterics, parse_data, calculator, writer, selection, trajectory
 from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
 
 class dbstep:
@@ -20,8 +20,8 @@ class dbstep:
 			atom1, atom2 (the reference atom indices as given in the input file),
 			cutoff, n_atoms_total, n_atoms_kept (radial crop, see --cutoff),
 			residue_label (PDB residue mode, e.g. "A:45 LEU"),
-			results (list of dicts, one per radius: file, structure, residue, atom1, atom2, radius,
-				mol_vol, percent_vbur, percent_sbur, bmin, bmax, L; also what --csv writes),
+			results (list of dicts, one per radius: file, frame, structure, residue, atom1, atom2,
+				radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L; also what --csv writes),
 			atoms, coords, spec_atoms (the structure actually measured, after selection and crop,
 				in input orientation; spec_atoms are 1-indexed into it)
 
@@ -407,6 +407,7 @@ class dbstep:
 			# Record the result row (also written by --csv)
 			self.results.append({
 				"file": plain_name,
+				"frame": structure_idx if structure_idx is not None else "",
 				"structure": structure_label,
 				"residue": self.residue_label or "",
 				"atom1": self.atom1,
@@ -558,6 +559,7 @@ def set_options(kwargs):
 		"self_only": ["self_only", False],
 		"chain": ["chain", False],
 		"csv": ["csv", False],
+		"frames": ["frames", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -613,6 +615,41 @@ def all_residues(file, **kwargs):
 	return runs
 
 
+def run_file(file, options):
+	"""All runs for one input file: every selected frame (see --frames) times every residue for --residue all.
+
+	Returns:
+		list of dbstep objects in frame, then residue, order
+	"""
+	runs = []
+	previous = options.structure
+	try:
+		for frame in trajectory.frame_indices(file, options):
+			options.structure = frame
+			if options.residue and str(options.residue).lower() == "all":
+				runs.extend(all_residues(file, options=options))
+			else:
+				runs.append(dbstep(file, options=options))
+	finally:
+		options.structure = previous
+	return runs
+
+
+def all_frames(file, frames=None, **kwargs):
+	"""Run every selected frame of a multi-structure file (multi-frame xyz, multi-record sdf, multi-MODEL pdb).
+
+	`frames` follows --frames ('start:stop:stride', 0-based Python slice rules, or a list of indices;
+	default all). Accepts the same keyword arguments as dbstep(), including residue="all".
+
+	Returns:
+		list of dbstep objects, one per frame (times residues for residue="all")
+	"""
+	options = kwargs["options"] if "options" in kwargs else set_options(kwargs)
+	if frames is not None:
+		options.frames = frames
+	return run_file(file, options)
+
+
 def main():
 	files = []
 	# get command line inputs. Use -h to list all possible arguments and default values
@@ -635,6 +672,7 @@ def main():
 	parser.add_option("--chain", dest="chain", action="store", help="[PDB] Keep only this chain (plus the selected residue)", default=False, metavar="chain")
 	parser.add_option("--exclude-self", dest="exclude_self", action="store_true", help="[PDB] The selected residue occupies no volume: measure only its environment", default=False)
 	parser.add_option("--self-only", dest="self_only", action="store_true", help="[PDB] Keep only the selected residue (same as measuring it extracted to its own file)", default=False)
+	parser.add_option("--frames", dest="frames", action="store", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)", default=False, metavar="frames")
 	parser.add_option("--csv", dest="csv", action="store", help="Write all result rows (one per file/structure/residue/radius) to this CSV file", default=False, metavar="file")
 	parser.add_option("--cutoff", dest="cutoff", action="store", help="Ignore atoms farther than this distance (Angstrom) from atom1; 'auto' keeps exactly the atoms that can occupy the buried-volume sphere. Keeps the grid small for large systems (default: off)", default=False, metavar="cutoff")
 	parser.add_option("--isoval", dest="isoval", action="store", help="Density isovalue cutoff (default: 0.0016)", type="float", default=0.0016, metavar="isoval")
@@ -728,6 +766,8 @@ def main():
 					print("   PDB residue mode: measuring residue {}{}".format(options.residue, ", excluding " + " and ".join(filters) if filters else ""))
 					if options.self_only:
 						print("   Only the selected residue is kept (--self-only)")
+				if options.frames:
+					print("   Frames {} of each multi-structure file will be run".format(options.frames))
 				if options.cutoff or options.residue:
 					cutoff = options.cutoff if options.cutoff else "auto"
 					print("   Atoms farther than {} from atom1 are ignored (--cutoff)".format("the auto cutoff" if str(cutoff).lower() == "auto" else "{} Angstrom".format(cutoff)))
@@ -750,18 +790,8 @@ def main():
 			vec_df[numeric_cols] = vec_df[numeric_cols].round(2)
 			vec_df.to_csv(os.path.splitext(file)[0] + "_2d_output.csv", index=False)
 		else:
-			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per structure
-			_, ext = os.path.splitext(file)
-			counters = {".xyz": parse_data.get_xyz_structures, ".sdf": parse_data.get_sdf_structures, ".mol": parse_data.get_sdf_structures,
-						".pdb": parse_data.get_pdb_models, ".ent": parse_data.get_pdb_models}
-			n_structures = len(counters[ext](file)) if ext in counters else 1
-			for idx in (range(n_structures) if n_structures > 1 else [None]):
-				options.structure = idx
-				if options.residue and str(options.residue).lower() == "all":
-					runs.extend(all_residues(file, options=options))
-				else:
-					runs.append(dbstep(file, options=options))
-			options.structure = None
+			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per selected frame
+			runs.extend(run_file(file, options))
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))

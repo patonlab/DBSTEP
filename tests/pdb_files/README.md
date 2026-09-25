@@ -6,3 +6,6 @@
 - `ala5.pdb` — penta-alanine with all hydrogens (53 atoms), two waters and a sodium ion, generated
   by `make_ala5.py` with RDKit (embedding seed 7, MMFF-optimised). Small enough that a grid over the
   whole molecule is feasible, which the crop-invariance tests rely on.
+- `ala5_traj.pdb` — 10 MODELs derived from `ala5.pdb` by `make_ala5_traj.py`: frame k is translated by
+  0.7·k Å along x, and the first water moves from 4.8 to 3.0 Å from CA of residue 3, so %V_bur around
+  A:3 rises monotonically with the frame index unless `--nowater` is used.

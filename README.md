@@ -103,7 +103,17 @@ With a PDB file you can pick a residue and atoms by name instead of file indices
 * Crystal structures usually lack hydrogens; results differ from a protonated model. `--sambvca` (heavy atoms only, Bondi × 1.17) is a consistent choice for raw PDB files
 
 * `--residue all` runs every polymer residue in turn (waters and ligands are skipped, modified residues such as MSE are included; combine with `--chain`)
-* `--csv results.csv` writes one row per file, structure, residue and radius with the columns `file, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
+* `--csv results.csv` writes one row per file, frame, residue and radius with the columns `file, frame, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
+
+### Trajectories
+
+Multi-frame `.xyz`, multi-record `.sdf` and multi-MODEL `.pdb` files are trajectories: every frame is measured in turn (the neighbourhood crop is recomputed per frame, so frames cost the same as single structures). `--frames start:stop:stride` selects frames with Python slice rules on the 0-based index, e.g. `--frames 0:1000:10` or `--frames ::5`, and `--csv` collects the time series:
+
+```
+dbstep md_frames.pdb --residue A:45 --vbur --nowater --frames ::10 --csv vbur_A45.csv
+```
+
+From Python, `db.all_frames("md_frames.pdb", frames="::10", residue="A:45", volume=True, nowater=True)` returns one object per frame; the `frame` and `structure` columns of `results` identify it. Binary trajectory formats (DCD, XTC, ...) are not read yet; convert to multi-MODEL PDB or multi-frame XYZ first.
 
 From Python: `db.dbstep("1a8o.pdb", residue="A:186", atom="CA", atom2="CB", volume=True, nowater=True, exclude_self=True)`; the object also exposes `atoms`, `coords` and `metadata` for the atoms that were actually measured, and `results`, the list of row dictionaries that `--csv` writes. `db.all_residues("1a8o.pdb", volume=True, nowater=True)` returns one such object per residue.
 
