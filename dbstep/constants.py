@@ -449,3 +449,50 @@ STANDARD_AMINO_ACIDS = {
 	"ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE",
 	"LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
 }
+
+# Sterimol (Verloop) CPK radii by Sterimol atom type, in Angstrom, as tabulated in the original Fortran
+# program and the patonlab/sterimol Python port [Verloop, Hoogenstraaten, Tipker, Drug Design Vol. VII, 1976]
+cpk = {
+	"C": 1.50,  # sp3 carbon
+	"C2": 1.60,
+	"C3": 1.60,  # sp carbon
+	"C4": 1.50,
+	"C5/N5": 1.70,
+	"C6/N6": 1.70,  # aromatic / planar carbon and nitrogen
+	"C7": 1.70,
+	"C8": 1.50,
+	"H": 1.00,
+	"N": 1.50,  # tetrahedral nitrogen
+	"C66": 1.70,
+	"N4": 1.45,
+	"O": 1.35,  # single-bonded oxygen
+	"O2": 1.35,  # double-bonded oxygen
+	"P": 1.40,
+	"S": 1.70,  # divalent sulfur
+	"S1": 1.00,  # octahedral sulfur
+	"F": 1.35,
+	"C1": 1.80,  # chlorine
+	"S4": 1.40,  # tetrahedral sulfur
+	"B1": 1.95,  # bromine
+	"I": 2.15,
+	"Bq": 0.00,
+}
+
+# Largest CPK radius an element can be assigned (used to bound the auto cutoff before atom types are known)
+cpk_upper_bound = {"H": 1.00, "C": 1.70, "N": 1.70, "O": 1.35, "F": 1.35, "P": 1.40, "S": 1.70, "Cl": 1.80, "Br": 1.95, "I": 2.15, "Bq": 0.00}
+
+# Covalent radii used for DFT-D3 coordination numbers [Pyykko & Atsumi, Chem. Eur. J. 2009, 15, 188-197],
+# values for metals decreased by 10 %, as in Grimme's DFT-D3 (H to Pu)
+_covalent_list = [
+	0.32, 0.46, 1.20, 0.94, 0.77, 0.75, 0.71, 0.63, 0.64, 0.67,
+	1.40, 1.25, 1.13, 1.04, 1.10, 1.02, 0.99, 0.96, 1.76, 1.54,
+	1.33, 1.22, 1.21, 1.10, 1.07, 1.04, 1.00, 0.99, 1.01, 1.09,
+	1.12, 1.09, 1.15, 1.10, 1.14, 1.17, 1.89, 1.67, 1.47, 1.39,
+	1.32, 1.24, 1.15, 1.13, 1.13, 1.08, 1.15, 1.23, 1.28, 1.26,
+	1.26, 1.23, 1.32, 1.31, 2.09, 1.76, 1.62, 1.47, 1.58, 1.57,
+	1.56, 1.55, 1.51, 1.52, 1.51, 1.50, 1.49, 1.49, 1.48, 1.53,
+	1.46, 1.37, 1.31, 1.23, 1.18, 1.16, 1.11, 1.12, 1.13, 1.32,
+	1.30, 1.30, 1.36, 1.31, 1.38, 1.42, 2.01, 1.81, 1.67, 1.58,
+	1.52, 1.53, 1.54, 1.55,
+]
+covalent = {periodic_table[i + 1]: r for i, r in enumerate(_covalent_list)}

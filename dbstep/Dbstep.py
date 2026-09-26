@@ -8,7 +8,8 @@ from glob import glob
 import numpy as np
 
 from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble
-from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
+from dbstep.constants import periodic_table, metals
+from dbstep import radii as radii_sets
 
 class dbstep:
 	"""
@@ -222,13 +223,12 @@ class dbstep:
 		x_min = x_max = y_min = y_max = z_min = z_max = 0.0
 
 		if options.surface == "vdw":
-			# Select radii set based on options
-			radii_dict = charry_tkatchenko if options.radii == "charry-tkatchenko" else bondi
+			# Select radii set based on options (CPK radii need the Sterimol atom types attached at parse time)
+			radii_dict = radii_sets.radii_table(options.radii)
 			for atom in mol.ATOMTYPES:
 				if atom not in periodic_table and atom not in radii_dict:
 					sys.exit("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: " + str(atom))
-			mol.RADII = [radii_dict.get(atom, 2.0) for atom in mol.ATOMTYPES]
-			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
+			mol.RADII = radii_sets.atom_radii(mol, options) * options.SCALE_VDW
 
 			# Translate molecule to place atom1 at the origin
 			if options.sterimol or options.volume:
@@ -813,7 +813,7 @@ def build_parser():
 	frames.add_argument("--debug", dest="debug", action="store_true", default=False, help="Debug mode: graph grid points, print extra information")
 
 	surface = parser.add_argument_group("Surface and grid")
-	surface.add_argument("--radii", dest="radii", choices=["bondi", "charry-tkatchenko"], default="bondi", help="VDW radii set: bondi or charry-tkatchenko (default: bondi)")
+	surface.add_argument("--radii", dest="radii", choices=list(radii_sets.RADII_SETS), default="bondi", help="VDW radii set: bondi, charry-tkatchenko or cpk (Sterimol atom-type radii of the original Verloop program; default: bondi)")
 	surface.add_argument("--scalevdw", dest="SCALE_VDW", type=float, default=1.0, metavar="SCALE_VDW", help="Scaling factor for VDW radii (default: 1.0)")
 	surface.add_argument("--sambvca", dest="sambvca", action="store_true", default=False, help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms")
 	surface.add_argument("--surface", dest="surface", choices=["vdw", "density"], default="vdw", metavar="surface", help="Surface type: Bondi VDW radii or density cube file (default: vdw)")
@@ -891,8 +891,7 @@ def main(argv=None):
 				print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
 			if options.surface == "vdw":
 				print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
-				radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
-				print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
+				print("   {} atomic radii will be scaled by {}".format(radii_sets.radii_label(options.radii), options.SCALE_VDW))
 				print("   Hydrogen atoms are {}".format("excluded" if options.noH else "included"))
 				if options.residue:
 					filters = [name for flag, name in ((options.nowater, "waters"), (options.nohet, "hetero groups"), (options.exclude_self, "the residue itself")) if flag]

@@ -175,17 +175,25 @@ def read_input(molecule, ext, options):
 		mol = CubeParser(molecule, "cube")
 	else:
 		structure = getattr(options, 'structure', None)
+		# parse the complete structure first: CPK atom types depend on every neighbour, so they are
+		# assigned before --noH / --exclude remove atoms
 		if ext in [".xyz", ".com", ".gjf"]:
-			mol = XYZParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
+			mol = XYZParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext in [".sdf", ".mol"]:
-			mol = SDFParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
+			mol = SDFParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext in [".pdb", ".ent"]:
-			mol = PDBParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2, structure=structure)
+			mol = PDBParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext == "rdkit":
-			mol = RDKitParser(molecule, options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
+			mol = RDKitParser(molecule, False, False, options.spec_atom_1, options.spec_atom_2)
 		else:
-			mol = cclibParser(molecule, ext[1:], options.noH, options.exclude, options.spec_atom_1, options.spec_atom_2)
+			mol = cclibParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2)
+		if getattr(options, "radii", "bondi") == "cpk":
+			from dbstep import radii
+
+			radii.attach_cpk_types(mol)
 		if options.noH or options.exclude:
+			mol.noH, mol.exclude = options.noH, options.exclude
+			mol.exclude_atoms()
 			options.spec_atom_1 = mol.spec_atom_1
 			options.spec_atom_2 = mol.spec_atom_2
 	return mol

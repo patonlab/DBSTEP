@@ -17,7 +17,8 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
   - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, energies from SDF data fields or xyz comments)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
-  - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
+  - `constants.py` — Chemical constants (periodic table, Bondi/Charry-Tkatchenko/CPK radii, covalent radii, metals)
+  - `radii.py` — Radius assignment per set; CPK atom typing from DFT-D3 coordination numbers (`--radii cpk`)
   - `graph.py` — 2D graph-based steric contribution calculations
   - `writer.py` — Output formatting and file writing (PyMOL scripts, xyz, CSV results)
   - `__init__.py` — Package init, `__version__`, `__all__`
@@ -29,6 +30,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_parse_data.py` — Input parsing tests (xyz, multi-structure xyz/sdf, cube)
   - `test_cli.py` — End-to-end tests of the `python -m dbstep` command line
   - `test_cube.py` — Density-based (cube file) buried volume and Sterimol tests
+  - `test_cpk.py` — `--radii cpk`: Fortran benchmark values, atom typing rules, crop invariance
   - `test_crop.py` — `--cutoff` radial crop: exactness of %V_bur, renumbering, large-cluster equivalence
   - `test_pdb_parser.py` — PDB parsing: columns, element inference, metadata, altlocs, MODEL blocks
   - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics

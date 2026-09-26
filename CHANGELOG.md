@@ -13,6 +13,7 @@ All notable changes to DBSTEP. Versions follow [semantic versioning](https://sem
 - `--residue all --atom1 N` uses the named atom to pick residues (previously only `--atom` was consulted); a default atom2 can no longer coincide with atom1 (e.g. `--atom CB`), and an explicit coincidence is an error.
 
 ### Added
+- `--radii cpk`: the CPK radii of Verloop's original Sterimol program, with atom types (sp3/aromatic carbon, single/double-bonded oxygen, ...) assigned from DFT-D3 style coordination numbers, so the earlier `patonlab/sterimol` code is no longer needed. Classic Sterimol values with this set match the original Fortran program to 0.01 Å on the benchmark set.
 - `path` column (the input path as given) in `results`, the CSV and the contributions CSV, so same-named files from different folders stay distinguishable.
 
 ## 2.1.0 — 2026-09-25
