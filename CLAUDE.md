@@ -43,7 +43,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
 - `examples/` — Jupyter notebook examples (`proteins_and_conformers.ipynb` is kept runnable by `tests/test_examples.py`; `carbene_sterics.ipynb` predates 2.0)
 - `analysis/` — Standalone analysis scripts and data behind the paper (not part of the package; linted by ruff; extra deps via `uv sync --group analysis`)
 - `reference/` — Reference data
-- `docs/plans/` — Design and implementation plans (e.g. proteins and trajectories for 2.0)
+- `docs/plans/` — Design and implementation plans (proteins and trajectories for 2.0; void/pocket featurization design notes)
 - `.github/workflows/ci.yml` — GitHub Actions CI (test, lint)
 - `.github/workflows/release.yml` — Publishes to PyPI when a GitHub Release is published
 - `.github/dependabot.yml` — Monthly grouped updates for uv.lock and GitHub Actions
