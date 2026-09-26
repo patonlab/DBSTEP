@@ -92,7 +92,7 @@ def test_cli_prints_and_writes_contributions(tmp_path):
 	assert f"Residue contributions written to {contributions}" in text
 	with open(contributions, newline="") as f:
 		rows = list(csv.DictReader(f))
-	assert list(rows[0].keys()) == ["file", "frame", "structure", "residue", "radius", "contributor", "percent_vbur"]
+	assert list(rows[0].keys()) == ["file", "frame", "structure", "residue", "radius", "contributor", "percent_vbur", "path"]
 	assert {row["contributor"] for row in rows} >= {"A:3 ALA", "A:2 ALA", "A:4 ALA", "A:101 HOH"}
 	table = float(re.search(r"ala5\.pdb A:3 ALA\s+CA\s+3\.50\s+[\d.]+\s+([\d.]+)", text).group(1))
 	assert sum(float(row["percent_vbur"]) for row in rows) == pytest.approx(table, abs=0.006)

@@ -43,7 +43,7 @@ def parse_frames(spec, n_frames):
 	Returns:
 		list of 0-based frame indices in the order given
 	"""
-	if spec in (False, None, ""):
+	if spec is False or spec is None or (isinstance(spec, str) and spec.strip() == ""):
 		return list(range(n_frames))
 	tokens = [str(t).strip() for t in spec] if isinstance(spec, (list, tuple)) else [t.strip() for t in str(spec).split(",")]
 	indices = []
@@ -75,6 +75,7 @@ def frame_indices(file, options):
 	"""Frames to run for a file: a list of 0-based indices, or [None] for a single-structure file without --frames."""
 	n_frames = count_frames(file)
 	frames = getattr(options, "frames", False)
-	if n_frames == 1 and not frames:
+	unset = frames is False or frames is None or (isinstance(frames, str) and frames.strip() == "")
+	if n_frames == 1 and unset:
 		return [None]
 	return parse_frames(frames, n_frames)

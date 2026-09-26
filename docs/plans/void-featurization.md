@@ -39,10 +39,12 @@ describe the shape of the void as a whole.
 
 ### Boundary
 
-- **Sphere-bounded (consistent with %V_bur):** empty voxels within radius R that are connected
-  to the centre by a flood fill through empty space (`scipy.ndimage.label`). Disconnected gaps
-  behind residues are excluded. Free volume is the complement of what `--exclude-self --vbur`
-  reports today.
+- **Sphere-bounded:** empty voxels within radius R that are connected to the centre by a flood
+  fill through empty space (`scipy.ndimage.label`). Disconnected gaps behind residues are
+  excluded, so this is the *connected-pocket* volume. It is smaller than or equal to the plain
+  free volume, the complement of what `--exclude-self --vbur` reports today, which counts every
+  empty voxel in the sphere including gaps the centre cannot reach. Report both: their difference
+  is itself informative (buried voids near the site).
 - **Morphologically closed (fpocket-like):** dilate the occupancy with a large probe (about
   8 Å), erode back, which seals the mouth; then flood-fill from the centre inside the sealed
   envelope. Pocket volume becomes independent of R.

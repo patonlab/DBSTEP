@@ -123,6 +123,18 @@ class dbstep:
 						print("   Cutoff {:.2f} Ang around atom1: keeping {} of {} atoms".format(self.cutoff, self.n_atoms_kept, self.n_atoms_total))
 			elif not options.quiet:
 				print("   Note: --cutoff is ignored for density cube input (the grid comes from the cube file)")
+		# --nometals: drop metal atoms through the same ghost/renumber path as --noH, so spec atoms
+		# and per-atom metadata stay consistent (a metal chosen as atom1 becomes a zero-radius ghost)
+		if options.no_metals and options.surface == "vdw":
+			is_metal = np.isin(mol.ATOMTYPES, list(metals))
+			if is_metal.any():
+				spec = [options.spec_atom_1] + list(options.spec_atom_2) + ([int(options.atom3)] if options.atom3 else [])
+				new_spec = mol.exclude_mask(is_metal, spec)
+				options.spec_atom_1, options.spec_atom_2 = new_spec[0], new_spec[1:1 + len(options.spec_atom_2)]
+				if options.atom3:
+					options.atom3 = new_spec[-1]
+				if options.verbose:
+					print("   Excluded {} metal atom(s) (--nometals)".format(int(is_metal.sum())))
 		# the structure actually measured (after selection and crop), before translation/rotation
 		self.atoms, self.coords = np.array(mol.ATOMTYPES), np.array(mol.CARTESIANS)
 		self.spec_atoms = [options.spec_atom_1] + list(options.spec_atom_2)
@@ -162,6 +174,11 @@ class dbstep:
 			}
 			if options.save:
 				save_base = name if isinstance(name, str) else "tensor"
+				structure_idx = getattr(options, "structure", None)
+				if structure_idx is not None:
+					save_base += "_frame{}".format(structure_idx)
+				if self.residue_label:
+					save_base += "_" + self.residue_label.replace(":", "").replace(" ", "_")
 				np.save(save_base + "_tensor.npy", self.tensor)
 				if not options.quiet:
 					print("   Tensor saved to {}_tensor.npy (shape: {})".format(save_base, self.tensor.shape))
@@ -216,14 +233,6 @@ class dbstep:
 			# Translate molecule to place atom1 at the origin
 			if options.sterimol or options.volume:
 				mol.CARTESIANS = calculator.translate_mol(mol, options, origin)
-
-			# Remove metals when --nometals is specified (iterate in reverse to avoid index shifting)
-			if options.no_metals:
-				for i in range(len(mol.ATOMTYPES) - 1, -1, -1):
-					if mol.ATOMTYPES[i] in metals:
-						mol.ATOMTYPES = np.delete(mol.ATOMTYPES, i)
-						mol.CARTESIANS = np.delete(mol.CARTESIANS, i, axis=0)
-						mol.RADII = np.delete(mol.RADII, i)
 
 			# Determine grid bounds from molecule extent
 			[x_min, x_max, y_min, y_max, z_min, z_max, xyz_max] = sterics.max_dim(mol.CARTESIANS, mol.RADII, options)
@@ -399,6 +408,8 @@ class dbstep:
 			if options.volume:
 				if rad == 0:
 					bur_vol, bur_shell = 0.0, 0.0
+					if options.decompose:
+						contributions_list.append({})
 				else:
 					if options.vshell:
 						strip_width = options.vshell
@@ -423,6 +434,7 @@ class dbstep:
 			# Record the result row (also written by --csv)
 			self.results.append({
 				"file": plain_name,
+				"path": file if isinstance(file, str) else "",
 				"frame": structure_idx if structure_idx is not None else "",
 				"structure": structure_label,
 				"residue": self.residue_label or "",
@@ -627,7 +639,7 @@ def contribution_rows(run):
 	for result, contributions in zip(run.results, per_radius):
 		for label, percent in contributions.items():
 			rows.append({"file": result["file"], "frame": result["frame"], "structure": result["structure"], "residue": result["residue"],
-						 "radius": result["radius"], "contributor": label, "percent_vbur": percent})
+						 "radius": result["radius"], "contributor": label, "percent_vbur": percent, "path": result.get("path", "")})
 	return rows
 
 
@@ -736,9 +748,13 @@ def all_frames(file, frames=None, **kwargs):
 		list of dbstep objects, one per frame (times residues for residue="all")
 	"""
 	options = kwargs["options"] if "options" in kwargs else set_options(kwargs)
+	previous = getattr(options, "frames", False)
 	if frames is not None:
 		options.frames = frames
-	return run_file(file, options)
+	try:
+		return run_file(file, options)
+	finally:
+		options.frames = previous
 
 
 def build_parser():

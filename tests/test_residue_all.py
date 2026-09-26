@@ -110,7 +110,7 @@ def test_csv_all_residues_matches_table(tmp_path):
 	text = run_cli(ALA5, "--residue", "all", "-b", "-s", "--csv", str(out))
 	rows = read_csv(out)
 	assert len(rows) == 5
-	assert list(rows[0].keys()) == ["file", "frame", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L", "population"]
+	assert list(rows[0].keys()) == ["file", "frame", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L", "population", "path"]
 	assert f"Results written to {out}" in text
 	for row in rows:
 		printed = re.search(rf"ala5\.pdb {re.escape(row['residue'])}\s+CA\s+CB\s+3\.50\s+([\d.]+)\s+([\d.]+)\s+[\d.]+\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", text)
