@@ -4,6 +4,9 @@ All notable changes to DBSTEP. Versions follow [semantic versioning](https://sem
 
 ## Unreleased
 
+### Changed
+- `run.energy` set by `boltzmann_average` is now always in kcal/mol (it used to be in the input units).
+
 ### Fixed
 - SDF energy fields holding plain integers (a relative energy of `0`, rounded values) are accepted for `--boltzmann`; the integer guard now applies only to xyz comment lines.
 - `--nometals` removes metals through the same path as `--noH`: spec atoms are renumbered (a metal chosen as atom1 becomes a zero-radius ghost, keeping the Sterimol alignment) and per-atom metadata stays aligned, so `--decompose --nometals` works.
@@ -13,6 +16,10 @@ All notable changes to DBSTEP. Versions follow [semantic versioning](https://sem
 - `--residue all --atom1 N` uses the named atom to pick residues (previously only `--atom` was consulted); a default atom2 can no longer coincide with atom1 (e.g. `--atom CB`), and an explicit coincidence is an error.
 
 ### Added
+- `--radii cpk`: the CPK radii of Verloop's original Sterimol program, with atom types (sp3/aromatic carbon, single/double-bonded oxygen, ...) assigned from DFT-D3 style coordination numbers, so the earlier `patonlab/sterimol` code is no longer needed. Classic Sterimol values with this set match the original Fortran program to 0.01 Å on the benchmark set.
+- `--cone`: Tolman cone angle and metal-to-centroid distance of a ligand (ring or donor atom, auto-detected or given with `--atom1`/`--atom2`), with the ligand's Sterimol parameters measured from the metal; `cone_angle` and `metal_centroid` columns in `results` and the CSV. Reproduces the half-sandwich analysis of `patonlab/sterimol` (173.97° for its [RhCp*Cl2(PMe3)] example with `--radii cpk`).
+- `--boltzmann` over separate QM output files: energies are read through cclib (Gibbs free energy when available, else the SCF energy, in hartree), gzipped outputs are accepted, and several single-structure input files form one `ensemble` row. Reproduces the wSterimol example (wL 6.33, wB1 1.79, wB5 3.75), so `patonlab/wsterimol` is superseded by AQME/CREST + DBSTEP.
+- `--energy-window` (kcal/mol): conformers above the window are left out of the Boltzmann average but stay listed with population 0; `boltzmann_average(runs, window=..., label=...)` in Python, with `energy_rel`, `in_window` and `energy_key` set on each run.
 - `path` column (the input path as given) in `results`, the CSV and the contributions CSV, so same-named files from different folders stay distinguishable.
 
 ## 2.1.0 — 2026-09-25

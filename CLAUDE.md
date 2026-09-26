@@ -15,9 +15,11 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
   - `sterics.py` also holds `buried_vol_by_group` (per-residue %V_bur decomposition for `--decompose`)
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
-  - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, energies from SDF data fields or xyz comments)
+  - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, `--energy-window`; energies from SDF data fields, xyz comments or QM outputs via cclib, pooled across single-structure files)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
-  - `constants.py` — Chemical constants (periodic table, Bondi radii, metals)
+  - `constants.py` — Chemical constants (periodic table, Bondi/Charry-Tkatchenko/CPK radii, covalent radii, metals)
+  - `cone.py` — Tolman cone angle, metal-centroid distance and ligand detection (`--cone`)
+  - `radii.py` — Radius assignment per set; CPK atom typing from DFT-D3 coordination numbers (`--radii cpk`)
   - `graph.py` — 2D graph-based steric contribution calculations
   - `writer.py` — Output formatting and file writing (PyMOL scripts, xyz, CSV results)
   - `__init__.py` — Package init, `__version__`, `__all__`
@@ -29,15 +31,20 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_parse_data.py` — Input parsing tests (xyz, multi-structure xyz/sdf, cube)
   - `test_cli.py` — End-to-end tests of the `python -m dbstep` command line
   - `test_cube.py` — Density-based (cube file) buried volume and Sterimol tests
+  - `test_cone.py` — `--cone`: legacy sterimol values for [RhCp*Cl2(PMe3)], synthetic ligands, invariance, CLI/CSV
+  - `test_cpk.py` — `--radii cpk`: Fortran benchmark values, atom typing rules, crop invariance
   - `test_crop.py` — `--cutoff` radial crop: exactness of %V_bur, renumbering, large-cluster equivalence
   - `test_pdb_parser.py` — PDB parsing: columns, element inference, metadata, altlocs, MODEL blocks
   - `test_protein.py` — `--residue` selection: exact equivalence with the XYZ path, crop invariance, water/het/self semantics
   - `test_residue_all.py` — `--residue all`, per-run `results` records and `--csv` output
   - `test_trajectory.py` — `--frames` parsing, per-frame runs on `ala5_traj.pdb`, multi-frame xyz, CSV time series
   - `test_decompose.py` — `--decompose` per-residue contributions: sums to %V_bur, overlap sharing, CLI/CSV
+  - `test_qm_ensemble.py` — Boltzmann weighting over separate (gzipped) Gaussian outputs vs the wSterimol example, `--energy-window`, pooling rule
   - `test_examples.py` — Executes the code cells of `examples/proteins_and_conformers.ipynb`
   - `test_ensemble.py` — SDF data fields, Boltzmann weights/averages, CLI `--boltzmann` on `sdf_files/ether_conformers.sdf` (AQME output)
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
+  - `metal_files/` — `RhCpMe5Cl2PMe3.xyz`: the half-sandwich example of patonlab/sterimol (from its Gaussian output)
+  - `qm_files/` — `pentane_*.out.gz`: nine trimmed, gzipped Gaussian optimisations from the wSterimol example (energies for multi-file Boltzmann weighting)
   - `sdf_files/` — `ether_conformers.sdf`: three diethyl ether conformers from AQME with `<Energy>` fields (kcal/mol)
   - `pdb_files/` — PDB fixtures: `1a8o.pdb` (real, no H, waters, MSE) and generated `ala5.pdb` (with H, waters, Na) and `ala5_traj.pdb` (10 models, water approaching A:3); see its README
 - `examples/` — Jupyter notebook examples (`proteins_and_conformers.ipynb` is kept runnable by `tests/test_examples.py`; `carbene_sterics.ipynb` predates 2.0)

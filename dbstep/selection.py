@@ -2,7 +2,8 @@
 import sys
 import numpy as np
 
-from dbstep.constants import bondi, charry_tkatchenko, WATER_RESNAMES
+from dbstep import radii
+from dbstep.constants import WATER_RESNAMES
 
 """
 selection
@@ -14,11 +15,9 @@ measurement sphere rather than with the size of the whole system.
 
 
 def max_vdw_radius(atomtypes, options):
-	"""Largest (scaled) VDW radius among the given atom types, using the same lookup as the grid code."""
-	radii_dict = charry_tkatchenko if options.radii == "charry-tkatchenko" else bondi
-	if len(atomtypes) == 0:
-		return 0.0
-	return max(radii_dict.get(atom, 2.0) for atom in atomtypes) * options.SCALE_VDW
+	"""Largest (scaled) VDW radius among the given atom types, using the same lookup as the grid code
+	(for CPK radii an upper bound per element, since the atom types are not known here)."""
+	return radii.max_radius(atomtypes, options)
 
 
 def auto_cutoff(options, atomtypes):

@@ -7,8 +7,9 @@ import argparse
 from glob import glob
 import numpy as np
 
-from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble
-from dbstep.constants import periodic_table, bondi, charry_tkatchenko, metals
+from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble, cone
+from dbstep.constants import periodic_table, metals
+from dbstep import radii as radii_sets
 
 class dbstep:
 	"""
@@ -44,6 +45,8 @@ class dbstep:
 		self.contributions = None
 		# Tensor Parameters
 		self.tensor, self.tensor_grid = False, False
+		# Cone angle parameters (--cone)
+		self.cone_angle, self.metal_centroid, self.ligand_atoms, self.cone_sectors = None, None, None, None
 
 		if "options" in kwargs:
 			# Work on a copy: the calculation renumbers spec atoms (--noH/--exclude) and
@@ -73,6 +76,11 @@ class dbstep:
 		# flag volume if buried shell requested
 		if options.vshell:
 			options.volume = True
+		# cone-angle mode: the ligand's Sterimol parameters from the metal come with it
+		if options.cone:
+			if options.residue:
+				sys.exit("   --cone cannot be combined with --residue")
+			options.sterimol = True
 		# tensor mode: force volume (for grid) and sterimol (for alignment)
 		if options.tensor:
 			if not options.atom3:
@@ -104,11 +112,22 @@ class dbstep:
 			if options.verbose:
 				print("   Residue {}: {} atoms; {} atoms removed by filters".format(self.residue_label, info["n_self"], info["n_removed"]))
 		else:
+			# --cone auto-detects the metal and the ligand when atom1/atom2 are not given
+			atom1_given, atom2_given = bool(options.spec_atom_1), bool(options.spec_atom_2)
 			self._get_spec_atoms(options)
 			# remember the user-facing (input file) indices: --noH/--exclude renumber options.spec_atom_* internally
 			self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
 			mol = parse_data.read_input(file, ext, options)
 		self._check_num_atoms(mol, file)
+
+		# Cone angle and metal-centroid distance of a ligand; everything but the ligand is then excluded
+		if options.cone:
+			if options.surface != "vdw":
+				sys.exit("   --cone works with VDW surfaces only (not density cubes)")
+			info = cone.analyse(mol, options, radii_sets.atom_radii(mol, options) * options.SCALE_VDW, atom1_given, atom2_given, verbose=options.verbose)
+			self.cone_angle, self.metal_centroid = info["cone_angle"], info["metal_centroid"]
+			self.ligand_atoms, self.cone_sectors = info["ligand_atoms"], info["sector_angles"]
+			self.atom1, self.atom2 = info["metal"], info["axis_atoms"]
 
 		# Radial crop: drop atoms too far from atom1 to influence the measurement,
 		# so the grid scales with the sphere rather than with the whole system
@@ -222,13 +241,12 @@ class dbstep:
 		x_min = x_max = y_min = y_max = z_min = z_max = 0.0
 
 		if options.surface == "vdw":
-			# Select radii set based on options
-			radii_dict = charry_tkatchenko if options.radii == "charry-tkatchenko" else bondi
+			# Select radii set based on options (CPK radii need the Sterimol atom types attached at parse time)
+			radii_dict = radii_sets.radii_table(options.radii)
 			for atom in mol.ATOMTYPES:
 				if atom not in periodic_table and atom not in radii_dict:
 					sys.exit("\n   UNABLE TO GENERATE VDW RADII FOR ATOM: " + str(atom))
-			mol.RADII = [radii_dict.get(atom, 2.0) for atom in mol.ATOMTYPES]
-			mol.RADII = np.array(mol.RADII) * options.SCALE_VDW
+			mol.RADII = radii_sets.atom_radii(mol, options) * options.SCALE_VDW
 
 			# Translate molecule to place atom1 at the origin
 			if options.sterimol or options.volume:
@@ -353,6 +371,8 @@ class dbstep:
 			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", vol_label, "%V_Bur", "%S_Bur", fw=fw)
 		else:
 			header = None
+		if header and options.cone:
+			header += " {:>10} {:>10}".format("Cone/°", "M-Cent/Å")
 		if header:
 			dbstep._column_width = len(header)
 			print(header)
@@ -447,18 +467,21 @@ class dbstep:
 				"bmin": Bmin if options.sterimol else "",
 				"bmax": Bmax if options.sterimol else "",
 				"L": L if options.sterimol else "",
+				"cone_angle": self.cone_angle if options.cone else "",
+				"metal_centroid": self.metal_centroid if options.cone else "",
 			})
 
 			# Tabulate result
 			dp = options.dp
 			vfmt = "{{:10.{}f}}".format(dp)
 			rfmt = "{{:6.{}f}}".format(dp)
+			cone_cols = (" " + vfmt + " " + vfmt).format(self.cone_angle, self.metal_centroid) if options.cone else ""
 			if options.volume and options.sterimol:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
-					print(fmt.format(fname, self.atom1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L) + cone_cols)
 			elif options.volume:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
@@ -468,7 +491,7 @@ class dbstep:
 			elif options.sterimol:
 				if not options.quiet:
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
-					print(fmt.format(fname, self.atom1, atom2_str, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, Bmin, Bmax, L) + cone_cols)
 
 		# Store results on self
 		if occ_vol is not None:
@@ -589,6 +612,7 @@ def set_options(kwargs):
 		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
 		"radii": ["radii", "bondi"],
+		"cone": ["cone", False],
 		"sambvca": ["sambvca", False],
 		"gridsize": ["gridsize", False],
 		"cutoff": ["cutoff", False],
@@ -605,6 +629,7 @@ def set_options(kwargs):
 		"boltzmann": ["boltzmann", False],
 		"temperature": ["temperature", 298.15],
 		"energy_units": ["energy_units", "kcal"],
+		"energy_window": ["energy_window", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -664,14 +689,17 @@ def format_result_row(row, options, fw):
 	vfmt = "{{:10.{}f}}".format(dp)
 	rfmt = "{{:6.{}f}}".format(dp)
 	label = " ".join(str(part) for part in (row["file"], row["structure"], row["residue"]) if part)
+	cone_cols = ""
+	if getattr(options, "cone", False) and row.get("cone_angle", "") != "":
+		cone_cols = (" " + vfmt + " " + vfmt).format(row["cone_angle"], row["metal_centroid"])
 	if options.volume and options.sterimol:
 		fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
-		return fmt.format(label, row["atom1"], row["atom2"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"], row["bmin"], row["bmax"], row["L"])
+		return fmt.format(label, row["atom1"], row["atom2"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"], row["bmin"], row["bmax"], row["L"]) + cone_cols
 	if options.volume:
 		fmt = "   {:>" + str(fw) + "} {:>6} " + rfmt + " " + " ".join([vfmt] * 3)
 		return fmt.format(label, row["atom1"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"])
 	fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
-	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"])
+	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"]) + cone_cols
 
 
 def from_rdkit(mol, **kwargs):
@@ -771,6 +799,7 @@ def build_parser():
 	measure.add_argument("-s", "--sterimol", dest="sterimol", action="store_true", default=False, help="Compute Sterimol parameters (L, Bmin, Bmax)")
 	measure.add_argument("-b", "--vbur", dest="volume", action="store_true", default=False, help="Calculate buried volume of input molecule")
 	measure.add_argument("-r", dest="radius", type=float, default=3.5, metavar="radius", help="Radius of sphere in Angstrom (default: 3.5)")
+	measure.add_argument("--cone", dest="cone", action="store_true", default=False, help="Tolman cone angle and metal-to-centroid distance of a ligand, plus its Sterimol parameters measured from the metal along the metal-centroid axis (other ligands are excluded). --atom1 is the metal and --atom2 the ring atoms or the donor atom; both are auto-detected when omitted (single metal, largest ring bound to it, else the nearest donor atom)")
 	measure.add_argument("--scan", dest="scan", default=False, metavar="scan", help="Scan over a range of radii, format: rmin:rmax:interval")
 	measure.add_argument("--vshell", dest="vshell", type=float, default=False, metavar="width", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius")
 	measure.add_argument("--measure", dest="measure", choices=["classic", "grid"], default="classic", metavar="measure", help="Sterimol method: classic (Verloop, default) or grid-based")
@@ -800,7 +829,8 @@ def build_parser():
 
 	frames = parser.add_argument_group("Trajectories and output")
 	frames.add_argument("--frames", dest="frames", default=False, metavar="frames", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)")
-	frames.add_argument("--boltzmann", dest="boltzmann", nargs="?", const="auto", default=False, metavar="TAG", help="Boltzmann-average the results over the structures of each multi-structure file (conformer ensembles). Energies come from an SDF data field (auto-detected: Energy, E, G, dG, ... or give the tag) or from a number in the xyz comment line")
+	frames.add_argument("--boltzmann", dest="boltzmann", nargs="?", const="auto", default=False, metavar="TAG", help="Boltzmann-average the results over the structures of each multi-structure file (conformer ensembles), or over all input files when each holds one structure (e.g. one QM output per conformer). Energies come from an SDF data field (auto-detected: Energy, E, G, dG, ... or give the tag), from the QM output (Gibbs free energy when available, else the SCF energy; --boltzmann E or G to choose), or from a number in the xyz comment line")
+	frames.add_argument("--energy-window", dest="energy_window", type=float, default=False, metavar="kcal/mol", help="With --boltzmann, leave out structures more than this far above the lowest energy (they are still listed, with population 0)")
 	frames.add_argument("--temperature", dest="temperature", type=float, default=298.15, metavar="K", help="Temperature for Boltzmann weighting in K (default: 298.15)")
 	frames.add_argument("--energy-units", dest="energy_units", type=str.lower, choices=["kcal", "kj", "hartree", "ev"], default="kcal", help="Units of the energies used for Boltzmann weighting (default: kcal, i.e. kcal/mol)")
 	frames.add_argument("--csv", dest="csv", default=False, metavar="file", help="Write all result rows (one per file/frame/residue/radius) to this CSV file")
@@ -813,7 +843,7 @@ def build_parser():
 	frames.add_argument("--debug", dest="debug", action="store_true", default=False, help="Debug mode: graph grid points, print extra information")
 
 	surface = parser.add_argument_group("Surface and grid")
-	surface.add_argument("--radii", dest="radii", choices=["bondi", "charry-tkatchenko"], default="bondi", help="VDW radii set: bondi or charry-tkatchenko (default: bondi)")
+	surface.add_argument("--radii", dest="radii", choices=list(radii_sets.RADII_SETS), default="bondi", help="VDW radii set: bondi, charry-tkatchenko or cpk (Sterimol atom-type radii of the original Verloop program; default: bondi)")
 	surface.add_argument("--scalevdw", dest="SCALE_VDW", type=float, default=1.0, metavar="SCALE_VDW", help="Scaling factor for VDW radii (default: 1.0)")
 	surface.add_argument("--sambvca", dest="sambvca", action="store_true", default=False, help="Use SambVca 2.1 defaults: scale VDW radii by 1.17 and exclude H atoms")
 	surface.add_argument("--surface", dest="surface", choices=["vdw", "density"], default="vdw", metavar="surface", help="Surface type: Bondi VDW radii or density cube file (default: vdw)")
@@ -891,8 +921,7 @@ def main(argv=None):
 				print("   Sterimol parameters will be generated using {} mode".format("grid-based" if options.measure == "grid" else "classic"))
 			if options.surface == "vdw":
 				print("   Using a Cartesian grid-spacing of {:5.4f} Angstrom".format(options.grid))
-				radii_label = "Charry-Tkatchenko" if options.radii == "charry-tkatchenko" else "Bondi"
-				print("   {} atomic radii will be scaled by {}".format(radii_label, options.SCALE_VDW))
+				print("   {} atomic radii will be scaled by {}".format(radii_sets.radii_label(options.radii), options.SCALE_VDW))
 				print("   Hydrogen atoms are {}".format("excluded" if options.noH else "included"))
 				if options.residue:
 					filters = [name for flag, name in ((options.nowater, "waters"), (options.nohet, "hetero groups"), (options.exclude_self, "the residue itself")) if flag]
@@ -908,6 +937,30 @@ def main(argv=None):
 			else:
 				print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
 				print("   Cartesian grid-spacing will be determined by cube file(s)\n")
+
+	def boltzmann_notes(group, label):
+		"""Notes printed under the table for one Boltzmann-averaged group of runs."""
+		lines = []
+		if options.verbose or len(group) <= 12:
+			populations = ", ".join("{} {:.3f}".format(r.results[0]["structure"] or r.results[0]["file"], r.population) for r in group)
+			lines.append("   Boltzmann populations at {:.2f} K ({}): {}".format(options.temperature, ensemble.unit_label(group[0].properties.get("energy_units", options.energy_units)), populations))
+		sources = sorted({r.energy_key for r in group})
+		if any("energy_source" in r.properties for r in group):
+			lines.append("   Energies of {}: {} read from the output files".format(label, " / ".join(sources)))
+		if options.energy_window:
+			lines.append("   Energy window {:.2f} kcal/mol: {} of {} structures weighted".format(options.energy_window, sum(r.in_window for r in group), len(group)))
+		return lines
+
+	def average(group, label=None):
+		summary = ensemble.boltzmann_average(group, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units, window=options.energy_window, label=label)
+		summary_rows.extend(summary)
+		if not options.quiet:
+			for row in summary:
+				print(format_result_row(row, options, dbstep._file_col_width))
+			notes.extend(boltzmann_notes(group, label or group[0].results[0]["file"]))
+
+	# several single-structure files with --boltzmann form one ensemble (one QM output per conformer)
+	pooled = bool(options.boltzmann) and len(files) > 1 and not options.graph and all(trajectory.count_frames(f) == 1 for f in files)
 
 	# loop over all specified output files
 	runs, summary_rows, notes = [], [], []
@@ -926,15 +979,14 @@ def main(argv=None):
 			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per selected frame
 			file_runs = run_file(file, options)
 			runs.extend(file_runs)
-			if options.boltzmann:
-				summary = ensemble.boltzmann_average(file_runs, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units)
-				summary_rows.extend(summary)
-				if not options.quiet:
-					for row in summary:
-						print(format_result_row(row, options, dbstep._file_col_width))
-					if options.verbose or len(file_runs) <= 12:
-						populations = ", ".join("{} {:.3f}".format(r.structure_name or r.results[0]["file"], r.population) for r in file_runs)
-						notes.append("   Boltzmann populations at {:.2f} K ({}): {}".format(options.temperature, ensemble.unit_label(options.energy_units), populations))
+			if options.cone and not options.quiet:
+				for r in file_runs:
+					notes.append("   Cone angle of {}: apex atom {}, ligand of {} atoms (axis atoms {}), sector half angles {}".format(
+						r.results[0]["structure"] or r.results[0]["file"], r.atom1, len(r.ligand_atoms), ",".join(str(a) for a in r.atom2), ", ".join("{:.1f}".format(a) for a in r.cone_sectors)))
+			if options.boltzmann and not pooled:
+				average(file_runs)
+	if pooled and runs:
+		average(runs, label="ensemble")
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))
