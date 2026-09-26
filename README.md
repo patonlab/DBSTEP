@@ -40,6 +40,8 @@ Calculate Sterimol parameters<sup>1</sup> (L, Bmin, Bmax), %Buried Volume<sup>2<
 * `--noH` - exclude hydrogen atoms from steric measurements
 * `--nometals` - exclude metal atoms from steric measurements
 * `--sambvca` - SambVca 2.1 mode (Bondi radii scaled by 1.17, H atoms excluded)
+* `--cone` - Tolman cone angle and metal-centroid distance of a ligand in a metal complex, with the ligand's Sterimol parameters from the metal (see [Metal complexes](#metal-complexes-cone-angles-and-ligand-sterimol-parameters))
+* `--boltzmann` - Boltzmann-weighted parameters over conformer ensembles: multi-record SDF/xyz files, or one QM output file per conformer (energies read by cclib); `--energy-window` drops high-energy conformers (see [Conformer ensembles](#conformer-ensembles-boltzmann-weighting))
 
 ### 2-D Graph contribution features (Requires RDKit and Pandas packages to be installed):
 * Compute graph-based steric contributions in layers spanning outward from a reference functional group with the following input options:
@@ -126,7 +128,27 @@ A multi-record `.sdf` from a conformer search (AQME, CREST, RDKit) is run record
    Boltzmann populations at 298.15 K (kcal/mol): ether 44 0.923, ether 12 0.071, ether 6 0.006
 ```
 
-From Python: `runs = db.all_frames("ether_conformers.sdf", atom1=3, atom2=2, sterimol=True, volume=True)` then `dbstep.ensemble.boltzmann_average(runs, temperature=298.15, units="kcal")` returns the summary rows and sets `population` and `energy` on each run.
+From Python: `runs = db.all_frames("ether_conformers.sdf", atom1=3, atom2=2, sterimol=True, volume=True)` then `dbstep.ensemble.boltzmann_average(runs, temperature=298.15, units="kcal")` returns the summary rows and sets `population`, `energy` (kcal/mol), `energy_rel` and `in_window` on each run.
+
+**One QM output per conformer.** When every input file holds a single structure (Gaussian, ORCA, ... outputs read by cclib, plain or gzipped, or single-structure xyz files with an energy in the comment line), `--boltzmann` pools all the files into one ensemble and adds an `ensemble boltzmann` row. Energies are taken from the output itself: the Gibbs free energy after a frequency calculation, otherwise the last SCF energy (`--boltzmann E` or `--boltzmann G` to choose), always in hartree whatever `--energy-units` says. This is the workflow of the earlier [wSterimol](https://github.com/patonlab/wsterimol) code (its conformer generation is covered by [AQME](https://github.com/jvalegre/aqme) or CREST, and its example reproduces: wL 6.33, wB1 1.79, wB5 3.75 with `--radii cpk` at 298 K). `--energy-window 3.0` leaves out conformers more than 3 kcal/mol above the lowest; they stay in the table and the CSV with population 0.
+
+```
+>>>dbstep pentane_*.out --sterimol --atom1 1 --atom2 3 --radii cpk --boltzmann --temperature 298 --energy-window 1.0
+
+                         File  Atom1  Atom2       Bmin       Bmax          L
+   -------------------------------------------------------------------------
+                pentane_1.out      1      3       1.93       4.50       4.63
+               pentane_10.out      1      3       1.90       4.10       5.89
+               pentane_18.out      1      3       1.68       2.74       6.99
+                          ...
+           ensemble boltzmann      1      3       1.80       3.74       5.94
+   -------------------------------------------------------------------------
+   Boltzmann populations at 298.00 K (hartree): pentane_1.out 0.115, pentane_10.out 0.123, pentane_18.out 0.277, ...
+   Energies of ensemble: SCF energy read from the output files
+   Energy window 1.00 kcal/mol: 7 of 9 structures weighted
+```
+
+In Python, run the files one by one and pass the list to `boltzmann_average(runs, window=1.0, label="pentane")`.
 
 ### Trajectories
 

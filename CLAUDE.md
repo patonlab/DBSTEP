@@ -15,7 +15,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `selection.py` — Atom selection before measurement: radial crop (`--cutoff`) and PDB residue selection (`--residue`, water/het/self filters)
   - `sterics.py` also holds `buried_vol_by_group` (per-residue %V_bur decomposition for `--decompose`)
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
-  - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, energies from SDF data fields or xyz comments)
+  - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, `--energy-window`; energies from SDF data fields, xyz comments or QM outputs via cclib, pooled across single-structure files)
   - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
   - `constants.py` — Chemical constants (periodic table, Bondi/Charry-Tkatchenko/CPK radii, covalent radii, metals)
   - `cone.py` — Tolman cone angle, metal-centroid distance and ligand detection (`--cone`)
@@ -39,6 +39,7 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_residue_all.py` — `--residue all`, per-run `results` records and `--csv` output
   - `test_trajectory.py` — `--frames` parsing, per-frame runs on `ala5_traj.pdb`, multi-frame xyz, CSV time series
   - `test_decompose.py` — `--decompose` per-residue contributions: sums to %V_bur, overlap sharing, CLI/CSV
+  - `test_qm_ensemble.py` — Boltzmann weighting over separate (gzipped) Gaussian outputs vs the wSterimol example, `--energy-window`, pooling rule
   - `test_examples.py` — Executes the code cells of `examples/proteins_and_conformers.ipynb`
   - `test_ensemble.py` — SDF data fields, Boltzmann weights/averages, CLI `--boltzmann` on `sdf_files/ether_conformers.sdf` (AQME output)
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)

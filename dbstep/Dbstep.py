@@ -629,6 +629,7 @@ def set_options(kwargs):
 		"boltzmann": ["boltzmann", False],
 		"temperature": ["temperature", 298.15],
 		"energy_units": ["energy_units", "kcal"],
+		"energy_window": ["energy_window", False],
 		"measure": ["measure", "classic"],
 		"pos": ["pos", False],
 		"dp": ["dp", 2],
@@ -828,7 +829,8 @@ def build_parser():
 
 	frames = parser.add_argument_group("Trajectories and output")
 	frames.add_argument("--frames", dest="frames", default=False, metavar="frames", help="Frames of a multi-structure file to run, 0-based with Python slice rules: start:stop:stride, e.g. 0:1000:10, ::5, or a single index (default: all)")
-	frames.add_argument("--boltzmann", dest="boltzmann", nargs="?", const="auto", default=False, metavar="TAG", help="Boltzmann-average the results over the structures of each multi-structure file (conformer ensembles). Energies come from an SDF data field (auto-detected: Energy, E, G, dG, ... or give the tag) or from a number in the xyz comment line")
+	frames.add_argument("--boltzmann", dest="boltzmann", nargs="?", const="auto", default=False, metavar="TAG", help="Boltzmann-average the results over the structures of each multi-structure file (conformer ensembles), or over all input files when each holds one structure (e.g. one QM output per conformer). Energies come from an SDF data field (auto-detected: Energy, E, G, dG, ... or give the tag), from the QM output (Gibbs free energy when available, else the SCF energy; --boltzmann E or G to choose), or from a number in the xyz comment line")
+	frames.add_argument("--energy-window", dest="energy_window", type=float, default=False, metavar="kcal/mol", help="With --boltzmann, leave out structures more than this far above the lowest energy (they are still listed, with population 0)")
 	frames.add_argument("--temperature", dest="temperature", type=float, default=298.15, metavar="K", help="Temperature for Boltzmann weighting in K (default: 298.15)")
 	frames.add_argument("--energy-units", dest="energy_units", type=str.lower, choices=["kcal", "kj", "hartree", "ev"], default="kcal", help="Units of the energies used for Boltzmann weighting (default: kcal, i.e. kcal/mol)")
 	frames.add_argument("--csv", dest="csv", default=False, metavar="file", help="Write all result rows (one per file/frame/residue/radius) to this CSV file")
@@ -936,6 +938,30 @@ def main(argv=None):
 				print("   Using {} isodensity surface with cutoff value of {:5.4f} au".format(options.surface, options.isoval))
 				print("   Cartesian grid-spacing will be determined by cube file(s)\n")
 
+	def boltzmann_notes(group, label):
+		"""Notes printed under the table for one Boltzmann-averaged group of runs."""
+		lines = []
+		if options.verbose or len(group) <= 12:
+			populations = ", ".join("{} {:.3f}".format(r.results[0]["structure"] or r.results[0]["file"], r.population) for r in group)
+			lines.append("   Boltzmann populations at {:.2f} K ({}): {}".format(options.temperature, ensemble.unit_label(group[0].properties.get("energy_units", options.energy_units)), populations))
+		sources = sorted({r.energy_key for r in group})
+		if any("energy_source" in r.properties for r in group):
+			lines.append("   Energies of {}: {} read from the output files".format(label, " / ".join(sources)))
+		if options.energy_window:
+			lines.append("   Energy window {:.2f} kcal/mol: {} of {} structures weighted".format(options.energy_window, sum(r.in_window for r in group), len(group)))
+		return lines
+
+	def average(group, label=None):
+		summary = ensemble.boltzmann_average(group, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units, window=options.energy_window, label=label)
+		summary_rows.extend(summary)
+		if not options.quiet:
+			for row in summary:
+				print(format_result_row(row, options, dbstep._file_col_width))
+			notes.extend(boltzmann_notes(group, label or group[0].results[0]["file"]))
+
+	# several single-structure files with --boltzmann form one ensemble (one QM output per conformer)
+	pooled = bool(options.boltzmann) and len(files) > 1 and not options.graph and all(trajectory.count_frames(f) == 1 for f in files)
+
 	# loop over all specified output files
 	runs, summary_rows, notes = [], [], []
 	for file in files:
@@ -957,15 +983,10 @@ def main(argv=None):
 				for r in file_runs:
 					notes.append("   Cone angle of {}: apex atom {}, ligand of {} atoms (axis atoms {}), sector half angles {}".format(
 						r.results[0]["structure"] or r.results[0]["file"], r.atom1, len(r.ligand_atoms), ",".join(str(a) for a in r.atom2), ", ".join("{:.1f}".format(a) for a in r.cone_sectors)))
-			if options.boltzmann:
-				summary = ensemble.boltzmann_average(file_runs, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units)
-				summary_rows.extend(summary)
-				if not options.quiet:
-					for row in summary:
-						print(format_result_row(row, options, dbstep._file_col_width))
-					if options.verbose or len(file_runs) <= 12:
-						populations = ", ".join("{} {:.3f}".format(r.structure_name or r.results[0]["file"], r.population) for r in file_runs)
-						notes.append("   Boltzmann populations at {:.2f} K ({}): {}".format(options.temperature, ensemble.unit_label(options.energy_units), populations))
+			if options.boltzmann and not pooled:
+				average(file_runs)
+	if pooled and runs:
+		average(runs, label="ensemble")
 
 	if dbstep._column_width and not options.quiet:
 		print("   " + "-" * (dbstep._column_width - 3))

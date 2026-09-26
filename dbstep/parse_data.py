@@ -559,11 +559,32 @@ class cclibParser(DataParser):
 		super().__init__(file, input_format, noH, exclude, spec_atom_1, spec_atom_2)
 
 	def parse_input(self):
-		"""Parses input file uses cclib file parser."""
+		"""Parses input file uses cclib file parser (plain or gzipped/bzipped output files)."""
 		cclib_parsed = cclib.io.ccread(self._input)
+		if cclib_parsed is None or not hasattr(cclib_parsed, "atomcoords"):
+			sys.exit("   cclib could not read a geometry from {}".format(self._input))
 		self.CARTESIANS = np.array(cclib_parsed.atomcoords[-1])
 		for i in cclib_parsed.atomnos:
 			self.ATOMTYPES.append(periodic_table[i])
+		# energies (hartree) for Boltzmann weighting across output files: the last SCF energy and,
+		# after a frequency calculation, the enthalpy and Gibbs free energy; "energy" is the default
+		# choice for --boltzmann (G when available, else E) and "energy_units" tells the weighting code
+		from cclib.parser.utils import convertor
+
+		energies = {}
+		scf = getattr(cclib_parsed, "scfenergies", None)
+		if scf is not None and len(scf):
+			energies["E"] = float(convertor(scf[-1], "eV", "hartree"))
+		for key, attr in (("H", "enthalpy"), ("G", "freeenergy")):
+			value = getattr(cclib_parsed, attr, None)
+			if value is not None:
+				energies[key] = float(value)
+		if energies:
+			source = "G" if "G" in energies else ("E" if "E" in energies else "H")
+			energies["energy"] = energies[source]
+			energies["energy_source"] = source
+			energies["energy_units"] = "hartree"
+			self.PROPERTIES.update(energies)
 
 
 class RDKitParser(DataParser):
