@@ -107,7 +107,7 @@ With a PDB file you can pick a residue and atoms by name instead of file indices
 
 * `--decompose` splits %V_Bur between the residues whose atoms fill the sphere (a grid point covered by several residues is shared equally, so the contributions add up to the total); printed after the table and, with `--csv out.csv`, written to `out_contributions.csv`. In Python the object carries `contributions`, a dict from residue label to percent
 * `--residue all` runs every polymer residue in turn (waters and ligands are skipped, modified residues such as MSE are included; combine with `--chain`)
-* `--csv results.csv` writes one row per file, frame, residue and radius with the columns `file, frame, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L`; this works for any input, not only PDB files
+* `--csv results.csv` writes one row per file, frame, residue and radius with the columns `file, frame, structure, residue, atom1, atom2, radius, mol_vol, percent_vbur, percent_sbur, bmin, bmax, L, cone_angle, metal_centroid, population, path`; this works for any input, not only PDB files
 
 ### Conformer ensembles (Boltzmann weighting)
 
@@ -165,6 +165,24 @@ For Sterimol parameters, two atoms need to be specified using the arguments `--a
 For buried volume parameters, only the `--atom1 [atom]` argument is necessary to specify.
 
 If no atoms are specified, the first two atoms in the file will be used as reference.
+
+### Metal complexes: cone angles and ligand Sterimol parameters
+
+`--cone` measures one ligand of a metal complex the way the earlier [patonlab/sterimol](https://github.com/patonlab/sterimol) code did for half-sandwich complexes: the Tolman cone angle and the metal-to-centroid distance, together with the ligand's Sterimol parameters measured from the metal along the metal-centroid axis (every other ligand is excluded, the metal itself occupies no volume). `--atom1` is the metal and `--atom2` the ring atoms (comma separated) or the donor atom of the ligand; with neither given DBSTEP takes the single metal, the largest ring bound to it or, failing that, the nearest donor atom. The ligand is the bonded fragment containing the axis atoms once the metal is removed. Each ligand atom subtends the half angle `alpha + asin(r/d)` at the metal; the cone angle is twice the mean, over the ligand's sectors (the wedges around each ring atom, or the substituent branches of a donor atom), of the largest half angle in the sector, Tolman's construction for unsymmetrical ligands. Tolman's tabulated values came from CPK models, so `--radii cpk` is the closest match; the cone angle depends on the chosen radii like every other DBSTEP quantity.
+
+```
+>>>dbstep RhCpMe5Cl2PMe3.log --cone --radii cpk
+
+                   File  Atom1  Atom2       Bmin       Bmax          L     Cone/°   M-Cent/Å
+   -----------------------------------------------------------------------------------------
+     RhCpMe5Cl2PMe3.log      1 3,4,5,24,25       3.91       4.30       4.05     173.97       1.83
+   -----------------------------------------------------------------------------------------
+   Cone angle of RhCpMe5Cl2PMe3.log: apex atom 1, ligand of 25 atoms (axis atoms 3,4,5,24,25), sector half angles 89.3, 87.6, 81.0, 89.3, 87.6
+
+>>>dbstep RhCpMe5Cl2PMe3.log --cone --atom2 17 --radii cpk      # the PMe3 ligand through its P atom
+```
+
+`-b` adds the buried volume of the ligand around the metal, `--boltzmann` averages cone angles over conformers, and `--csv` writes `cone_angle` and `metal_centroid` columns. In Python the object carries `cone_angle`, `metal_centroid`, `cone_sectors` (half angle per sector) and `ligand_atoms`. For dimers or several metals, choose the centre with `--atom1`.
 
 ### Examples
 A notebook covering the protein, trajectory and conformer-ensemble workflows is at `examples/proteins_and_conformers.ipynb`.

@@ -7,7 +7,7 @@ import argparse
 from glob import glob
 import numpy as np
 
-from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble
+from dbstep import sterics, parse_data, calculator, writer, selection, trajectory, ensemble, cone
 from dbstep.constants import periodic_table, metals
 from dbstep import radii as radii_sets
 
@@ -45,6 +45,8 @@ class dbstep:
 		self.contributions = None
 		# Tensor Parameters
 		self.tensor, self.tensor_grid = False, False
+		# Cone angle parameters (--cone)
+		self.cone_angle, self.metal_centroid, self.ligand_atoms, self.cone_sectors = None, None, None, None
 
 		if "options" in kwargs:
 			# Work on a copy: the calculation renumbers spec atoms (--noH/--exclude) and
@@ -74,6 +76,11 @@ class dbstep:
 		# flag volume if buried shell requested
 		if options.vshell:
 			options.volume = True
+		# cone-angle mode: the ligand's Sterimol parameters from the metal come with it
+		if options.cone:
+			if options.residue:
+				sys.exit("   --cone cannot be combined with --residue")
+			options.sterimol = True
 		# tensor mode: force volume (for grid) and sterimol (for alignment)
 		if options.tensor:
 			if not options.atom3:
@@ -105,11 +112,22 @@ class dbstep:
 			if options.verbose:
 				print("   Residue {}: {} atoms; {} atoms removed by filters".format(self.residue_label, info["n_self"], info["n_removed"]))
 		else:
+			# --cone auto-detects the metal and the ligand when atom1/atom2 are not given
+			atom1_given, atom2_given = bool(options.spec_atom_1), bool(options.spec_atom_2)
 			self._get_spec_atoms(options)
 			# remember the user-facing (input file) indices: --noH/--exclude renumber options.spec_atom_* internally
 			self.atom1, self.atom2 = options.spec_atom_1, list(options.spec_atom_2)
 			mol = parse_data.read_input(file, ext, options)
 		self._check_num_atoms(mol, file)
+
+		# Cone angle and metal-centroid distance of a ligand; everything but the ligand is then excluded
+		if options.cone:
+			if options.surface != "vdw":
+				sys.exit("   --cone works with VDW surfaces only (not density cubes)")
+			info = cone.analyse(mol, options, radii_sets.atom_radii(mol, options) * options.SCALE_VDW, atom1_given, atom2_given, verbose=options.verbose)
+			self.cone_angle, self.metal_centroid = info["cone_angle"], info["metal_centroid"]
+			self.ligand_atoms, self.cone_sectors = info["ligand_atoms"], info["sector_angles"]
+			self.atom1, self.atom2 = info["metal"], info["axis_atoms"]
 
 		# Radial crop: drop atoms too far from atom1 to influence the measurement,
 		# so the grid scales with the sphere rather than with the whole system
@@ -353,6 +371,8 @@ class dbstep:
 			header = "   {:>{fw}} {:>6} {:>6} {:>10} {:>10} {:>10}".format("File", "Atom", "R/Å", vol_label, "%V_Bur", "%S_Bur", fw=fw)
 		else:
 			header = None
+		if header and options.cone:
+			header += " {:>10} {:>10}".format("Cone/°", "M-Cent/Å")
 		if header:
 			dbstep._column_width = len(header)
 			print(header)
@@ -447,18 +467,21 @@ class dbstep:
 				"bmin": Bmin if options.sterimol else "",
 				"bmax": Bmax if options.sterimol else "",
 				"L": L if options.sterimol else "",
+				"cone_angle": self.cone_angle if options.cone else "",
+				"metal_centroid": self.metal_centroid if options.cone else "",
 			})
 
 			# Tabulate result
 			dp = options.dp
 			vfmt = "{{:10.{}f}}".format(dp)
 			rfmt = "{{:6.{}f}}".format(dp)
+			cone_cols = (" " + vfmt + " " + vfmt).format(self.cone_angle, self.metal_centroid) if options.cone else ""
 			if options.volume and options.sterimol:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
 				if not options.quiet:
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
-					print(fmt.format(fname, self.atom1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, rad, occ_vol, bur_vol, bur_shell, Bmin, Bmax, L) + cone_cols)
 			elif options.volume:
 				if options.pymol:
 					spheres.append("   SPHERE, 0.000, 0.000, 0.000, {:5.3f},".format(rad))
@@ -468,7 +491,7 @@ class dbstep:
 			elif options.sterimol:
 				if not options.quiet:
 					fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
-					print(fmt.format(fname, self.atom1, atom2_str, Bmin, Bmax, L))
+					print(fmt.format(fname, self.atom1, atom2_str, Bmin, Bmax, L) + cone_cols)
 
 		# Store results on self
 		if occ_vol is not None:
@@ -589,6 +612,7 @@ def set_options(kwargs):
 		"pymol": ["pymol", False],
 		"quiet": ["quiet", False],
 		"radii": ["radii", "bondi"],
+		"cone": ["cone", False],
 		"sambvca": ["sambvca", False],
 		"gridsize": ["gridsize", False],
 		"cutoff": ["cutoff", False],
@@ -664,14 +688,17 @@ def format_result_row(row, options, fw):
 	vfmt = "{{:10.{}f}}".format(dp)
 	rfmt = "{{:6.{}f}}".format(dp)
 	label = " ".join(str(part) for part in (row["file"], row["structure"], row["residue"]) if part)
+	cone_cols = ""
+	if getattr(options, "cone", False) and row.get("cone_angle", "") != "":
+		cone_cols = (" " + vfmt + " " + vfmt).format(row["cone_angle"], row["metal_centroid"])
 	if options.volume and options.sterimol:
 		fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + rfmt + " " + " ".join([vfmt] * 6)
-		return fmt.format(label, row["atom1"], row["atom2"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"], row["bmin"], row["bmax"], row["L"])
+		return fmt.format(label, row["atom1"], row["atom2"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"], row["bmin"], row["bmax"], row["L"]) + cone_cols
 	if options.volume:
 		fmt = "   {:>" + str(fw) + "} {:>6} " + rfmt + " " + " ".join([vfmt] * 3)
 		return fmt.format(label, row["atom1"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"])
 	fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
-	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"])
+	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"]) + cone_cols
 
 
 def from_rdkit(mol, **kwargs):
@@ -771,6 +798,7 @@ def build_parser():
 	measure.add_argument("-s", "--sterimol", dest="sterimol", action="store_true", default=False, help="Compute Sterimol parameters (L, Bmin, Bmax)")
 	measure.add_argument("-b", "--vbur", dest="volume", action="store_true", default=False, help="Calculate buried volume of input molecule")
 	measure.add_argument("-r", dest="radius", type=float, default=3.5, metavar="radius", help="Radius of sphere in Angstrom (default: 3.5)")
+	measure.add_argument("--cone", dest="cone", action="store_true", default=False, help="Tolman cone angle and metal-to-centroid distance of a ligand, plus its Sterimol parameters measured from the metal along the metal-centroid axis (other ligands are excluded). --atom1 is the metal and --atom2 the ring atoms or the donor atom; both are auto-detected when omitted (single metal, largest ring bound to it, else the nearest donor atom)")
 	measure.add_argument("--scan", dest="scan", default=False, metavar="scan", help="Scan over a range of radii, format: rmin:rmax:interval")
 	measure.add_argument("--vshell", dest="vshell", type=float, default=False, metavar="width", help="Calculate buried volume of hollow sphere with given shell width; use -r to set radius")
 	measure.add_argument("--measure", dest="measure", choices=["classic", "grid"], default="classic", metavar="measure", help="Sterimol method: classic (Verloop, default) or grid-based")
@@ -925,6 +953,10 @@ def main(argv=None):
 			# Multi-structure files (multi-xyz, multi-sdf, multi-MODEL pdb): one run per selected frame
 			file_runs = run_file(file, options)
 			runs.extend(file_runs)
+			if options.cone and not options.quiet:
+				for r in file_runs:
+					notes.append("   Cone angle of {}: apex atom {}, ligand of {} atoms (axis atoms {}), sector half angles {}".format(
+						r.results[0]["structure"] or r.results[0]["file"], r.atom1, len(r.ligand_atoms), ",".join(str(a) for a in r.atom2), ", ".join("{:.1f}".format(a) for a in r.cone_sectors)))
 			if options.boltzmann:
 				summary = ensemble.boltzmann_average(file_runs, tag=options.boltzmann, temperature=options.temperature, units=options.energy_units)
 				summary_rows.extend(summary)

@@ -277,7 +277,7 @@ def xyz_export(file, mol):
 	log.close()
 
 
-CSV_COLUMNS = ["file", "frame", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L", "population", "path"]
+CSV_COLUMNS = ["file", "frame", "structure", "residue", "atom1", "atom2", "radius", "mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L", "cone_angle", "metal_centroid", "population", "path"]
 
 
 def csv_export(path, rows):

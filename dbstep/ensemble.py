@@ -132,8 +132,8 @@ def boltzmann_average(runs, tag=None, temperature=298.15, units="kcal"):
 			"radius": first["radius"],
 			"population": 1.0,
 		}
-		for key in ("mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L"):
-			values = [run.results[i][key] for run in runs]
+		for key in ("mol_vol", "percent_vbur", "percent_sbur", "bmin", "bmax", "L", "cone_angle", "metal_centroid"):
+			values = [run.results[i].get(key, "") for run in runs]
 			row[key] = float(np.dot(weights, values)) if all(value != "" for value in values) else ""
 		summary.append(row)
 	return summary
