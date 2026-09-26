@@ -185,6 +185,8 @@ def read_input(molecule, ext, options):
 			mol = PDBParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2, structure=structure)
 		elif ext == "rdkit":
 			mol = RDKitParser(molecule, False, False, options.spec_atom_1, options.spec_atom_2)
+		elif ext == "array":
+			mol = ArrayParser(molecule, False, False, options.spec_atom_1, options.spec_atom_2)
 		else:
 			mol = cclibParser(molecule, ext[1:], False, False, options.spec_atom_1, options.spec_atom_2)
 		if getattr(options, "radii", "bondi") == "cpk":
@@ -585,6 +587,43 @@ class cclibParser(DataParser):
 			energies["energy_source"] = source
 			energies["energy_units"] = "hartree"
 			self.PROPERTIES.update(energies)
+
+
+class Structure:
+	"""A structure held in memory, accepted by dbstep() in place of a file name (see Dbstep.from_coords).
+
+	Args:
+		atoms: element symbols
+		coords: Cartesian coordinates in Angstrom, shape (n, 3)
+		name: label used in the results table
+		metadata: optional per-atom arrays (record, name, resname, chain, resseq, icode, element, resid),
+			as the PDB parser provides them, which enable --decompose
+		properties: optional per-structure properties (e.g. an "energy" for Boltzmann weighting)
+	"""
+
+	def __init__(self, atoms, coords, name="structure", metadata=None, properties=None):
+		self.atoms = [str(atom) for atom in atoms]
+		self.coords = np.asarray(coords, dtype=float).reshape(-1, 3)
+		if len(self.atoms) != len(self.coords):
+			raise ValueError("Structure: {} atoms but {} coordinates".format(len(self.atoms), len(self.coords)))
+		self.name = str(name)
+		self.metadata = dict(metadata or {})
+		self.properties = dict(properties or {})
+
+
+class ArrayParser(DataParser):
+	"""Wrap an in-memory Structure in the parser interface."""
+
+	def __init__(self, structure, noH, exclude, spec_atom_1, spec_atom_2):
+		super().__init__(structure, "array", noH, exclude, spec_atom_1, spec_atom_2)
+
+	def parse_input(self):
+		structure = self._input
+		self.ATOMTYPES = list(structure.atoms)
+		self.CARTESIANS = [list(row) for row in structure.coords]
+		if structure.metadata:
+			self.METADATA = {key: np.array(list(values)) for key, values in structure.metadata.items()}
+		self.PROPERTIES.update(structure.properties)
 
 
 class RDKitParser(DataParser):

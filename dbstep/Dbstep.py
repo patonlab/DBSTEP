@@ -47,6 +47,8 @@ class dbstep:
 		self.tensor, self.tensor_grid = False, False
 		# Cone angle parameters (--cone)
 		self.cone_angle, self.metal_centroid, self.ligand_atoms, self.cone_sectors = None, None, None, None
+		# PyMOL CGO strings of the last Bmax/Bmin measurement (see sterimol_vectors)
+		self.cylinders = []
 
 		if "options" in kwargs:
 			# Work on a copy: the calculation renumbers spec atoms (--noH/--exclude) and
@@ -65,6 +67,8 @@ class dbstep:
 
 		if isinstance(file, str):
 			name, ext = os.path.splitext(file)
+		elif isinstance(file, parse_data.Structure):
+			name, ext = file.name, "array"
 		else:
 			name = file
 			ext = "rdkit"
@@ -168,6 +172,9 @@ class dbstep:
 
 		# Rotate molecule to align atom1-atom2 bond along Z-axis
 		self._orient_molecule(mol, options)
+		# the measured atoms in DBSTEP's frame (atom1 at the origin, axis along z); with self.coords this
+		# gives the rigid transform back to the input frame (calculator.rigid_transform), used by the PyMOL plugin
+		self.aligned_coords = np.array(mol.CARTESIANS) if options.surface == "vdw" else None
 
 		# Recompute grid bounds after rotation so the grid covers the full rotated molecule
 		if options.sterimol and options.surface == "vdw":
@@ -226,7 +233,7 @@ class dbstep:
 				print("\n   L parameter is {:5.2f} Ang".format(L))
 
 		# Write PyMOL visualization files
-		if options.pymol and ext != "rdkit":
+		if options.pymol and ext not in ("rdkit", "array"):
 			if options.sterimol:
 				cylinders.append("   CYLINDER, 0., 0., 0., 0., 0., {:5.3f}, 0.1, 1.0, 1.0, 1.0, 0., 0.0, 1.0,".format(self.L))
 			writer.xyz_export(file, mol)
@@ -393,6 +400,8 @@ class dbstep:
 
 		if isinstance(file, str):
 			fname = os.path.basename(file)
+		elif isinstance(file, parse_data.Structure):
+			fname = file.name
 		else:
 			try:
 				fname = file.GetProp("_Name")
@@ -448,6 +457,8 @@ class dbstep:
 					sys.exit("   Can't use classic Sterimol with the isodensity surface. Use --measure grid or --surface vdw")
 				Bmin_list.append(Bmin)
 				Bmax_list.append(Bmax)
+				# CGO strings for the Bmax/Bmin directions in the aligned frame (see sterimol_vectors)
+				self.cylinders = list(cyl)
 				if options.pymol:
 					cylinders.extend(cyl)
 
@@ -518,6 +529,20 @@ class dbstep:
 					self.contributions = contributions_list
 
 		return spheres, cylinders
+
+	def sterimol_vectors(self):
+		"""Directions of the last Bmax and Bmin measurements in the aligned frame, as (x, y, z) points on the
+		molecular surface, or None when no Sterimol parameters were computed."""
+		if not self.cylinders:
+			return None
+		vectors = {}
+		for cylinder in self.cylinders:
+			values = [v.strip() for v in cylinder.split(",")]
+			if values[0].endswith("CYLINDER") and len(values) >= 14:
+				point = tuple(float(v) for v in values[4:7])
+				red, green = float(values[11]), float(values[12])
+				vectors["bmax" if red == 1.0 and green == 0.0 else "bmin"] = point
+		return vectors or None
 
 	def _decompose(self, mol, options, grid_axes, origin, R):
 		"""Per-residue contributions to %V_bur (--decompose), as a dict "A:45 LEU" -> percent."""
@@ -700,6 +725,22 @@ def format_result_row(row, options, fw):
 		return fmt.format(label, row["atom1"], row["radius"], row["mol_vol"], row["percent_vbur"], row["percent_sbur"])
 	fmt = "   {:>" + str(fw) + "} {:>6} {:>6} " + " ".join([vfmt] * 3)
 	return fmt.format(label, row["atom1"], row["atom2"], row["bmin"], row["bmax"], row["L"]) + cone_cols
+
+
+def from_coords(atoms, coords, name="structure", metadata=None, **kwargs):
+	"""Measure a structure held in memory. Accepts the same keyword arguments as dbstep().
+
+	Args:
+		atoms: element symbols ("Bq" marks a zero-radius ghost atom)
+		coords: Cartesian coordinates in Angstrom, shape (n, 3)
+		name: label used in the results table
+		metadata: optional per-atom arrays as the PDB parser provides them (name, resname, chain, resseq,
+			icode, resid, element, record); with them --decompose works on in-memory structures
+
+	Example:
+		result = from_coords(["H", "C", "H", "H", "H"], xyz, atom1=1, atom2=2, sterimol=True)
+	"""
+	return dbstep(parse_data.Structure(atoms, coords, name, metadata), **kwargs)
 
 
 def from_rdkit(mol, **kwargs):

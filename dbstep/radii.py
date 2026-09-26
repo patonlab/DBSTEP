@@ -107,19 +107,7 @@ def radii_label(radii_set):
 	return {"charry-tkatchenko": "Charry-Tkatchenko", "cpk": "CPK (Sterimol atom types)"}.get(radii_set, "Bondi")
 
 
-def atom_radii(mol, options):
-	"""Unscaled VDW radius of every atom of `mol` for options.radii.
-
-	Elements without a CPK type (metals, boron, silicon, ...) fall back to their Bondi radius;
-	ghost atoms ("Bq") always have radius zero.
-	"""
-	atomtypes = np.asarray(mol.ATOMTYPES, dtype=str)
-	if options.radii != "cpk":
-		table = radii_table(options.radii)
-		return np.array([table.get(atom, 2.0) for atom in atomtypes], dtype=float)
-	types = getattr(mol, "METADATA", {}).get(CPK_TYPE_KEY)
-	if types is None:  # structure parsed without the CPK hook (e.g. built by hand): type it now
-		types = ["" if t is None else t for t in cpk_types(atomtypes, mol.CARTESIANS)]
+def _cpk_radii(atomtypes, types):
 	radii = []
 	for atom, cpk_t in zip(atomtypes, types):
 		if atom == "Bq":
@@ -129,6 +117,29 @@ def atom_radii(mol, options):
 		else:
 			radii.append(bondi.get(atom, 2.0))
 	return np.array(radii, dtype=float)
+
+
+def for_atoms(atomtypes, coords, radii_set="bondi"):
+	"""Unscaled VDW radius of every atom of a complete structure for the given radii set
+	(CPK types are derived from the coordinates)."""
+	atomtypes = np.asarray(atomtypes, dtype=str)
+	if radii_set != "cpk":
+		table = radii_table(radii_set)
+		return np.array([table.get(atom, 2.0) for atom in atomtypes], dtype=float)
+	return _cpk_radii(atomtypes, ["" if t is None else t for t in cpk_types(atomtypes, coords)])
+
+
+def atom_radii(mol, options):
+	"""Unscaled VDW radius of every atom of `mol` for options.radii.
+
+	Elements without a CPK type (metals, boron, silicon, ...) fall back to their Bondi radius;
+	ghost atoms ("Bq") always have radius zero.
+	"""
+	atomtypes = np.asarray(mol.ATOMTYPES, dtype=str)
+	types = getattr(mol, "METADATA", {}).get(CPK_TYPE_KEY) if options.radii == "cpk" else None
+	if types is None:  # not CPK, or a structure parsed without the CPK hook (e.g. built by hand)
+		return for_atoms(atomtypes, mol.CARTESIANS, options.radii)
+	return _cpk_radii(atomtypes, types)
 
 
 def max_radius(atomtypes, options):

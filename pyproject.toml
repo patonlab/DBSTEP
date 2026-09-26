@@ -35,6 +35,8 @@ dependencies = [
 graph2d = ["rdkit", "pandas"]
 dev = ["pytest", "ruff", "pre-commit"]
 test = ["pytest"]
+# open-source PyMOL from PyPI (pre-release wheels, no 3.14 wheels yet) for the PyMOL plugin and its tests
+pymol = ["pymol-open-source>=3.1.0a0; python_version < '3.14'"]
 
 [project.urls]
 Homepage = "https://github.com/patonlab/DBSTEP"

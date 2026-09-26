@@ -16,11 +16,12 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `sterics.py` also holds `buried_vol_by_group` (per-residue %V_bur decomposition for `--decompose`)
   - `trajectory.py` — Frames of multi-structure files (`--frames` selection, frame counting)
   - `ensemble.py` — Boltzmann weighting over conformer ensembles (`--boltzmann`, `--energy-window`; energies from SDF data fields, xyz comments or QM outputs via cclib, pooled across single-structure files)
-  - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats)
+  - `parse_data.py` — Input file parsing (xyz, sdf/mol, pdb with residue metadata, cube, cclib-supported formats) and `Structure` for in-memory input (`from_coords`)
   - `constants.py` — Chemical constants (periodic table, Bondi/Charry-Tkatchenko/CPK radii, covalent radii, metals)
   - `cone.py` — Tolman cone angle, metal-centroid distance and ligand detection (`--cone`)
   - `radii.py` — Radius assignment per set; CPK atom typing from DFT-D3 coordination numbers (`--radii cpk`)
   - `graph.py` — 2D graph-based steric contribution calculations
+  - `pymol_plugin.py` — `dbstep_*` commands for PyMOL (selections in, CGO drawings out); importable without PyMOL for its pure helpers
   - `writer.py` — Output formatting and file writing (PyMOL scripts, xyz, CSV results)
   - `__init__.py` — Package init, `__version__`, `__all__`
   - `__main__.py` — Module entry point for `python -m dbstep`
@@ -40,6 +41,8 @@ DBSTEP (DFT-Based Steric Parameters) is a Python package for computing steric pa
   - `test_trajectory.py` — `--frames` parsing, per-frame runs on `ala5_traj.pdb`, multi-frame xyz, CSV time series
   - `test_decompose.py` — `--decompose` per-residue contributions: sums to %V_bur, overlap sharing, CLI/CSV
   - `test_qm_ensemble.py` — Boltzmann weighting over separate (gzipped) Gaussian outputs vs the wSterimol example, `--energy-window`, pooling rule
+  - `test_from_coords.py` — In-memory `Structure` input, `--decompose` from metadata, `rigid_transform` and `sterimol_vectors`
+  - `test_pymol_plugin.py` — The PyMOL plugin against headless `pymol-open-source` (skipped when PyMOL is missing; `uv sync --extra pymol`)
   - `test_examples.py` — Executes the code cells of `examples/proteins_and_conformers.ipynb`
   - `test_ensemble.py` — SDF data fields, Boltzmann weights/averages, CLI `--boltzmann` on `sdf_files/ether_conformers.sdf` (AQME output)
   - `cube_files/` — Test cube file fixtures (keep these small; use `benzene_coarse.cube` / `Ne_medium.cube` for new tests)
@@ -65,6 +68,11 @@ uv sync
 ### Install with dev tools
 ```
 uv sync --extra dev
+```
+
+### Install open-source PyMOL for the plugin tests (Python < 3.14)
+```
+uv sync --extra pymol
 ```
 
 ### Install extras for the analysis scripts (matplotlib, pandas, rdkit, tqdm)

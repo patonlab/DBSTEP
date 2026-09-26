@@ -189,3 +189,20 @@ def translate_dens(mol, options, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max, or
 	except Exception:
 		sys.exit("   WARNING! Unable to find an atom (e.g. metal) to set at the origin")
 	return [coords, cube_origin, xmin, xmax, ymin, ymax, zmin, zmax, xyz_max]
+
+
+def rigid_transform(source, target):
+	"""Rotation R and translation t with target = source @ R.T + t (Kabsch fit; exact for a rigid motion).
+
+	Used to map DBSTEP's aligned frame (atom1 at the origin, atom1-atom2 along z) back onto the input
+	coordinates: original = (aligned - t) @ R.
+	"""
+	source = np.asarray(source, dtype=float).reshape(-1, 3)
+	target = np.asarray(target, dtype=float).reshape(-1, 3)
+	source_centre, target_centre = source.mean(axis=0), target.mean(axis=0)
+	h = (source - source_centre).T @ (target - target_centre)
+	u, _, vt = np.linalg.svd(h)
+	d = np.sign(np.linalg.det(vt.T @ u.T)) or 1.0
+	rotation = vt.T @ np.diag([1.0, 1.0, d]) @ u.T
+	translation = target_centre - source_centre @ rotation.T
+	return rotation, translation
