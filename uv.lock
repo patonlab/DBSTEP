@@ -54,7 +54,7 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/54/eb9bfc647b19f2009dd5c7f5ec51c4e6ca831725f1aea7a993034f483147/contourpy-1.3.2.tar.gz", hash = "sha256:b6945942715a034c671b7fc54f9588126b0b8bf23db2696e3ca8328f3ff0ab54", size = 13466130, upload-time = "2025-04-15T17:47:53.79Z" }
 wheels = [
@@ -129,7 +129,7 @@ resolution-markers = [
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/58/01/1253e6698a07380cd31a736d248a3f2a50a7c88779a1813da27503cadc2a/contourpy-1.3.3.tar.gz", hash = "sha256:083e12155b210502d0bca491432bb04d56dc3432f95a979b429f2848c3dbe880", size = 13466174, upload-time = "2025-07-26T12:03:12.549Z" }
 wheels = [
@@ -237,6 +237,9 @@ graph2d = [
     { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "rdkit" },
 ]
+pymol = [
+    { name = "pymol-open-source", marker = "python_full_version < '3.14'" },
+]
 test = [
     { name = "pytest" },
 ]
@@ -256,13 +259,14 @@ requires-dist = [
     { name = "numpy" },
     { name = "pandas", marker = "extra == 'graph2d'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
+    { name = "pymol-open-source", marker = "python_full_version < '3.14' and extra == 'pymol'", specifier = ">=3.1.0a0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'test'" },
     { name = "rdkit", marker = "extra == 'graph2d'" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scipy" },
 ]
-provides-extras = ["graph2d", "dev", "test"]
+provides-extras = ["graph2d", "dev", "test", "pymol"]
 
 [package.metadata.requires-dev]
 analysis = [
@@ -286,7 +290,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -738,10 +742,10 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" } },
-    { name = "python-dateutil" },
-    { name = "pytz" },
-    { name = "tzdata" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "python-dateutil", marker = "python_full_version < '3.11'" },
+    { name = "pytz", marker = "python_full_version < '3.11'" },
+    { name = "tzdata", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/33/01/d40b85317f86cf08d853a4f495195c73815fdf205eef3993821720274518/pandas-2.3.3.tar.gz", hash = "sha256:e05e1af93b977f7eafa636d043f9f94c7ee3ac81af99c13508215942e64c993b", size = 4495223, upload-time = "2025-09-29T23:34:51.853Z" }
 wheels = [
@@ -807,9 +811,9 @@ resolution-markers = [
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" } },
-    { name = "python-dateutil" },
-    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "python-dateutil", marker = "python_full_version >= '3.11'" },
+    { name = "tzdata", marker = "(python_full_version >= '3.11' and sys_platform == 'emscripten') or (python_full_version >= '3.11' and sys_platform == 'win32')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2e/0c/b28ed414f080ee0ad153f848586d61d1878f91689950f037f976ce15f6c8/pandas-3.0.1.tar.gz", hash = "sha256:4186a699674af418f655dbd420ed87f50d56b4cd6603784279d9eef6627823c8", size = 4641901, upload-time = "2026-02-17T22:20:16.434Z" }
 wheels = [
@@ -1013,6 +1017,33 @@ wheels = [
 ]
 
 [[package]]
+name = "pymol-open-source"
+version = "3.2.0a0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' and python_full_version < '3.14'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/06/ac148be6b62841a1781dc84d1996b137b58ef4817b9db11f57283daaa877/pymol_open_source-3.2.0a0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:615e862f169f6f17b66d20f9edab521abb013de9b1142035fb3d0e63956891bd", size = 7359803, upload-time = "2025-09-09T00:51:04.277Z" },
+    { url = "https://files.pythonhosted.org/packages/52/72/804ef7484a87051d437072ca0c930075d32711a0950d1ba9b55888a4dad3/pymol_open_source-3.2.0a0-cp310-cp310-macosx_12_0_x86_64.whl", hash = "sha256:c4d195ff5bfcca8db70979adffb385cc8e97e8117ec13800e93f3822004a6f4f", size = 7626827, upload-time = "2025-08-04T14:39:42.851Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/6d/976be1405c1ead4514ddcc2b5306fe64e3630f5dec1dc2cc7e4e85276b2f/pymol_open_source-3.2.0a0-cp310-cp310-manylinux_2_35_x86_64.whl", hash = "sha256:878bcaba7ff18b8bf95707694379d3b85b0b1cd655ef5895c26babb6d2d38954", size = 31358062, upload-time = "2025-08-04T14:39:45.219Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/a4/8a369cc7e315b4e48026492254f8251414e255a5e6d8bd9d79481296c2a0/pymol_open_source-3.2.0a0-cp310-cp310-win_amd64.whl", hash = "sha256:302412feef55a4b921220c914c28c6e764e7ab9a02d8b47991a58e658fceb12b", size = 7278967, upload-time = "2025-08-04T14:39:47.888Z" },
+    { url = "https://files.pythonhosted.org/packages/52/da/52b5772ecd7a002d9e2072dc5fb31406b2534e58d272e4551e5326d4dc67/pymol_open_source-3.2.0a0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d7f0f24fdf15a4da37a6b196897ed3fef0ffca36d5404d07a79ae532202286b2", size = 7359805, upload-time = "2025-09-09T00:51:06.108Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/4e/617d3e2177e61c68b5e8cf2644ed474fd02f9828448e764003fbba797a59/pymol_open_source-3.2.0a0-cp311-cp311-macosx_12_0_x86_64.whl", hash = "sha256:d694136e0d90a9bbaa702dd412a09e23b84b5819fdfe69db098a177b6d9962b6", size = 7626821, upload-time = "2025-08-04T14:39:49.804Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/e8/5d5d400bd04264f2114c76b1843ce0fd17b3a50706d1862c4dec0920c691/pymol_open_source-3.2.0a0-cp311-cp311-manylinux_2_35_x86_64.whl", hash = "sha256:2cb05c1f0584014bf2fa1943388fee297f1e9953b2cdc80945735650822b5164", size = 31358077, upload-time = "2025-08-04T14:39:52.714Z" },
+    { url = "https://files.pythonhosted.org/packages/90/81/0bbea8ef94f2b1421f93be624bd69b538cb2bcaa3b7394857cd1284663ae/pymol_open_source-3.2.0a0-cp311-cp311-win_amd64.whl", hash = "sha256:b285e1c7c6165e57f0a137e3dfebd29074d48f14b28d9e386ca8e5dfbe98b8c2", size = 7279013, upload-time = "2025-08-04T14:39:55.053Z" },
+    { url = "https://files.pythonhosted.org/packages/98/bc/de878d01a4658d7c7ca986eb2114de2744bcbb0c9452ab554420fcd49877/pymol_open_source-3.2.0a0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:8246536c971c6d6ed426b6b39ce248d5df3635f7954e13044c0ce2743be7d89a", size = 7359871, upload-time = "2025-09-09T00:51:07.943Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/8d/718ab51af1b5a8500f2daa3aac353d1da324cb861f58cb8f7707b7517b3f/pymol_open_source-3.2.0a0-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:f7b0e58d5728abfd10c4abf7db88da6dee80a3929b051a3b5eececc717c258b5", size = 7628150, upload-time = "2025-08-04T14:39:56.976Z" },
+    { url = "https://files.pythonhosted.org/packages/04/df/82cb271593ce617a6355d330c31500a2f747eca4fadd0e5466ff3a69ae69/pymol_open_source-3.2.0a0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:6702a33ca3f23197d1ab026ecbdcc218472c9fcfe92782fdb146efcfc1c82601", size = 31358340, upload-time = "2025-08-04T14:39:59.009Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/75/8f07919b9a6e2d374711e33877395f371aafe8d283691969084f54f312fd/pymol_open_source-3.2.0a0-cp312-cp312-win_amd64.whl", hash = "sha256:b3d286c61efe65a8ee6c9974cc2aaeffc7250da3d2616f4cc91bcc824fa05a2a", size = 7279550, upload-time = "2025-08-04T14:40:02.12Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/74/536c009dd4a4b054f9485e8f7e3d4b70b143000ed2e3f15d4960f96151c8/pymol_open_source-3.2.0a0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:f87fd8d0ab9bf15c3c6a63c4e0cdd3b73142d1ac775a1e38cd82f926a07b4465", size = 7359861, upload-time = "2025-09-09T00:51:09.575Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/54/491e3b78883647f5c97439d65b52e21c705f68d5fc88613f5f1c90c723d9/pymol_open_source-3.2.0a0-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:6dcd27f0cba0a3557de4672f7d01ecb75f603ebf788180fc34f54c062d8c8616", size = 7628177, upload-time = "2025-08-04T14:40:03.722Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/58/d81900193b22758314a74190cf4ea313c055b759e8a66013f4e8bec24622/pymol_open_source-3.2.0a0-cp313-cp313-manylinux_2_35_x86_64.whl", hash = "sha256:7fab3a1d46be170b98e93680a006758a569196eca7d7c920fe9e096b27f4566e", size = 31358095, upload-time = "2025-08-04T14:40:05.609Z" },
+    { url = "https://files.pythonhosted.org/packages/59/7c/f6fffe36af45cfef497590ef4d8ab3335e83dc9a8cd289b9c7b39482c6be/pymol_open_source-3.2.0a0-cp313-cp313-win_amd64.whl", hash = "sha256:e080477c2381590f635ce90a29b82ce3be0d4e4cbad83bd66123313c7c7f608d", size = 7279595, upload-time = "2025-08-04T14:40:08.03Z" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1191,7 +1222,7 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0f/37/6964b830433e654ec7485e45a00fc9a27cf868d622838f6b6d9c5ec0d532/scipy-1.15.3.tar.gz", hash = "sha256:eae3cf522bc7df64b42cad3925c876e1b0b6c35c1337c93e12c0f366f55b0eaf", size = 59419214, upload-time = "2025-05-08T16:13:05.955Z" }
 wheels = [
@@ -1255,7 +1286,7 @@ resolution-markers = [
     "python_full_version >= '3.11' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822, upload-time = "2026-02-23T00:26:24.851Z" }
 wheels = [

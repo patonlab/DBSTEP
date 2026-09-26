@@ -206,6 +206,26 @@ If no atoms are specified, the first two atoms in the file will be used as refer
 
 `-b` adds the buried volume of the ligand around the metal, `--boltzmann` averages cone angles over conformers, and `--csv` writes `cone_angle` and `metal_centroid` columns. In Python the object carries `cone_angle`, `metal_centroid`, `cone_sectors` (half angle per sector) and `ligand_atoms`. For dimers or several metals, choose the centre with `--atom1`.
 
+### PyMOL plugin
+
+The same measurements are available inside PyMOL, on the structures you have open, with atoms picked by PyMOL selections and the results drawn on the molecule (this replaces the visual side of [wSterimol](https://github.com/patonlab/wsterimol)). Install DBSTEP into the Python that PyMOL uses (`pip install dbstep`; the open-source `pymol-open-source` wheel on PyPI works too), then in PyMOL or in your `.pymolrc`:
+
+```
+import dbstep.pymol_plugin
+```
+
+| Command | What it does |
+|---|---|
+| `dbstep_sterimol atom1, atom2 [, atom3, radii=bondi, measure=classic, selection=, name=sterimol]` | L, Bmin and Bmax from `atom1` along the `atom1`-`atom2` axis, drawn as a blue L axis and green/red Bmin/Bmax circles in the object's own frame |
+| `dbstep_vbur atom1 [, radius=3.5, radii=bondi, selection=, decompose=1]` | %V_bur in a sphere around `atom1`; with `decompose` every residue's B-factor is set to its contribution and the contributing residues are coloured white to red |
+| `dbstep_cone metal [, ligand, radii=cpk]` | Tolman cone angle, metal-centroid distance and the ligand's Sterimol parameters, drawn as a translucent cone plus the distance |
+| `dbstep_vdw object [, radii=bondi, scale=1.0]` | Translucent van der Waals copy `object_vdw` with DBSTEP's radii (Bondi, Charry-Tkatchenko or CPK atom types) |
+| `dbstep_ensemble files, atom1, atom2 [, radii, temperature, window, vbur=1]` | Boltzmann-weighted parameters over conformers (QM outputs or a multi-structure file), loaded into PyMOL with their populations as titles and a transparency that fades out minor conformers |
+| `dbstep_conformers folder [, pattern=*.pdb]` | Load every structure of a folder into one group |
+| `dbstep_style` | White background and light settings for figures |
+
+`selection` restricts the atoms that are measured; atoms named as `atom1`/`atom2` outside it are kept as zero-radius ghosts, so `dbstep_vbur /1a8o//A/186/CA, 3.5, polymer and not resi 186` measures the pocket around Thr186 without waters and without the residue itself. Every command returns the DBSTEP run object, so from the PyMOL Python prompt the full results (`results`, `contributions`, `cone_sectors`, ...) are available. From Python outside PyMOL the same in-memory route is `dbstep.Dbstep.from_coords(atoms, coords, ...)`.
+
 ### Examples
 A notebook covering the protein, trajectory and conformer-ensemble workflows is at `examples/proteins_and_conformers.ipynb`.
 

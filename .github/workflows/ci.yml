@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv python install ${{ matrix.python-version }}
-      - run: uv sync --extra test
+      - run: uv sync --extra test --extra pymol
       - run: uv run pytest
 
   lint:
