@@ -2,6 +2,19 @@
 
 All notable changes to DBSTEP. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+- SDF energy fields holding plain integers (a relative energy of `0`, rounded values) are accepted for `--boltzmann`; the integer guard now applies only to xyz comment lines.
+- `--nometals` removes metals through the same path as `--noH`: spec atoms are renumbered (a metal chosen as atom1 becomes a zero-radius ghost, keeping the Sterimol alignment) and per-atom metadata stays aligned, so `--decompose --nometals` works.
+- `--decompose` with a scan starting at R = 0 paired contributions with the wrong radius rows.
+- `--tensor --save` on multi-frame files or `--residue all` wrote every result to the same `.npy`; the frame index and residue are now part of the filename.
+- `all_frames(frames=...)` no longer changes the caller's options object; `frames=0` from Python selects frame 0 instead of all frames.
+- `--residue all --atom1 N` uses the named atom to pick residues (previously only `--atom` was consulted); a default atom2 can no longer coincide with atom1 (e.g. `--atom CB`), and an explicit coincidence is an error.
+
+### Added
+- `path` column (the input path as given) in `results`, the CSV and the contributions CSV, so same-named files from different folders stay distinguishable.
+
 ## 2.1.0 — 2026-09-25
 
 ### Added

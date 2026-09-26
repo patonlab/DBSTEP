@@ -156,11 +156,12 @@ def find_atom_by_name(mol, mask, name):
 	return int(hits[0]) + 1
 
 
-def resolve_spec_atom(mol, mask, value, default_names, what):
+def resolve_spec_atom(mol, mask, value, default_names, what, avoid=None):
 	"""Turn an atom given by name ('CA') or by 1-indexed file position ('12'/12) into a 1-indexed position.
 
 	Names are looked up within the selected residue(s). With `value` unset, the first of
-	`default_names` present in the residue is used. Returns (index, name_used).
+	`default_names` present in the residue (and different from the 1-indexed atom `avoid`) is used.
+	Returns (index, name_used).
 	"""
 	if value not in (False, None, ""):
 		try:
@@ -176,7 +177,7 @@ def resolve_spec_atom(mol, mask, value, default_names, what):
 		return index, mol.METADATA["name"][index - 1]
 	for name in default_names:
 		index = find_atom_by_name(mol, mask, name)
-		if index is not None:
+		if index is not None and index != avoid:
 			return index, name
 	present = ", ".join(dict.fromkeys(mol.METADATA["name"][mask]))
 	sys.exit(f"   Could not pick a default atom for {what} (tried {', '.join(default_names)}). Atoms present: {present}")
@@ -240,7 +241,9 @@ def apply_residue_selection(mol, options, verbose=False):
 		atom2_values = [atom2_values]
 	atom2, atom2_names = [], []
 	for value in atom2_values:
-		index, name = resolve_spec_atom(mol, first_mask, value, _DEFAULT_ATOM2, "atom2")
+		index, name = resolve_spec_atom(mol, first_mask, value, _DEFAULT_ATOM2, "atom2", avoid=atom1)
+		if index == atom1:
+			sys.exit(f"   atom2 ({name}) is the same atom as atom1 ({atom1_name}); the Sterimol axis needs two different atoms")
 		atom2.append(index)
 		atom2_names.append(name)
 	if options.sterimol and atom2_names == ["N"] and verbose:
@@ -302,13 +305,16 @@ def list_residues(mol, options):
 	peptide backbone) that contain the atom1 name, in file order; waters and other hetero groups
 	are skipped and --chain restricts the chains."""
 	_require_metadata(mol, "--residue all")
-	atom_name = options.atom if options.atom not in (False, None, "") else "CA"
+	# atom1 may be given as --atom or as --atom1; either must be a name in all-residue mode
+	atom_name = options.atom if options.atom not in (False, None, "") else options.spec_atom_1
+	if atom_name in (False, None, ""):
+		atom_name = "CA"
 	try:
 		int(atom_name)
 	except (TypeError, ValueError):
 		pass
 	else:
-		sys.exit("   With --residue all, --atom must be an atom name such as CA, not a file index")
+		sys.exit("   With --residue all, atom1 must be an atom name such as CA (--atom CA), not a file index")
 	meta = mol.METADATA
 	names = np.char.upper(meta["name"].astype(str))
 	polymer = (meta["record"] == "ATOM") | polymer_hetatm_mask(mol)

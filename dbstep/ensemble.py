@@ -44,6 +44,14 @@ def number_in_text(text):
 	return float(match.group(0)) if match else None
 
 
+def field_number(text):
+	"""Number in an SDF data field: the whole value as a float (so "0" and "12" work), else the first float in the text."""
+	try:
+		return float(str(text).strip())
+	except ValueError:
+		return number_in_text(text)
+
+
 def _label(run):
 	return run.structure_name or run.results[0]["file"] if run.results else str(run.file)
 
@@ -61,13 +69,13 @@ def energy_of(run, tag=None):
 		key = str(tag).strip().lower()
 		if key not in lowered:
 			sys.exit(f"   No <{tag}> data field for structure '{_label(run)}'. Fields present: {', '.join(properties) or 'none'}")
-		value = number_in_text(lowered[key])
+		value = field_number(lowered[key])
 		if value is None:
 			sys.exit(f"   Data field <{tag}> of structure '{_label(run)}' is not a number: {lowered[key]!r}")
 		return value
 	for candidate in ENERGY_TAGS:
 		if candidate in lowered:
-			value = number_in_text(lowered[candidate])
+			value = field_number(lowered[candidate])
 			if value is not None:
 				return value
 	if "comment" in lowered:
@@ -115,6 +123,7 @@ def boltzmann_average(runs, tag=None, temperature=298.15, units="kcal"):
 		first = runs[0].results[i]
 		row = {
 			"file": first["file"],
+			"path": first.get("path", ""),
 			"frame": "",
 			"structure": "boltzmann",
 			"residue": first["residue"],
